@@ -144,9 +144,10 @@
     {:else if party}
       <div class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div class="space-y-6">
-          <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <p class="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">Party-Raum</p>
-            <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div class="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <img src="/images/decor/lobby.png" alt="" aria-hidden="true" class="pointer-events-none absolute right-4 top-4 h-20 w-20 animate-decor-float object-contain opacity-90 sm:h-24 sm:w-24" />
+            <p class="relative z-10 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">Party-Raum</p>
+            <div class="relative z-10 mt-4 flex flex-col gap-4 pr-16 sm:pr-20 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h1 class="text-3xl font-semibold text-slate-950 sm:text-4xl">Code {party.code}</h1>
                 <p class="mt-3 max-w-xl text-base leading-7 text-slate-600">

@@ -38,6 +38,8 @@
   $: currentPlayerLost = Boolean(winnerId && loser?.id === currentPlayerId);
   $: alreadyRequestedRematch = requests.rematch.includes(currentPlayerId);
   $: alreadyRequestedNewGame = requests.newGame.includes(currentPlayerId);
+  $: endDecorImage = isDraw ? '/images/decor/lobby.png' : currentPlayerWon ? '/images/decor/winner.png' : currentPlayerLost ? '/images/decor/loser.png' : winner ? '/images/decor/winner.png' : '/images/decor/lobby.png';
+  $: endDecorLabel = isDraw ? 'Unentschieden' : currentPlayerWon ? 'Gewonnen' : currentPlayerLost ? 'Verloren' : 'Spiel beendet';
   $: sortedPlayers = [...players].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
   $: scoreRows = roundScores.length
     ? [...roundScores]
@@ -49,8 +51,11 @@
     : [];
 </script>
 
-<div class="animate-ui-pop-in rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-  <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+<div class="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm animate-ui-pop-in sm:p-8">
+  <span class="pointer-events-none absolute right-8 top-8 h-2 w-2 rounded-full bg-cyan-300 animate-decor-spark"></span>
+  <span class="pointer-events-none absolute right-20 top-20 h-2.5 w-2.5 rounded-full bg-amber-300 animate-decor-spark [animation-delay:320ms]"></span>
+  <span class="pointer-events-none absolute right-32 top-10 h-1.5 w-1.5 rounded-full bg-emerald-300 animate-decor-spark [animation-delay:640ms]"></span>
+  <div class="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
     <div>
       <p class="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">{title}</p>
       <h2 class="mt-3 text-3xl font-semibold text-slate-950">
@@ -71,6 +76,10 @@
       </p>
     </div>
 
+    <div class="relative mx-auto h-28 w-28 shrink-0 sm:h-32 sm:w-32 lg:mx-0">
+      <img src={endDecorImage} alt={endDecorLabel} class="h-full w-full animate-decor-pop object-contain" />
+    </div>
+
     {#if winner}
       <div class="flex min-w-40 items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
         <Trophy size={22} />
@@ -82,7 +91,7 @@
     {/if}
   </div>
 
-  <div class="mt-7 grid gap-6 lg:grid-cols-[1fr_1fr]">
+  <div class="relative z-10 mt-7 grid gap-6 lg:grid-cols-[1fr_1fr]">
     <div>
       {#if scoreRows.length}
         <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Rundenpunkte</h3>
@@ -150,7 +159,7 @@
   </div>
 
   {#if isHost}
-    <div class="mt-7 rounded-md border border-cyan-200 bg-cyan-50 p-4">
+    <div class="relative z-10 mt-7 rounded-md border border-cyan-200 bg-cyan-50 p-4">
       <p class="text-sm font-semibold text-cyan-950">Host-Entscheidung</p>
       <div class="mt-3 flex flex-col gap-3 sm:flex-row">
         <button type="button" on:click={onStartRematch} disabled={isLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-cyan-300">
@@ -165,3 +174,4 @@
     </div>
   {/if}
 </div>
+

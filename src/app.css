@@ -66,3 +66,43 @@ a {
   object-fit: cover;
   object-position: center;
 }
+@keyframes decor-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+
+@keyframes decor-pop {
+  0% { opacity: 0; transform: scale(0.78) rotate(-6deg); }
+  70% { opacity: 1; transform: scale(1.08) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes decor-spark {
+  0%, 100% { opacity: 0.35; transform: translateY(0) scale(0.86); }
+  50% { opacity: 1; transform: translateY(-5px) scale(1.08); }
+}
+
+.animate-decor-float {
+  animation: decor-float 4.2s ease-in-out infinite;
+}
+
+.animate-decor-pop {
+  animation: decor-pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-decor-spark {
+  animation: decor-spark 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ui-pop-in,
+  .animate-ui-soft-rise,
+  .animate-ttt-mark-in,
+  .animate-modal-in,
+  .animate-decor-float,
+  .animate-decor-pop,
+  .animate-decor-spark {
+    animation: none !important;
+  }
+}
+
