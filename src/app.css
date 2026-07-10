@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #172033;
+  background: #f7f9fc;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+a {
+  font: inherit;
+}
+@keyframes ui-pop-in {
+  0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ui-soft-rise {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ttt-mark-in {
+  0% { opacity: 0; transform: scale(0.72) rotate(var(--mark-rotate, 0deg)); }
+  70% { opacity: 1; transform: scale(1.08) rotate(var(--mark-rotate, 0deg)); }
+  100% { opacity: 1; transform: scale(1) rotate(var(--mark-rotate, 0deg)); }
+}
+
+@keyframes modal-in {
+  0% { opacity: 0; transform: translateY(18px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-ui-pop-in {
+  animation: ui-pop-in 220ms ease-out both;
+}
+
+.animate-ui-soft-rise {
+  animation: ui-soft-rise 300ms ease-out both;
+}
+
+.animate-ttt-mark-in {
+  animation: ttt-mark-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-modal-in {
+  animation: modal-in 240ms ease-out both;
+}
+
+.game-image-frame {
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.game-image-frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
