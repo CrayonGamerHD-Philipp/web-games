@@ -205,7 +205,7 @@
       <div class="mx-auto grid w-full max-w-[14rem] grid-cols-3 gap-1.5 justify-self-center sm:max-w-[18rem] sm:gap-2 lg:w-full">
         <div class="min-w-0">
           <p class="mb-1 text-center text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-slate-500 sm:text-xs">Stapel</p>
-          <PlayingCard size="sm" hidden value={null} disabled={!canDraw} label="Vom Nachziehstapel ziehen" on:click={() => onMove({ type: 'draw', source: 'deck' })} />
+          <PlayingCard size="sm" hidden value={null} disabled={!canDraw} label="Vom Nachziehstapel ziehen" on:activate={() => onMove({ type: 'draw', source: 'deck' })} />
         </div>
         <div class="min-w-0">
           <p class="mb-1 text-center text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-slate-500 sm:text-xs">Ablage</p>
@@ -215,7 +215,7 @@
             disabled={!canDraw || !topDiscard}
             draggable={canDraw && Boolean(topDiscard)}
             label="Von der Ablage nehmen"
-            on:click={() => onMove({ type: 'draw', source: 'discard' })}
+            on:activate={() => onMove({ type: 'draw', source: 'discard' })}
             on:dragstart={handleDiscardDragStart}
             on:dragend={handleDiscardDragEnd}
           />
@@ -230,7 +230,7 @@
             disabled={!canUseDrawnCard}
             draggable={canUseDrawnCard}
             label="Obere Karte zum Tauschen auswaehlen"
-            on:click={selectDrawnCard}
+            on:activate={selectDrawnCard}
             on:dragstart={handleDrawnDragStart}
             on:dragend={handleDrawnDragEnd}
           />
@@ -270,7 +270,7 @@
               revealDelayMs={isFinished && !slot.removed ? cardIndex * 70 : 0}
               disabled={slot.removed || isLoading || isFinished}
               label={`Deine Karte ${cardIndex + 1}`}
-              on:click={() => handleOwnCardClick(cardIndex)}
+              on:activate={() => handleOwnCardClick(cardIndex)}
               on:dragover={(event) => handleCardDragOver(event, cardIndex)}
               on:drop={(event) => handleCardDrop(event, cardIndex)}
             />
@@ -304,3 +304,4 @@
     </div>
   {/if}
 </div>
+

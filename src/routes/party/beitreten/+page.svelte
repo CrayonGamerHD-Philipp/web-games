@@ -1,11 +1,16 @@
 <script>
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { ArrowLeft, LoaderCircle, LogIn } from '@lucide/svelte';
 
   let code = '';
   let name = '';
   let error = '';
   let isSubmitting = false;
+
+  $: if ($page.url.searchParams.get('code') && !code) {
+    code = $page.url.searchParams.get('code') ?? '';
+  }
 
   $: cleanCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 
@@ -112,3 +117,4 @@
     </div>
   </section>
 </main>
+

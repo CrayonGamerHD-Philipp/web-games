@@ -71,7 +71,7 @@
   async function copyPartyLink() {
     if (!browser) return;
 
-    await navigator.clipboard.writeText(`${window.location.origin}/party/${code}`);
+    await navigator.clipboard.writeText(`${window.location.origin}/party/beitreten?code=${code}`);
     copiedLink = true;
     setTimeout(() => {
       copiedLink = false;
@@ -190,7 +190,7 @@
             {:else}
               <div class="mt-8 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 Dieses Geraet ist noch nicht als Spieler verbunden.
-                <a class="font-semibold underline underline-offset-2" href="/party/beitreten">Jetzt beitreten</a>
+                <a class="font-semibold underline underline-offset-2" href={`/party/beitreten?code=${code}`}>Jetzt beitreten</a>
               </div>
             {/if}
           </div>
@@ -299,3 +299,4 @@
     {/if}
   </section>
 </main>
+

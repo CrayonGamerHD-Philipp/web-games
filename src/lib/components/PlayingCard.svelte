@@ -1,4 +1,6 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
+
   /** @type {number | null} */
   export let value = null;
   /** @type {boolean} */
@@ -19,6 +21,9 @@
   export let size = 'md';
   /** @type {number} */
   export let revealDelayMs = 0;
+
+  const dispatch = createEventDispatcher();
+  let lastTouchActivation = 0;
 
   $: tone = value === null ? 'neutral' : value < 0 ? 'low' : value === 0 ? 'zero' : value >= 10 ? 'high' : 'mid';
   $: valueClass = tone === 'low'
@@ -41,6 +46,26 @@
           : 'from-slate-300 to-slate-200';
   $: valueSize = size === 'sm' ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl';
   $: cornerSize = size === 'sm' ? 'text-[0.58rem] sm:text-xs' : 'text-xs sm:text-sm';
+
+  /** @param {Event} event */
+  function activate(event) {
+    if (disabled) return;
+    dispatch('activate', event);
+  }
+
+  /** @param {PointerEvent} event */
+  function handlePointerUp(event) {
+    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    event.preventDefault();
+    lastTouchActivation = Date.now();
+    activate(event);
+  }
+
+  /** @param {MouseEvent} event */
+  function handleClick(event) {
+    if (Date.now() - lastTouchActivation < 650) return;
+    activate(event);
+  }
 </script>
 
 <button
@@ -48,8 +73,9 @@
   {disabled}
   {draggable}
   aria-label={label}
-  class="group relative aspect-[2.5/3.5] w-full min-w-0 touch-manipulation select-none rounded-xl transition duration-200 [perspective:900px] disabled:cursor-default {selected ? 'scale-[1.03]' : ''} {removed ? 'opacity-35' : ''} {dropTarget ? 'ring-4 ring-cyan-100' : ''}"
-  on:click
+  class="group relative aspect-[2.5/3.5] w-full min-w-0 touch-manipulation select-none rounded-xl transition duration-200 [perspective:900px] [-webkit-tap-highlight-color:transparent] disabled:cursor-default {selected ? 'scale-[1.03]' : ''} {removed ? 'opacity-35' : ''} {dropTarget ? 'ring-4 ring-cyan-100' : ''}"
+  on:pointerup={handlePointerUp}
+  on:click={handleClick}
   on:dragstart
   on:dragover
   on:drop
@@ -94,3 +120,4 @@
     </span>
   </span>
 </button>
+
