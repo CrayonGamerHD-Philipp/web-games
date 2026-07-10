@@ -4,7 +4,7 @@
   import { ArrowLeft, LoaderCircle, RotateCcw, Trophy } from '@lucide/svelte';
   import GameEndScreen from '$lib/components/GameEndScreen.svelte';
   import SkyjoBoard from '$lib/components/SkyjoBoard.svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
 
   /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player */
   /** @typedef {{ id: string, name: string, mark?: string }} GamePlayer */
@@ -19,6 +19,7 @@
   let isLoading = true;
   let isActionLoading = false;
   let playerId = '';
+  let renderNonce = 0;
   /** @type {EventSource | null} */
   let events = null;
 
@@ -33,6 +34,9 @@
   $: ticTacToeBoard = activeGame?.state.board ?? [];
   $: boardVersion = activeGame
     ? `${activeGame.id}:${ticTacToeBoard.join('|')}:${activeGame.state.currentPlayerId}:${activeGame.status}`
+    : '';
+  $: skyjoVersion = activeGame?.gameId === 'skyjo'
+    ? `${activeGame.id}:${JSON.stringify(/** @type {any} */ (activeGame).state)}:${JSON.stringify(activeGame.players)}:${renderNonce}`
     : '';
   $: gameScorePlayers = activeGame
     ? activeGame.players.map((gamePlayer) => {
@@ -55,17 +59,27 @@
   }
 
 
+  async function flushGameRender() {
+    renderNonce += 1;
+    await tick();
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        renderNonce += 1;
+      });
+    }
+  }
   function connectEvents() {
     events?.close();
     events = new EventSource(`/api/parties/${code}/events`);
 
-    events.addEventListener('party', (event) => {
+    events.addEventListener('party', async (event) => {
       const data = JSON.parse(event.data);
       party = data.party;
       error = '';
       gameError = '';
       isActionLoading = false;
       isLoading = false;
+      await flushGameRender();
     });
 
     events.addEventListener('error', () => {
@@ -98,6 +112,7 @@
       }
 
       party = data.party;
+      await flushGameRender();
     } catch {
       gameError = 'Die Spielaktion konnte nicht ausgefuehrt werden.';
     } finally {
@@ -263,7 +278,9 @@
 
           {#if activeGame.gameId === 'skyjo'}
             <div class="mt-3">
-              <SkyjoBoard game={/** @type {any} */ (activeGame)} currentPlayerId={playerId} isLoading={isActionLoading} onMove={sendSkyjoMove} />
+              {#key skyjoVersion}
+                <SkyjoBoard game={/** @type {any} */ (activeGame)} currentPlayerId={playerId} isLoading={isActionLoading} onMove={sendSkyjoMove} />
+              {/key}
             </div>
           {:else if activeGame.status === 'finished'}
             <div class="mt-8">
@@ -382,3 +399,4 @@
     {/if}
   </section>
 </main>
+
