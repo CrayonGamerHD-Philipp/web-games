@@ -1,4 +1,3 @@
-import { createNochMalSoGutSession, makeNochMalSoGutMove, nochMalSoGutGame } from '../../../games/noch-mal-so-gut/server.js';
 import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/skyjo/server.js';
 import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
@@ -32,11 +31,6 @@ const gameHandlers = [
         playerId,
         move
       )
-  },
-  {
-    definition: nochMalSoGutGame,
-    createSession: createNochMalSoGutSession,
-    applyMove: makeNochMalSoGutMove
   }
 ];
 
@@ -55,6 +49,7 @@ export function getGame(gameId) {
 /**
  * @param {unknown} gameId
  * @param {{ id: string, name: string }[]} players
+ * @param {Record<string, unknown>} [options]
  */
 export function createGameSession(gameId, players, options = {}) {
   const handler = getGameHandler(gameId);
@@ -82,4 +77,3 @@ export function applyGameMove(gameId, session, playerId, move) {
   const applyMove = /** @type {(session: unknown, playerId: string, move: { cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown }) => { session?: unknown, error?: string }} */ (handler.applyMove);
   return applyMove(session, playerId, move);
 }
-

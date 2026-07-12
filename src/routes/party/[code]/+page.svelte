@@ -242,18 +242,6 @@
                   </select>
                 </label>
 
-                {#if selectedGameId === 'skyjo'}
-                  <label class="rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
-                    <span class="flex items-start gap-3">
-                      <input type="checkbox" bind:checked={skyjoPlayToHundred} class="mt-1 h-4 w-4 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500" />
-                      <span>
-                        <span class="block font-semibold">Skyjo bis 100 Gesamtpunkte</span>
-                        <span class="mt-1 block leading-5 text-cyan-800">Rundenpunkte werden addiert. Sobald jemand 100 erreicht, gewinnt der niedrigste Gesamtstand.</span>
-                      </span>
-                    </span>
-                  </label>
-                {/if}
-
                 <button
                   type="button"
                   on:click={startSelectedGame}
@@ -268,6 +256,18 @@
                     Spiel starten
                   {/if}
                 </button>
+
+                {#if selectedGameId === 'skyjo'}
+                  <label class="rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 sm:col-span-2">
+                    <span class="flex items-start gap-3">
+                      <input type="checkbox" bind:checked={skyjoPlayToHundred} class="mt-1 h-4 w-4 shrink-0 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500" />
+                      <span class="min-w-0">
+                        <span class="block font-semibold">Skyjo bis 100 Gesamtpunkte</span>
+                        <span class="mt-1 block leading-5 text-cyan-800">Rundenpunkte werden addiert. Sobald jemand 100 erreicht, gewinnt der niedrigste Gesamtstand.</span>
+                      </span>
+                    </span>
+                  </label>
+                {/if}
               </div>
 
               {#if !canStartSelectedGame}

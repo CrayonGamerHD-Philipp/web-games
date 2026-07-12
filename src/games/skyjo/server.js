@@ -152,20 +152,8 @@ function maybeStartRunningPhase(session) {
 
   if (!allReady) return;
 
-  let highestScore = -Infinity;
-  let startPlayerId = session.players[0]?.id ?? null;
-
-  for (const player of session.players) {
-    const score = visibleScore(player);
-
-    if (score > highestScore) {
-      highestScore = score;
-      startPlayerId = player.id;
-    }
-  }
-
   session.state.phase = 'running';
-  session.state.currentPlayerId = startPlayerId;
+  session.state.currentPlayerId = session.players[0]?.id ?? null;
 }
 
 /** @param {SkyjoSession} session */
