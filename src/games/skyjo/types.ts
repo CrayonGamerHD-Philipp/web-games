@@ -28,12 +28,18 @@ export interface SkyjoScoreEntry {
   score: number;
 }
 
+export interface SkyjoRoundHistoryEntry {
+  round: number;
+  scores: SkyjoScoreEntry[];
+}
+
 export interface SkyjoMatch {
   enabled: boolean;
   targetScore: number;
   round: number;
   totalScores: SkyjoScoreEntry[];
   lastRoundScores: SkyjoScoreEntry[];
+  roundHistory: SkyjoRoundHistoryEntry[];
   matchFinished: boolean;
   winnerIds: string[];
 }

@@ -8,7 +8,8 @@
   /** @typedef {{ playerId: string, score: number }} RoundScore */
   /** @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoCardSlot */
   /** @typedef {{ playerId: string, playerName: string, cards: SkyjoCardSlot[] }} SkyjoBoard */
-  /** @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: RoundScore[], lastRoundScores?: RoundScore[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch */
+  /** @typedef {{ round: number, scores: RoundScore[] }} SkyjoRoundHistoryEntry */
+  /** @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: RoundScore[], lastRoundScores?: RoundScore[], roundHistory?: SkyjoRoundHistoryEntry[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch */
 
   /** @type {GameResult} */
   export let result = { status: 'cancelled', title: 'Spiel beendet' };
@@ -71,6 +72,11 @@
     : [];
   $: skyjoMatch = getSkyjoMatch(result.metadata);
   $: skyjoBoards = getSkyjoBoards(result.metadata);
+  $: skyjoHistoryPlayers = skyjoMatch?.totalScores
+    ? skyjoMatch.totalScores.map((score) => players.find((player) => player.id === score.playerId) ?? { id: score.playerId, name: 'Spieler' })
+    : [];
+  $: skyjoRoundHistory = skyjoMatch?.roundHistory ?? [];
+  $: skyjoHistoryGridStyle = `grid-template-columns: 4.5rem repeat(${Math.max(skyjoHistoryPlayers.length, 1)}, minmax(4.5rem, 1fr));`;
   $: skyjoRows = skyjoMatch?.totalScores
     ? [...skyjoMatch.totalScores]
         .map((totalScore) => ({
@@ -81,6 +87,14 @@
         }))
         .sort((a, b) => a.total - b.total || a.lastRound - b.lastRound || (a.player?.name ?? '').localeCompare(b.player?.name ?? ''))
     : [];
+
+  /**
+   * @param {SkyjoRoundHistoryEntry} round
+   * @param {string} playerId
+   */
+  function scoreForRound(round, playerId) {
+    return round.scores.find((score) => score.playerId === playerId)?.score ?? '-';
+  }
 </script>
 
 <div class="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm animate-ui-pop-in sm:p-8">
@@ -150,6 +164,26 @@
         </div>
       {/each}
     </div>
+    {#if skyjoRoundHistory.length && skyjoHistoryPlayers.length}
+      <div class="mt-4 overflow-x-auto rounded-md border border-cyan-200 bg-white">
+        <div class="min-w-[32rem]">
+          <div class="grid bg-cyan-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-950" style={skyjoHistoryGridStyle}>
+            <span>Runde</span>
+            {#each skyjoHistoryPlayers as player (player.id)}
+              <span class="truncate text-right">{player.name}</span>
+            {/each}
+          </div>
+          {#each skyjoRoundHistory as round (round.round)}
+            <div class="grid items-center border-t border-cyan-100 px-3 py-2 text-sm" style={skyjoHistoryGridStyle}>
+              <span class="font-semibold text-cyan-900">{round.round}</span>
+              {#each skyjoHistoryPlayers as player (player.id)}
+                <span class="text-right font-semibold text-slate-800">{scoreForRound(round, player.id)}</span>
+              {/each}
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
 {/if}
 <div class="relative z-10 mt-7 grid gap-6 lg:grid-cols-[1fr_1fr]">

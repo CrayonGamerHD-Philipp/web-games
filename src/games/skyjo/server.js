@@ -3,7 +3,8 @@
  * @typedef {{ id: string, value: number }} SkyjoCard
  * @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoSlot
  * @typedef {{ id: string, name: string, grid: SkyjoSlot[], roundScore: number }} SkyjoPlayer
- * @typedef {{ enabled: boolean, targetScore: number, round: number, totalScores: { playerId: string, score: number }[], lastRoundScores: { playerId: string, score: number }[], matchFinished: boolean, winnerIds: string[] }} SkyjoMatch
+ * @typedef {{ round: number, scores: { playerId: string, score: number }[] }} SkyjoRoundHistoryEntry
+ * @typedef {{ enabled: boolean, targetScore: number, round: number, totalScores: { playerId: string, score: number }[], lastRoundScores: { playerId: string, score: number }[], roundHistory: SkyjoRoundHistoryEntry[], matchFinished: boolean, winnerIds: string[] }} SkyjoMatch
  * @typedef {{ phase: 'setup' | 'running' | 'final-turns' | 'finished', deck: SkyjoCard[], discardPile: SkyjoCard[], currentPlayerId: string | null, drawnCard: SkyjoCard | null, drawnFrom: 'deck' | 'discard' | null, winnerId: string | null, isDraw: boolean, finalTriggerPlayerId: string | null, remainingFinalPlayerIds: string[], roundScores: { playerId: string, score: number }[], match?: SkyjoMatch }} SkyjoState
  * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: SkyjoPlayer[], state: SkyjoState }} SkyjoSession
  * @typedef {{ playToHundred?: boolean, previousMatch?: SkyjoMatch | null }} SkyjoSessionOptions
@@ -21,7 +22,7 @@ export const skyjoGame = {
 
 /**
  * @param {BasicPlayer[]} players
- * @param {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] } | null | undefined} previousMatch
+ * @param {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], roundHistory?: SkyjoRoundHistoryEntry[], matchFinished?: boolean, winnerIds?: string[] } | null | undefined} previousMatch
  */
 function createMatch(players, previousMatch) {
   const enabled = Boolean(previousMatch?.enabled);
@@ -34,6 +35,7 @@ function createMatch(players, previousMatch) {
       score: previousMatch?.totalScores?.find((entry) => entry.playerId === player.id)?.score ?? 0
     })),
     lastRoundScores: previousMatch?.lastRoundScores ?? [],
+    roundHistory: previousMatch?.roundHistory ?? [],
     matchFinished: false,
     winnerIds: []
   };
@@ -233,6 +235,7 @@ function finishGame(session) {
   if (session.state.match?.enabled) {
     const match = session.state.match;
     match.lastRoundScores = rawScores;
+    match.roundHistory = [...(match.roundHistory ?? []), { round: match.round, scores: rawScores }];
     match.totalScores = match.totalScores.map((total) => ({
       ...total,
       score: total.score + (rawScores.find((round) => round.playerId === total.playerId)?.score ?? 0)
