@@ -1,4 +1,4 @@
-﻿import { createNochMalSoGutSession, makeNochMalSoGutMove, nochMalSoGutGame } from '../../../games/noch-mal-so-gut/server.js';
+import { createNochMalSoGutSession, makeNochMalSoGutMove, nochMalSoGutGame } from '../../../games/noch-mal-so-gut/server.js';
 import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/skyjo/server.js';
 import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
@@ -56,14 +56,14 @@ export function getGame(gameId) {
  * @param {unknown} gameId
  * @param {{ id: string, name: string }[]} players
  */
-export function createGameSession(gameId, players) {
+export function createGameSession(gameId, players, options = {}) {
   const handler = getGameHandler(gameId);
 
   if (!handler) {
     return { error: 'Dieses Spiel ist nicht verfuegbar.' };
   }
 
-  return handler.createSession(players);
+  return handler.createSession(players, options);
 }
 
 /**

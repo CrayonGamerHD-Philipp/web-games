@@ -1,8 +1,9 @@
-﻿import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
+import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
 
 /**
  * @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player
- * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark: string }[], state: { board: (string | null)[], currentPlayerId: string | null, winnerId: string | null, winningLine: number[], isDraw: boolean }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean }} ActiveGame
+ * @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch
+ * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean }} ActiveGame
  * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null }} Party
  * @typedef {{ parties: Map<string, Party>, listeners: Map<string, Set<(party: ReturnType<typeof publicParty>) => void>> }} Store
  */
@@ -245,7 +246,7 @@ export function getParty(code) {
  * @param {unknown} playerId
  * @param {unknown} gameId
  */
-export function startGame(code, playerId, gameId) {
+export function startGame(code, playerId, gameId, settings = {}) {
   const cleanCode = normalizeCode(code);
   const party = store.parties.get(cleanCode);
 
@@ -269,7 +270,7 @@ export function startGame(code, playerId, gameId) {
     return { status: 400, error: `${game.name} braucht mindestens ${game.minPlayers} Spieler.` };
   }
 
-  const session = createGameSession(game.id, party.players);
+  const session = createGameSession(game.id, party.players, settings);
 
   if ('error' in session) {
     return { status: 400, error: session.error };
@@ -307,6 +308,23 @@ export function restartGame(code, playerId) {
 
   if (!gameId) {
     return { status: 400, error: 'Es laeuft noch kein Spiel.' };
+  }
+
+  if (gameId === 'skyjo' && party.activeGame?.state.match?.enabled && !party.activeGame.state.match.matchFinished) {
+    const session = createGameSession(gameId, party.players, { previousMatch: party.activeGame.state.match });
+
+    if ('error' in session) {
+      return { status: 400, error: session.error };
+    }
+
+    party.activeGame = {
+      ...session,
+      requests: { rematch: [], newGame: [] },
+      scoreAwarded: false
+    };
+    notifyParty(party);
+
+    return { party: publicParty(party) };
   }
 
   return startGame(code, getHost(party)?.id, gameId);
@@ -407,3 +425,4 @@ export function makeMove(code, playerId, move) {
 
   return { party: publicParty(activeParty) };
 }
+

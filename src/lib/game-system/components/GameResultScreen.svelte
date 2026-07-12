@@ -5,6 +5,7 @@
   /** @typedef {{ status: 'won' | 'lost' | 'draw' | 'cancelled', winnerId?: string, winnerName?: string, title?: string, message?: string, score?: number, metadata?: Record<string, unknown> }} GameResult */
   /** @typedef {{ rematch: string[], newGame: string[] }} EndRequests */
   /** @typedef {{ playerId: string, score: number }} RoundScore */
+  /** @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: RoundScore[], lastRoundScores?: RoundScore[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch */
 
   /** @type {GameResult} */
   export let result = { status: 'cancelled', title: 'Spiel beendet' };
@@ -29,6 +30,16 @@
   /** @type {() => void} */
   export let onRequestNewGame = () => {};
 
+  /**
+   * @param {Record<string, unknown> | undefined} metadata
+   * @returns {SkyjoMatch | null}
+   */
+  function getSkyjoMatch(metadata) {
+    const value = metadata?.skyjoMatch;
+    if (!value || typeof value !== 'object') return null;
+    return /** @type {SkyjoMatch} */ (value);
+  }
+
   $: winner = players.find((player) => player.id === result.winnerId);
   $: currentPlayerWon = result.winnerId === currentPlayerId;
   $: currentPlayerLost = Boolean(result.winnerId && result.winnerId !== currentPlayerId);
@@ -45,6 +56,17 @@
           player: players.find((player) => player.id === roundScore.playerId)
         }))
         .sort((a, b) => a.score - b.score)
+    : [];
+  $: skyjoMatch = getSkyjoMatch(result.metadata);
+  $: skyjoRows = skyjoMatch?.totalScores
+    ? [...skyjoMatch.totalScores]
+        .map((totalScore) => ({
+          playerId: totalScore.playerId,
+          total: totalScore.score,
+          lastRound: skyjoMatch.lastRoundScores?.find((roundScore) => roundScore.playerId === totalScore.playerId)?.score ?? 0,
+          player: players.find((player) => player.id === totalScore.playerId)
+        }))
+        .sort((a, b) => a.total - b.total || a.lastRound - b.lastRound || (a.player?.name ?? '').localeCompare(b.player?.name ?? ''))
     : [];
 </script>
 
@@ -85,7 +107,39 @@
     {/if}
   </div>
 
-  <div class="relative z-10 mt-7 grid gap-6 lg:grid-cols-[1fr_1fr]">
+  {#if skyjoRows.length}
+  <div class="relative z-10 mt-7 rounded-lg border border-cyan-200 bg-cyan-50 p-4">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-800">Skyjo Gesamtstand</h3>
+        <p class="mt-1 text-sm text-cyan-900">
+          Ziel: {skyjoMatch?.targetScore ?? 100} Punkte. Niedrigster Gesamtstand gewinnt, sobald mindestens ein Spieler das Ziel erreicht.
+        </p>
+      </div>
+      <span class="rounded-md bg-white px-3 py-1 text-sm font-semibold text-cyan-900 ring-1 ring-cyan-200">
+        {skyjoMatch?.matchFinished ? 'Match beendet' : 'Naechste Runde'}
+      </span>
+    </div>
+
+    <div class="mt-4 overflow-hidden rounded-md border border-cyan-200 bg-white">
+      <div class="grid grid-cols-[3rem_minmax(0,1fr)_5rem_5rem] bg-cyan-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-950">
+        <span>Rang</span>
+        <span>Spieler</span>
+        <span class="text-right">Runde</span>
+        <span class="text-right">Total</span>
+      </div>
+      {#each skyjoRows as row, index (row.playerId)}
+        <div class="grid grid-cols-[3rem_minmax(0,1fr)_5rem_5rem] items-center border-t border-cyan-100 px-3 py-2 text-sm">
+          <span class="font-semibold text-cyan-900">{index + 1}</span>
+          <span class="truncate font-semibold text-slate-950">{row.player?.name ?? 'Spieler'}</span>
+          <span class="text-right text-slate-600">{row.lastRound}</span>
+          <span class="text-right font-bold text-slate-950">{row.total}</span>
+        </div>
+      {/each}
+    </div>
+  </div>
+{/if}
+<div class="relative z-10 mt-7 grid gap-6 lg:grid-cols-[1fr_1fr]">
     <div>
       {#if scoreRows.length}
         <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Rundenpunkte</h3>
@@ -149,7 +203,7 @@
       <div class="mt-3 flex flex-col gap-3 sm:flex-row">
         <button type="button" on:click={onPlayAgain} disabled={isLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-cyan-300">
           <RotateCcw size={18} />
-          Erneut spielen
+          {skyjoMatch?.enabled && !skyjoMatch?.matchFinished ? 'Naechste Runde starten' : 'Erneut spielen'}
         </button>
         <button type="button" on:click={onBackToGames} disabled={isLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-emerald-300">
           <Gamepad2 size={18} />
@@ -159,3 +213,4 @@
     </div>
   {/if}
 </div>
+

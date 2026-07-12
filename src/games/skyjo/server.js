@@ -1,10 +1,12 @@
-﻿/**
+/**
  * @typedef {{ id: string, name: string }} BasicPlayer
  * @typedef {{ id: string, value: number }} SkyjoCard
  * @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoSlot
  * @typedef {{ id: string, name: string, grid: SkyjoSlot[], roundScore: number }} SkyjoPlayer
- * @typedef {{ phase: 'setup' | 'running' | 'final-turns' | 'finished', deck: SkyjoCard[], discardPile: SkyjoCard[], currentPlayerId: string | null, drawnCard: SkyjoCard | null, drawnFrom: 'deck' | 'discard' | null, winnerId: string | null, isDraw: boolean, finalTriggerPlayerId: string | null, remainingFinalPlayerIds: string[], roundScores: { playerId: string, score: number }[] }} SkyjoState
+ * @typedef {{ enabled: boolean, targetScore: number, round: number, totalScores: { playerId: string, score: number }[], lastRoundScores: { playerId: string, score: number }[], matchFinished: boolean, winnerIds: string[] }} SkyjoMatch
+ * @typedef {{ phase: 'setup' | 'running' | 'final-turns' | 'finished', deck: SkyjoCard[], discardPile: SkyjoCard[], currentPlayerId: string | null, drawnCard: SkyjoCard | null, drawnFrom: 'deck' | 'discard' | null, winnerId: string | null, isDraw: boolean, finalTriggerPlayerId: string | null, remainingFinalPlayerIds: string[], roundScores: { playerId: string, score: number }[], match?: SkyjoMatch }} SkyjoState
  * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: SkyjoPlayer[], state: SkyjoState }} SkyjoSession
+ * @typedef {{ playToHundred?: boolean, previousMatch?: SkyjoMatch | null }} SkyjoSessionOptions
  */
 
 export const skyjoGame = {
@@ -16,6 +18,34 @@ export const skyjoGame = {
   maxPlayers: 8
 };
 
+
+/**
+ * @param {BasicPlayer[]} players
+ * @param {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] } | null | undefined} previousMatch
+ */
+function createMatch(players, previousMatch) {
+  const enabled = Boolean(previousMatch?.enabled);
+  return {
+    enabled,
+    targetScore: Number(previousMatch?.targetScore ?? 100),
+    round: enabled ? Number(previousMatch?.round ?? 0) + 1 : 1,
+    totalScores: players.map((player) => ({
+      playerId: player.id,
+      score: previousMatch?.totalScores?.find((entry) => entry.playerId === player.id)?.score ?? 0
+    })),
+    lastRoundScores: previousMatch?.lastRoundScores ?? [],
+    matchFinished: false,
+    winnerIds: []
+  };
+}
+
+/**
+ * @param {{ playerId: string, score: number }[]} scores
+ */
+function lowestScoreWinnerIds(scores) {
+  const lowest = Math.min(...scores.map((score) => score.score));
+  return scores.filter((score) => score.score === lowest).map((score) => score.playerId);
+}
 const cardDistribution = new Map([
   [-2, 5],
   [-1, 10],
@@ -205,24 +235,47 @@ function finishGame(session) {
     triggerScore.score *= 2;
   }
 
-  const lowest = Math.min(...rawScores.map((score) => score.score));
-  const winners = rawScores.filter((score) => score.score === lowest);
-
-  session.status = 'finished';
-  session.state.phase = 'finished';
   session.state.roundScores = rawScores;
-  session.state.winnerId = winners.length === 1 ? winners[0].playerId : null;
-  session.state.isDraw = winners.length !== 1;
   session.state.currentPlayerId = null;
   session.state.drawnCard = null;
   session.state.drawnFrom = null;
+  session.state.phase = 'finished';
+  session.status = 'finished';
+
+  if (session.state.match?.enabled) {
+    const match = session.state.match;
+    match.lastRoundScores = rawScores;
+    match.totalScores = match.totalScores.map((total) => ({
+      ...total,
+      score: total.score + (rawScores.find((round) => round.playerId === total.playerId)?.score ?? 0)
+    }));
+
+    const reachedTarget = match.totalScores.some((score) => score.score >= match.targetScore);
+    if (reachedTarget) {
+      match.matchFinished = true;
+      match.winnerIds = lowestScoreWinnerIds(match.totalScores);
+      session.state.winnerId = match.winnerIds.length === 1 ? match.winnerIds[0] : null;
+      session.state.isDraw = match.winnerIds.length !== 1;
+      return;
+    }
+
+    match.matchFinished = false;
+    match.winnerIds = [];
+    session.state.winnerId = null;
+    session.state.isDraw = false;
+    return;
+  }
+
+  const roundWinnerIds = lowestScoreWinnerIds(rawScores);
+  session.state.winnerId = roundWinnerIds.length === 1 ? roundWinnerIds[0] : null;
+  session.state.isDraw = roundWinnerIds.length !== 1;
 }
 
 /**
  * @param {BasicPlayer[]} players
  * @returns {SkyjoSession | { error: string }}
  */
-export function createSkyjoSession(players) {
+export function createSkyjoSession(players, options = /** @type {SkyjoSessionOptions} */ ({})) {
   const selectedPlayers = players.slice(0, skyjoGame.maxPlayers);
 
   if (selectedPlayers.length < skyjoGame.minPlayers) {
@@ -275,7 +328,8 @@ export function createSkyjoSession(players) {
       isDraw: false,
       finalTriggerPlayerId: null,
       remainingFinalPlayerIds: [],
-      roundScores: []
+      roundScores: [],
+      match: createMatch(selectedPlayers, options.previousMatch ?? (options.playToHundred ? { enabled: true, targetScore: 100, round: 0, totalScores: [] } : null))
     }
   };
 }

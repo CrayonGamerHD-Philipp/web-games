@@ -1,4 +1,4 @@
-﻿<script>
+<script>
   import { ArrowLeft, LoaderCircle, RotateCcw, Trophy } from '@lucide/svelte';
   import { getGameDefinition } from '../../../games/registry';
   import GameResultScreen from './GameResultScreen.svelte';
@@ -6,7 +6,7 @@
   /** @typedef {{ id: string, name: string, score: number, isHost?: boolean }} Player */
   /** @typedef {{ id: string, name: string, mark?: string }} GamePlayer */
   /** @typedef {import('../types').GameResult} GameResult */
-  /** @typedef {{ winnerId?: string | null, isDraw?: boolean, currentPlayerId?: string | null, roundScores?: { playerId: string, score: number }[] }} ActiveGameState */
+  /** @typedef {{ winnerId?: string | null, isDraw?: boolean, currentPlayerId?: string | null, roundScores?: { playerId: string, score: number }[], match?: { enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] } }} ActiveGameState */
   /** @typedef {{ id: string, gameId: string, name: string, status: string, players: GamePlayer[], state: ActiveGameState, requests: { rematch: string[], newGame: string[] } }} ActiveGame */
 
   /** @type {string} */
@@ -73,16 +73,29 @@
       game?.state.isDraw ? 'draw' : game?.state.winnerId === playerId ? 'won' : game?.state.winnerId ? 'lost' : 'cancelled'
     );
 
+    const match = game?.state.match;
+    const matchLeaderNames = match?.winnerIds?.length
+      ? match.winnerIds
+          .map((winnerId) => game?.players.find((player) => player.id === winnerId)?.name)
+          .filter(Boolean)
+          .join(', ')
+      : winnerName;
+
     return {
       status,
       winnerId: game?.state.winnerId ?? undefined,
-      winnerName,
-      title: game?.name ?? 'Spiel beendet',
-      message: game?.state.isDraw
-        ? 'Das Spiel endet unentschieden. Der Host entscheidet, wie es weitergeht.'
-        : winnerName
-          ? `${winnerName} hat gewonnen. Danach kann eine Revanche oder ein neues Spiel angefragt werden.`
-          : 'Die Runde wurde beendet.'
+      winnerName: matchLeaderNames || winnerName,
+      title: match?.enabled && !match.matchFinished ? `Skyjo Runde ${match.round} beendet` : game?.name ?? 'Spiel beendet',
+      message: match?.enabled
+        ? match.matchFinished
+          ? `${matchLeaderNames} gewinnt das Match mit dem niedrigsten Gesamtstand.`
+          : `Zwischenstand nach Runde ${match.round ?? 1}. Der Host kann die naechste Runde starten.`
+        : game?.state.isDraw
+          ? 'Das Spiel endet unentschieden. Der Host entscheidet, wie es weitergeht.'
+          : winnerName
+            ? `${winnerName} hat gewonnen. Danach kann eine Revanche oder ein neues Spiel angefragt werden.`
+            : 'Die Runde wurde beendet.',
+      metadata: match?.enabled ? { skyjoMatch: match } : undefined
     };
   }
 
@@ -246,6 +259,4 @@
     </aside>
   </div>
 {/if}
-
-
 

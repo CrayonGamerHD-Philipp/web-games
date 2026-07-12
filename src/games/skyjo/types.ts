@@ -23,6 +23,21 @@ export interface SkyjoPlayer {
   roundScore: number;
 }
 
+export interface SkyjoScoreEntry {
+  playerId: string;
+  score: number;
+}
+
+export interface SkyjoMatch {
+  enabled: boolean;
+  targetScore: number;
+  round: number;
+  totalScores: SkyjoScoreEntry[];
+  lastRoundScores: SkyjoScoreEntry[];
+  matchFinished: boolean;
+  winnerIds: string[];
+}
+
 export interface SkyjoState {
   phase: 'setup' | 'running' | 'final-turns' | 'finished';
   deck: SkyjoCard[];
@@ -34,7 +49,8 @@ export interface SkyjoState {
   isDraw: boolean;
   finalTriggerPlayerId: string | null;
   remainingFinalPlayerIds: string[];
-  roundScores: { playerId: string; score: number }[];
+  roundScores: SkyjoScoreEntry[];
+  match?: SkyjoMatch;
 }
 
 export interface SkyjoSession {
@@ -46,3 +62,4 @@ export interface SkyjoSession {
   players: SkyjoPlayer[];
   state: SkyjoState;
 }
+
