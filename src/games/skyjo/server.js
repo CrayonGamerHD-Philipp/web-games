@@ -153,9 +153,20 @@ function maybeStartRunningPhase(session) {
   const allReady = session.players.every((player) => player.grid.filter((slot) => slot.revealed).length >= 2);
 
   if (!allReady) return;
+  let highestScore = -Infinity;
+  let startPlayerId = session.players[0]?.id ?? null;
+
+  for (const player of session.players) {
+    const score = player.grid.reduce((sum, slot) => sum + (slot.revealed && !slot.removed ? slot.value ?? 0 : 0), 0);
+
+    if (score > highestScore) {
+      highestScore = score;
+      startPlayerId = player.id;
+    }
+  }
 
   session.state.phase = 'running';
-  session.state.currentPlayerId = session.players[0]?.id ?? null;
+  session.state.currentPlayerId = startPlayerId;
 }
 
 /** @param {SkyjoSession} session */
