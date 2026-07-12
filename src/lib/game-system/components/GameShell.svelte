@@ -4,7 +4,8 @@
   import GameResultScreen from './GameResultScreen.svelte';
 
   /** @typedef {{ id: string, name: string, score: number, isHost?: boolean }} Player */
-  /** @typedef {{ id: string, name: string, mark?: string }} GamePlayer */
+  /** @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoSlot */
+  /** @typedef {{ id: string, name: string, mark?: string, grid?: SkyjoSlot[] }} GamePlayer */
   /** @typedef {import('../types').GameResult} GameResult */
   /** @typedef {{ winnerId?: string | null, isDraw?: boolean, currentPlayerId?: string | null, roundScores?: { playerId: string, score: number }[], match?: { enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] } }} ActiveGameState */
   /** @typedef {{ id: string, gameId: string, name: string, status: string, players: GamePlayer[], state: ActiveGameState, requests: { rematch: string[], newGame: string[] } }} ActiveGame */
@@ -74,6 +75,13 @@
     );
 
     const match = game?.state.match;
+    const skyjoBoards = game?.gameId === 'skyjo'
+      ? game.players.map((gamePlayer) => ({
+          playerId: gamePlayer.id,
+          playerName: gamePlayer.name,
+          cards: gamePlayer.grid ?? []
+        }))
+      : [];
     const matchLeaderNames = match?.winnerIds?.length
       ? match.winnerIds
           .map((winnerId) => game?.players.find((player) => player.id === winnerId)?.name)
@@ -95,7 +103,7 @@
           : winnerName
             ? `${winnerName} hat gewonnen. Danach kann eine Revanche oder ein neues Spiel angefragt werden.`
             : 'Die Runde wurde beendet.',
-      metadata: match?.enabled ? { skyjoMatch: match } : undefined
+      metadata: match?.enabled || skyjoBoards.length ? { skyjoMatch: match, skyjoBoards } : undefined
     };
   }
 
@@ -198,7 +206,7 @@
 
     {#if isSkyjo && activeGame.status === 'finished'}
       <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:py-8">
-        <div class="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl shadow-2xl animate-modal-in">
+        <div class="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl shadow-2xl animate-modal-in">
           <GameResultScreen
             {result}
             {currentPlayerId}

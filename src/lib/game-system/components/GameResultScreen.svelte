@@ -1,10 +1,13 @@
 <script>
   import { Gamepad2, RotateCcw, Trophy } from '@lucide/svelte';
+  import PlayingCard from '../../components/PlayingCard.svelte';
 
   /** @typedef {{ id: string, name: string, score?: number, isHost?: boolean }} ScorePlayer */
   /** @typedef {{ status: 'won' | 'lost' | 'draw' | 'cancelled', winnerId?: string, winnerName?: string, title?: string, message?: string, score?: number, metadata?: Record<string, unknown> }} GameResult */
   /** @typedef {{ rematch: string[], newGame: string[] }} EndRequests */
   /** @typedef {{ playerId: string, score: number }} RoundScore */
+  /** @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoCardSlot */
+  /** @typedef {{ playerId: string, playerName: string, cards: SkyjoCardSlot[] }} SkyjoBoard */
   /** @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: RoundScore[], lastRoundScores?: RoundScore[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch */
 
   /** @type {GameResult} */
@@ -40,6 +43,15 @@
     return /** @type {SkyjoMatch} */ (value);
   }
 
+  /**
+   * @param {Record<string, unknown> | undefined} metadata
+   * @returns {SkyjoBoard[]}
+   */
+  function getSkyjoBoards(metadata) {
+    const value = metadata?.skyjoBoards;
+    if (!Array.isArray(value)) return [];
+    return /** @type {SkyjoBoard[]} */ (value).filter((board) => Array.isArray(board.cards));
+  }
   $: winner = players.find((player) => player.id === result.winnerId);
   $: currentPlayerWon = result.winnerId === currentPlayerId;
   $: currentPlayerLost = Boolean(result.winnerId && result.winnerId !== currentPlayerId);
@@ -58,6 +70,7 @@
         .sort((a, b) => a.score - b.score)
     : [];
   $: skyjoMatch = getSkyjoMatch(result.metadata);
+  $: skyjoBoards = getSkyjoBoards(result.metadata);
   $: skyjoRows = skyjoMatch?.totalScores
     ? [...skyjoMatch.totalScores]
         .map((totalScore) => ({
@@ -197,6 +210,44 @@
     </div>
   </div>
 
+
+  {#if skyjoBoards.length}
+    <div class="relative z-10 mt-7 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">Aufgedeckte Karten</h3>
+          <p class="mt-1 text-sm text-slate-500">Alle Spielerfelder am Ende dieser Runde.</p>
+        </div>
+        <span class="text-sm font-semibold text-slate-700">{skyjoBoards.length} Spieler</span>
+      </div>
+
+      <div class="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
+        {#each skyjoBoards as board (board.playerId)}
+          <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h4 class="truncate text-sm font-semibold text-slate-950">{board.playerName}</h4>
+              <span class="rounded-md bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                {roundScores.find((score) => score.playerId === board.playerId)?.score ?? 0}
+              </span>
+            </div>
+            <div class="grid grid-cols-4 gap-1.5">
+              {#each board.cards as card, cardIndex (cardIndex)}
+                <PlayingCard
+                  size="sm"
+                  value={card.value}
+                  hidden={false}
+                  removed={card.removed}
+                  disabled
+                  revealDelayMs={card.removed ? 0 : cardIndex * 35}
+                  label={`Endkarte ${cardIndex + 1} von ${board.playerName}`}
+                />
+              {/each}
+            </div>
+          </section>
+        {/each}
+      </div>
+    </div>
+  {/if}
   {#if isHost}
     <div class="relative z-10 mt-7 rounded-md border border-cyan-200 bg-cyan-50 p-4">
       <p class="text-sm font-semibold text-cyan-950">Host-Entscheidung</p>
