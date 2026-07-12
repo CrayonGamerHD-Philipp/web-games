@@ -249,7 +249,7 @@
       </div>
 
       <div class="mx-auto grid max-w-[20rem] grid-cols-4 gap-1.5 sm:max-w-[30rem] sm:gap-3">
-        {#each me.grid as slot, cardIndex (slot.id)}
+        {#each me.grid as slot, cardIndex (cardIndex)}
           <div class="relative">
             {#if cardIndex < 4 && isClearedColumn(cardIndex)}
               <span class="absolute -top-1.5 left-1/2 z-10 inline-flex -translate-x-1/2 items-center rounded-full bg-emerald-600 px-1.5 py-0.5 text-[0.58rem] font-semibold text-white shadow-sm sm:-top-2 sm:px-2 sm:text-[0.65rem]">
@@ -295,7 +295,7 @@
           </div>
 
           <div class="mt-3 grid grid-cols-4 gap-1.5">
-            {#each player.grid as slot, cardIndex (slot.id)}
+            {#each player.grid as slot, cardIndex (cardIndex)}
               <PlayingCard size="sm" value={slot.value} hidden={!slot.revealed} removed={slot.removed} revealDelayMs={isFinished && !slot.removed ? 900 + cardIndex * 45 : 0} disabled label={`Karte ${cardIndex + 1} von ${player.name}`} />
             {/each}
           </div>
