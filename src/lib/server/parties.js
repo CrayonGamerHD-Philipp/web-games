@@ -1,4 +1,4 @@
-import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
+﻿import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
 
 /**
  * @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player
@@ -398,7 +398,7 @@ export function makeMove(code, playerId, move) {
 
   const result = applyGameMove(activeParty.activeGame.gameId, activeParty.activeGame, cleanPlayerId, move);
 
-  if (result.error) {
+  if ('error' in result && result.error) {
     return { status: 400, error: result.error };
   }
 

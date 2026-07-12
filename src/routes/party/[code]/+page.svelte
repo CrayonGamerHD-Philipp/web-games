@@ -1,4 +1,4 @@
-<script>
+﻿<script>
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -6,7 +6,7 @@
   import { onDestroy, onMount } from 'svelte';
 
   /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player */
-  /** @typedef {{ id: string, name: string, minPlayers: number, maxPlayers: number }} GameInfo */
+  /** @typedef {{ id: string, name: string, description?: string, previewImage?: string, minPlayers: number, maxPlayers: number }} GameInfo */
   /** @typedef {{ id: string, gameId: string, name: string, status: string }} ActiveGame */
   /** @typedef {{ code: string, createdAt: string, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null }} Party */
 
@@ -33,9 +33,8 @@
 
   /** @param {string | undefined} gameId */
   function gameImage(gameId) {
-    if (gameId === 'skyjo') return '/images/skyjo-scene.png';
-    if (gameId === 'tic-tac-toe') return '/images/tic-tac-toe-scene.png';
-    return '/images/party-hero.png';
+    const game = party?.availableGames.find((candidate) => candidate.id === gameId);
+    return game?.previewImage ?? '/images/party-hero.png';
   }
 
   function connectEvents() {
@@ -260,7 +259,7 @@
 
               {#if !canStartSelectedGame}
                 <p class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Fuer Tic Tac Toe muessen mindestens zwei Spieler in der Party sein.
+                  Fuer {selectedGame?.name ?? 'dieses Spiel'} muessen mindestens {selectedGame?.minPlayers ?? 2} Spieler in der Party sein.
                 </p>
               {/if}
             {:else}
@@ -300,4 +299,6 @@
     {/if}
   </section>
 </main>
+
+
 
