@@ -1,27 +1,64 @@
-import { createSkyjoSession, makeSkyjoMove, skyjoGame } from './skyjo.js';
-import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from './tic-tac-toe.js';
+import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/skyjo/server.js';
+import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
-export const availableGames = [ticTacToeGame, skyjoGame];
+const gameHandlers = [
+  {
+    definition: ticTacToeGame,
+    createSession: createTicTacToeSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {{ cellIndex?: unknown }} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeTicTacToeMove(
+        /** @type {Exclude<ReturnType<typeof createTicTacToeSession>, { error: string }>} */ (session),
+        playerId,
+        move.cellIndex
+      )
+  },
+  {
+    definition: skyjoGame,
+    createSession: createSkyjoSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {{ type?: unknown, cardIndex?: unknown, source?: unknown }} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeSkyjoMove(
+        /** @type {Exclude<ReturnType<typeof createSkyjoSession>, { error: string }>} */ (session),
+        playerId,
+        move
+      )
+  }
+];
+
+export const availableGames = gameHandlers.map((handler) => handler.definition);
+
+/** @param {unknown} gameId */
+function getGameHandler(gameId) {
+  return gameHandlers.find((handler) => handler.definition.id === gameId) ?? null;
+}
 
 /** @param {unknown} gameId */
 export function getGame(gameId) {
-  return availableGames.find((game) => game.id === gameId) ?? null;
+  return getGameHandler(gameId)?.definition ?? null;
 }
 
 /**
  * @param {unknown} gameId
  * @param {{ id: string, name: string }[]} players
+ * @param {Record<string, unknown>} [options]
  */
-export function createGameSession(gameId, players) {
-  if (gameId === ticTacToeGame.id) {
-    return createTicTacToeSession(players);
+export function createGameSession(gameId, players, options = {}) {
+  const handler = getGameHandler(gameId);
+
+  if (!handler) {
+    return { error: 'Dieses Spiel ist nicht verfuegbar.' };
   }
 
-  if (gameId === skyjoGame.id) {
-    return createSkyjoSession(players);
-  }
-
-  return { error: 'Dieses Spiel ist nicht verfuegbar.' };
+  return handler.createSession(players, options);
 }
 
 /**
@@ -31,21 +68,12 @@ export function createGameSession(gameId, players) {
  * @param {{ cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown }} move
  */
 export function applyGameMove(gameId, session, playerId, move) {
-  if (gameId === ticTacToeGame.id) {
-    return makeTicTacToeMove(
-      /** @type {Exclude<ReturnType<typeof createTicTacToeSession>, { error: string }>} */ (session),
-      playerId,
-      move.cellIndex
-    );
+  const handler = getGameHandler(gameId);
+
+  if (!handler) {
+    return { error: 'Dieses Spiel ist nicht verfuegbar.' };
   }
 
-  if (gameId === skyjoGame.id) {
-    return makeSkyjoMove(
-      /** @type {Exclude<ReturnType<typeof createSkyjoSession>, { error: string }>} */ (session),
-      playerId,
-      move
-    );
-  }
-
-  return { error: 'Dieses Spiel ist nicht verfuegbar.' };
+  const applyMove = /** @type {(session: unknown, playerId: string, move: { cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown }) => { session?: unknown, error?: string }} */ (handler.applyMove);
+  return applyMove(session, playerId, move);
 }

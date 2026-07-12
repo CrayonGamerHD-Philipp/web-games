@@ -6,7 +6,7 @@
   import { onDestroy, onMount } from 'svelte';
 
   /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player */
-  /** @typedef {{ id: string, name: string, minPlayers: number, maxPlayers: number }} GameInfo */
+  /** @typedef {{ id: string, name: string, description?: string, previewImage?: string, minPlayers: number, maxPlayers: number }} GameInfo */
   /** @typedef {{ id: string, gameId: string, name: string, status: string }} ActiveGame */
   /** @typedef {{ code: string, createdAt: string, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null }} Party */
 
@@ -20,6 +20,7 @@
   let copiedLink = false;
   let playerId = '';
   let selectedGameId = '';
+  let skyjoPlayToHundred = false;
   /** @type {EventSource | null} */
   let events = null;
 
@@ -33,9 +34,8 @@
 
   /** @param {string | undefined} gameId */
   function gameImage(gameId) {
-    if (gameId === 'skyjo') return '/images/skyjo-scene.png';
-    if (gameId === 'tic-tac-toe') return '/images/tic-tac-toe-scene.png';
-    return '/images/party-hero.png';
+    const game = party?.availableGames.find((candidate) => candidate.id === gameId);
+    return game?.previewImage ?? '/images/party-hero.png';
   }
 
   function connectEvents() {
@@ -86,7 +86,7 @@
       const response = await fetch(`/api/parties/${code}/game`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'start', playerId, gameId: selectedGameId })
+        body: JSON.stringify({ action: 'start', playerId, gameId: selectedGameId, settings: selectedGameId === 'skyjo' ? { playToHundred: skyjoPlayToHundred } : {} })
       });
       const data = await response.json();
 
@@ -256,11 +256,23 @@
                     Spiel starten
                   {/if}
                 </button>
+
+                {#if selectedGameId === 'skyjo'}
+                  <label class="rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 sm:col-span-2">
+                    <span class="flex items-start gap-3">
+                      <input type="checkbox" bind:checked={skyjoPlayToHundred} class="mt-1 h-4 w-4 shrink-0 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500" />
+                      <span class="min-w-0">
+                        <span class="block font-semibold">Skyjo bis 100 Gesamtpunkte</span>
+                        <span class="mt-1 block leading-5 text-cyan-800">Rundenpunkte werden addiert. Sobald jemand 100 erreicht, gewinnt der niedrigste Gesamtstand.</span>
+                      </span>
+                    </span>
+                  </label>
+                {/if}
               </div>
 
               {#if !canStartSelectedGame}
                 <p class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Fuer Tic Tac Toe muessen mindestens zwei Spieler in der Party sein.
+                  Fuer {selectedGame?.name ?? 'dieses Spiel'} muessen mindestens {selectedGame?.minPlayers ?? 2} Spieler in der Party sein.
                 </p>
               {/if}
             {:else}

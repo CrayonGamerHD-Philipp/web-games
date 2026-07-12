@@ -6,7 +6,7 @@ export async function POST({ params, request }) {
   let result;
 
   if (body.action === 'start') {
-    result = startGame(params.code, body.playerId, body.gameId);
+    result = startGame(params.code, body.playerId, body.gameId, body.settings ?? {});
   } else if (body.action === 'restart') {
     result = restartGame(params.code, body.playerId);
   } else if (body.action === 'close') {
@@ -27,3 +27,4 @@ export async function POST({ params, request }) {
 
   return json(result);
 }
+
