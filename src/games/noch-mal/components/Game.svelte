@@ -33,7 +33,7 @@
 
   const colors: NochMalColor[] = ['lime', 'yellow', 'blue', 'pink', 'peach'];
   const colorNames: Record<NochMalColor, string> = {
-    lime: 'Grün',
+    lime: 'Gruen',
     yellow: 'Gelb',
     blue: 'Blau',
     pink: 'Pink',
@@ -99,19 +99,19 @@
   $: actionText = getActionText();
 
   function getActionText() {
-    if (!game) return 'Noch mal wird über eine Party gestartet.';
+    if (!game) return 'Noch mal wird ueber eine Party gestartet.';
     if (!me) return 'Du schaust diese Runde zu.';
     if (game.status === 'finished' || game.state.phase === 'finished') return 'Die Partie ist beendet.';
-    if (me.confirmed) return 'Zug bestätigt. Warte auf die anderen Spieler.';
+    if (me.confirmed) return 'Zug bestaetigt. Warte auf die anderen Spieler.';
     if (isPassiveWaiting) return `Warte auf die Auswahl von ${activePlayer?.name ?? 'dem Startspieler'}.`;
-    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. Wähle aus allen Würfeln.`;
-    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: Wähle zuerst einen Farb- und einen Zahlenwürfel.';
-    if (!me.selectedColor || !me.selectedNumber) return 'Wähle einen Farbwürfel und einen Zahlenwürfel.';
-    if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhängende ${colorNames[me.selectedColor]}-Felder.`;
-    if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenhängen.';
-    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte berühren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschließen oder die H-Spalte berühren.';
-    if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) auswählen.`;
-    return 'Auswahl gültig. Bestätige deinen Zug.';
+    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. Waehle aus allen Wuerfeln.`;
+    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: Waehle zuerst einen Farb- und einen Zahlenwuerfel.';
+    if (!me.selectedColor || !me.selectedNumber) return 'Waehle einen Farbwuerfel und einen Zahlenwuerfel.';
+    if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhaengende ${colorNames[me.selectedColor]}-Felder.`;
+    if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenhaengen.';
+    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte beruehren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschliessen oder die H-Spalte beruehren.';
+    if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) auswaehlen.`;
+    return 'Auswahl gueltig. Bestaetige deinen Zug.';
   }
 
   function getAudio(name: SoundName) {
@@ -310,7 +310,7 @@
 
 {#if !game}
   <div class="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-    Noch mal läuft über die Party-Lobby, damit Würfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
+    Noch mal laeuft ueber die Party-Lobby, damit Wuerfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
   </div>
 {:else}
   {#key nochMalVersion}
@@ -320,12 +320,12 @@
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <span class="rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800 ring-1 ring-cyan-200">Runde {game.state.round}</span>
-            <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{confirmedCount}/{game.players.length} bestätigt</span>
+            <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{confirmedCount}/{game.players.length} bestaetigt</span>
             {#if isAdvantageRound}
               <span class="rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 ring-1 ring-orange-200">Startspieler: {activePlayer?.name ?? 'offen'}</span>
             {/if}
             {#if me?.confirmed}
-              <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"><Check size={14} /> Bestätigt</span>
+              <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"><Check size={14} /> Bestaetigt</span>
             {/if}
           </div>
           <p class="mt-2 min-h-6 text-sm font-medium text-slate-700">{actionText}</p>
@@ -359,7 +359,7 @@
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div class="space-y-3">
               <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwürfel</p>
+                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwuerfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
                     {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeColorDieIndex}
@@ -368,14 +368,14 @@
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
                       on:click={() => chooseColorDie(index)}
                       class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
+                      aria-label={`Farbwuerfel ${index + 1}: ${colorDieLabel(die)}`}
                     >{die === 'joker' ? '?' : colorSymbols[die]}</button>
                   {/each}
                 </div>
               </div>
 
               <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenwürfel</p>
+                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenwuerfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
                     {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeNumberDieIndex}
@@ -384,7 +384,7 @@
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
                       on:click={() => chooseNumberDie(index)}
                       class="grid h-14 w-14 place-items-center rounded-lg border border-slate-300 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Zahlenwürfel ${index + 1}: ${numberDieLabel(die)}`}
+                      aria-label={`Zahlenwuerfel ${index + 1}: ${numberDieLabel(die)}`}
                     >{numberDieLabel(die)}</button>
                   {/each}
                 </div>
@@ -404,7 +404,7 @@
               {/if}
               {#if currentJokerCost > 0}
                 <div class="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 sm:col-span-2">
-                  Joker kostet: {currentJokerCost} · übrig danach: {remainingJokers}
+                  Joker kostet: {currentJokerCost} - uebrig danach: {remainingJokers}
                 </div>
               {/if}
               {#if selectedNumberFace === 'joker'}
@@ -418,7 +418,7 @@
                 </label>
               {/if}
               <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
-                <Sparkles size={18} /> Auswahl übernehmen
+                <Sparkles size={18} /> Auswahl uebernehmen
               </button>
             </div>
           </div>
@@ -592,8 +592,8 @@
           <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
           <div class="mt-3 grid gap-2">
             <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
-            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestätigen</button>
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug möglich</button>
+            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestaetigen</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug moeglich</button>
           </div>
         </div>
 
