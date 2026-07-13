@@ -82,15 +82,16 @@
   $: colorBonus = me?.score.colorPoints ?? 0;
   $: currentJokerCost = (selectedColorFace === 'joker' && !me?.selectedColor ? 1 : 0) + (selectedNumberFace === 'joker' && !me?.selectedNumber ? 1 : 0);
   $: remainingJokers = Math.max(0, jokerCount - (me?.usedJokers ?? 0) - currentJokerCost);
-  $: jokerPenalty = me?.score.jokerPenalty ?? ((me?.usedJokers ?? 0) * -1);
+  $: jokerPenalty = me?.score.jokerPenalty ?? (jokerCount - (me?.usedJokers ?? 0));
   $: totalScore = me?.score.total ?? completedColumnScore + colorBonus + starPenalty + jokerPenalty;
   $: confirmedCount = game?.state.confirmedPlayerIds.length ?? 0;
   $: activePlayer = game?.players.find((player) => player.id === game.state.activePlayerId) ?? null;
   $: isAdvantageRound = Boolean(game && game.state.round >= 4);
   $: activeSelectionDone = Boolean(game && game.state.activeColorDieIndex !== null && game.state.activeNumberDieIndex !== null);
+  $: activePlayerSkipped = Boolean(activePlayer?.skipped && activePlayer.confirmed && !activeSelectionDone);
   $: isActivePlayer = Boolean(me && game?.state.activePlayerId === me.id);
-  $: isPassiveWaiting = Boolean(isAdvantageRound && !isActivePlayer && !activeSelectionDone);
-  $: canChooseDiceThisRound = Boolean(me && !me.confirmed && (!isAdvantageRound || isActivePlayer || activeSelectionDone));
+  $: isPassiveWaiting = Boolean(isAdvantageRound && !isActivePlayer && !activeSelectionDone && !activePlayerSkipped);
+  $: canChooseDiceThisRound = Boolean(me && !me.confirmed && (!isAdvantageRound || isActivePlayer || activeSelectionDone || activePlayerSkipped));
   $: hasLocalDiceSelection = Boolean(me && roll && canChooseDiceThisRound && colorDieIndex !== null && numberDieIndex !== null && selectedColor && selectedNumber !== null && isColorDieAvailable(colorDieIndex) && isNumberDieAvailable(numberDieIndex));
   $: hasActiveDiceSelection = Boolean(me && !me.confirmed && ((me.selectedColor && me.selectedNumber) || hasLocalDiceSelection));
   $: canSelectDice = Boolean(hasLocalDiceSelection && !me?.selectedColor && !me?.selectedNumber);
@@ -103,6 +104,7 @@
     if (game.status === 'finished' || game.state.phase === 'finished') return 'Die Partie ist beendet.';
     if (me.confirmed) return 'Zug bestätigt. Warte auf die anderen Spieler.';
     if (isPassiveWaiting) return `Warte auf die Auswahl von ${activePlayer?.name ?? 'dem Startspieler'}.`;
+    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. Wähle aus allen Würfeln.`;
     if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: Wähle zuerst einen Farb- und einen Zahlenwürfel.';
     if (!me.selectedColor || !me.selectedNumber) return 'Wähle einen Farbwürfel und einen Zahlenwürfel.';
     if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhängende ${colorNames[me.selectedColor]}-Felder.`;
@@ -152,13 +154,13 @@
 
   function isColorDieAvailable(index: number | null) {
     if (index === null || !game) return false;
-    if (!isAdvantageRound || isActivePlayer) return true;
+    if (!isAdvantageRound || isActivePlayer || activePlayerSkipped) return true;
     return activeSelectionDone && index !== game.state.activeColorDieIndex;
   }
 
   function isNumberDieAvailable(index: number | null) {
     if (index === null || !game) return false;
-    if (!isAdvantageRound || isActivePlayer) return true;
+    if (!isAdvantageRound || isActivePlayer || activePlayerSkipped) return true;
     return activeSelectionDone && index !== game.state.activeNumberDieIndex;
   }
 
@@ -259,19 +261,20 @@
   }
 
   function columnClaims(column: number) {
-    return game?.state.columnBonusClaims?.[column] ?? [];
+    return game?.state.columnBonusClaims?.[column] ?? { first: [], normal: [] };
   }
 
   function isTopColumnClaimedByPlayer(column: number, playerId: string) {
-    return columnClaims(column)[0] === playerId;
+    return columnClaims(column).first.includes(playerId);
   }
 
   function isTopColumnClaimedByOtherPlayer(column: number, playerId: string) {
-    return columnClaims(column).length > 0 && columnClaims(column)[0] !== playerId;
+    const claims = columnClaims(column);
+    return claims.first.length > 0 && !claims.first.includes(playerId);
   }
 
   function isBottomColumnClaimedByPlayer(column: number, playerId: string) {
-    return columnClaims(column).slice(1).includes(playerId);
+    return columnClaims(column).normal.includes(playerId);
   }
 
   function isTopColumnClaimedByMe(column: number) {
@@ -288,13 +291,13 @@
 
   function columnScoreLabel(column: number, tier: 'top' | 'bottom') {
     const claims = columnClaims(column);
-    if (!me || claims.length === 0) return 'Noch nicht vergeben';
+    if (!me || (claims.first.length === 0 && claims.normal.length === 0)) return 'Noch nicht vergeben';
     if (tier === 'top') {
-      if (claims[0] === me.id) return 'Du hast diesen ersten Spaltenbonus erhalten';
+      if (claims.first.includes(me.id)) return 'Du hast diesen ersten Spaltenbonus erhalten';
       return 'Der erste Spaltenbonus wurde bereits vergeben';
     }
-    if (claims.slice(1).includes(me.id)) return 'Du hast den unteren Spaltenwert erhalten';
-    return claims[0] && claims[0] !== me.id ? 'Unterer Spaltenwert fuer dich noch moeglich' : 'Unterer Spaltenwert wird nach dem ersten Abschluss relevant';
+    if (claims.normal.includes(me.id)) return 'Du hast den unteren Spaltenwert erhalten';
+    return claims.first.length > 0 && !claims.first.includes(me.id) ? 'Unterer Spaltenwert fuer dich noch moeglich' : 'Unterer Spaltenwert wird nach dem ersten Abschluss relevant';
   }
 </script>
 
@@ -352,7 +355,7 @@
                 <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwürfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
-                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && index === game.state.activeColorDieIndex}
+                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeColorDieIndex}
                     <button
                       type="button"
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
@@ -368,7 +371,7 @@
                 <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenwürfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
-                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && index === game.state.activeNumberDieIndex}
+                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeNumberDieIndex}
                     <button
                       type="button"
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
@@ -620,6 +623,8 @@
   </section>
   {/key}
 {/if}
+
+
 
 
 

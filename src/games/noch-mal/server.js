@@ -4,9 +4,10 @@
  * @typedef {NochMalColor | 'joker'} NochMalColorDie
  * @typedef {1 | 2 | 3 | 4 | 5 | 'joker'} NochMalNumberDie
  * @typedef {{ columnPoints: number, colorPoints: number, starPenalty: number, jokerPenalty: number, total: number }} NochMalScoreBreakdown
+ * @typedef {{ first: string[], normal: string[] }} NochMalBonusClaim
  * @typedef {{ id: string, name: string, checkedCells: string[], usedJokers: number, selectedColor: NochMalColor | null, selectedNumber: number | null, selectedColorDieIndex: number | null, selectedNumberDieIndex: number | null, pendingCells: string[], confirmed: boolean, skipped: boolean, score: NochMalScoreBreakdown }} NochMalPlayer
  * @typedef {{ id: string, colorDice: NochMalColorDie[], numberDice: NochMalNumberDie[] }} NochMalDiceRoll
- * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], activePlayerId: string | null, activeColorDieIndex: number | null, activeNumberDieIndex: number | null, colorBonusClaims: Record<NochMalColor, string[]>, columnBonusClaims: string[][], winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
+ * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], activePlayerId: string | null, activeColorDieIndex: number | null, activeNumberDieIndex: number | null, colorBonusClaims: Record<NochMalColor, NochMalBonusClaim>, columnBonusClaims: NochMalBonusClaim[], winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
  * @typedef {{ id: string, gameId: 'noch-mal', name: string, status: 'running' | 'finished', createdAt: string, players: NochMalPlayer[], state: NochMalState }} NochMalSession
  * @typedef {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }} NochMalMove
  */
@@ -42,7 +43,25 @@ const cellMap = Object.fromEntries(rows.flatMap((row, rowIndex) => row.map((colo
 
 /** @returns {NochMalScoreBreakdown} */
 function emptyScore() {
-  return { columnPoints: 0, colorPoints: 0, starPenalty: 0, jokerPenalty: 0, total: 0 };
+  return { columnPoints: 0, colorPoints: 0, starPenalty: 0, jokerPenalty: 8, total: 8 };
+}
+
+/** @returns {NochMalBonusClaim} */
+function emptyBonusClaim() {
+  return { first: [], normal: [] };
+}
+
+/** @param {unknown} value @returns {NochMalBonusClaim} */
+function normalizeBonusClaim(value) {
+  const candidate = /** @type {{ first?: unknown, normal?: unknown } | null} */ (value && typeof value === 'object' ? value : null);
+  if (candidate && Array.isArray(candidate.first) && Array.isArray(candidate.normal)) {
+    return /** @type {NochMalBonusClaim} */ (candidate);
+  }
+  if (Array.isArray(value)) {
+    const [first, ...normal] = value.filter((id) => typeof id === 'string');
+    return { first: first ? [first] : [], normal };
+  }
+  return emptyBonusClaim();
 }
 
 /** @returns {NochMalDiceRoll} */
@@ -100,21 +119,22 @@ function hasValidAnchor(player, pending) {
   return pending.some((id) => player.checkedCells.some((checkedId) => areAdjacent(id, checkedId)));
 }
 
-/** @param {NochMalPlayer} player @param {Record<NochMalColor, string[]>} colorBonusClaims @param {string[][]} columnBonusClaims */
+/** @param {NochMalPlayer} player @param {Record<NochMalColor, NochMalBonusClaim>} colorBonusClaims @param {NochMalBonusClaim[]} columnBonusClaims */
 function calculateScore(player, colorBonusClaims, columnBonusClaims) {
   const checked = new Set(player.checkedCells);
   const columnPoints = columnBonusClaims.reduce((sum, claims, column) => {
-    const claimIndex = claims.indexOf(player.id);
-    if (claimIndex < 0) return sum;
-    return sum + (claimIndex === 0 ? topScore[column] : bottomScore[column]);
+    if (claims.first.includes(player.id)) return sum + topScore[column];
+    if (claims.normal.includes(player.id)) return sum + bottomScore[column];
+    return sum;
   }, 0);
   const colorPoints = colors.reduce((sum, color) => {
-    const claimIndex = colorBonusClaims[color].indexOf(player.id);
-    if (claimIndex < 0) return sum;
-    return sum + (claimIndex === 0 ? 5 : 3);
+    const claims = colorBonusClaims[color];
+    if (claims.first.includes(player.id)) return sum + 5;
+    if (claims.normal.includes(player.id)) return sum + 3;
+    return sum;
   }, 0);
   const starPenalty = Object.values(cellMap).filter((cell) => cell.hasStar && !checked.has(cell.id)).length * -2;
-  const jokerPenalty = player.usedJokers * -1;
+  const jokerPenalty = 8 - player.usedJokers;
   const total = columnPoints + colorPoints + starPenalty + jokerPenalty;
   return { columnPoints, colorPoints, starPenalty, jokerPenalty, total };
 }
@@ -131,7 +151,21 @@ function completedColorCount(player) {
 }
 
 /** @param {NochMalSession} session */
+function normalizeSessionBonusClaims(session) {
+  session.state.columnBonusClaims = Array.from({ length: 15 }, (_, index) => normalizeBonusClaim(session.state.columnBonusClaims?.[index]));
+  for (const color of colors) {
+    session.state.colorBonusClaims[color] = normalizeBonusClaim(session.state.colorBonusClaims[color]);
+  }
+}
+
+/** @param {NochMalBonusClaim} claim @param {string} playerId */
+function hasBonusClaim(claim, playerId) {
+  return claim.first.includes(playerId) || claim.normal.includes(playerId);
+}
+
+/** @param {NochMalSession} session */
 function refreshScores(session) {
+  normalizeSessionBonusClaims(session);
   for (const player of session.players) {
     player.score = calculateScore(player, session.state.colorBonusClaims, session.state.columnBonusClaims);
   }
@@ -145,25 +179,29 @@ function hasCompletedColumn(player, column) {
 
 /** @param {NochMalSession} session */
 function updateColumnBonusClaims(session) {
-  session.state.columnBonusClaims ??= Array.from({ length: 15 }, () => []);
+  normalizeSessionBonusClaims(session);
 
   for (let column = 0; column < 15; column += 1) {
     const claims = session.state.columnBonusClaims[column];
-    for (const player of session.players) {
-      if (claims.includes(player.id)) continue;
-      if (hasCompletedColumn(player, column)) claims.push(player.id);
-    }
+    const candidates = session.players.filter((player) => !hasBonusClaim(claims, player.id) && hasCompletedColumn(player, column));
+    if (candidates.length === 0) continue;
+
+    const target = claims.first.length === 0 ? claims.first : claims.normal;
+    for (const player of candidates) target.push(player.id);
   }
 }
 
 /** @param {NochMalSession} session */
 function updateColorBonusClaims(session) {
+  normalizeSessionBonusClaims(session);
+
   for (const color of colors) {
     const claims = session.state.colorBonusClaims[color];
-    for (const player of session.players) {
-      if (claims.includes(player.id)) continue;
-      if (hasCompletedColor(player, color)) claims.push(player.id);
-    }
+    const candidates = session.players.filter((player) => !hasBonusClaim(claims, player.id) && hasCompletedColor(player, color));
+    if (candidates.length === 0) continue;
+
+    const target = claims.first.length === 0 ? claims.first : claims.normal;
+    for (const player of candidates) target.push(player.id);
   }
 }
 
@@ -174,7 +212,9 @@ function finishGame(session) {
   refreshScores(session);
   const scores = session.players.map((player) => ({ playerId: player.id, score: player.score.total, breakdown: player.score }));
   const highest = Math.max(...scores.map((score) => score.score));
-  const winnerIds = scores.filter((score) => score.score === highest).map((score) => score.playerId);
+  const tiedPlayerIds = scores.filter((score) => score.score === highest).map((score) => score.playerId);
+  const bestRemainingJokers = Math.max(...tiedPlayerIds.map((id) => 8 - (session.players.find((player) => player.id === id)?.usedJokers ?? 8)));
+  const winnerIds = tiedPlayerIds.filter((id) => 8 - (session.players.find((player) => player.id === id)?.usedJokers ?? 8) === bestRemainingJokers);
   session.state.phase = 'finished';
   session.state.winnerIds = winnerIds;
   session.state.winnerId = winnerIds.length === 1 ? winnerIds[0] : null;
@@ -236,8 +276,8 @@ export function createNochMalSession(players) {
     return { error: 'Noch mal braucht mindestens einen Spieler.' };
   }
 
-  /** @type {Record<NochMalColor, string[]>} */
-  const colorBonusClaims = { lime: [], yellow: [], blue: [], pink: [], peach: [] };
+  /** @type {Record<NochMalColor, NochMalBonusClaim>} */
+  const colorBonusClaims = { lime: emptyBonusClaim(), yellow: emptyBonusClaim(), blue: emptyBonusClaim(), pink: emptyBonusClaim(), peach: emptyBonusClaim() };
 
   return {
     id: crypto.randomUUID(),
@@ -268,7 +308,7 @@ export function createNochMalSession(players) {
       activeColorDieIndex: null,
       activeNumberDieIndex: null,
       colorBonusClaims,
-      columnBonusClaims: Array.from({ length: 15 }, () => []),
+      columnBonusClaims: Array.from({ length: 15 }, () => emptyBonusClaim()),
       winnerIds: [],
       winnerId: null,
       isDraw: false,
@@ -292,8 +332,11 @@ function validateDiceAvailability(session, playerId, colorDieIndex, numberDieInd
   if (!isAdvantageRound(session)) return '';
 
   const isActivePlayer = session.state.activePlayerId === playerId;
+  const activePlayer = session.players.find((player) => player.id === session.state.activePlayerId);
+  const activePlayerSkipped = Boolean(activePlayer?.skipped && activePlayer.confirmed && !hasActiveSelection(session));
 
   if (!hasActiveSelection(session)) {
+    if (activePlayerSkipped) return '';
     return isActivePlayer ? '' : 'Warte auf die Auswahl des Startspielers.';
   }
 
@@ -428,9 +471,6 @@ export function makeNochMalMove(session, playerId, move) {
     player.checkedCells = [...player.checkedCells, ...player.pendingCells];
     player.pendingCells = [];
     player.confirmed = true;
-    updateColumnBonusClaims(session);
-    updateColorBonusClaims(session);
-    refreshScores(session);
     session.state.confirmedPlayerIds = [...new Set([...session.state.confirmedPlayerIds, player.id])];
     maybeAdvanceRound(session);
     return { session };
@@ -438,6 +478,11 @@ export function makeNochMalMove(session, playerId, move) {
 
   return { error: 'Diese Noch-mal-Aktion ist nicht bekannt.' };
 }
+
+
+
+
+
 
 
 

@@ -40,6 +40,11 @@ export interface NochMalDiceRoll {
   numberDice: NochMalNumberDie[];
 }
 
+export interface NochMalBonusClaim {
+  first: string[];
+  normal: string[];
+}
+
 export interface NochMalState {
   phase: NochMalPhase;
   round: number;
@@ -48,8 +53,8 @@ export interface NochMalState {
   activePlayerId: string | null;
   activeColorDieIndex: number | null;
   activeNumberDieIndex: number | null;
-  colorBonusClaims: Record<NochMalColor, string[]>;
-  columnBonusClaims: string[][];
+  colorBonusClaims: Record<NochMalColor, NochMalBonusClaim>;
+  columnBonusClaims: NochMalBonusClaim[];
   winnerIds: string[];
   winnerId: string | null;
   isDraw: boolean;
@@ -73,6 +78,8 @@ export type NochMalMove =
   | { type: 'confirm-turn' }
   | { type: 'clear-selection' }
   | { type: 'skip-turn' };
+
+
 
 
 
