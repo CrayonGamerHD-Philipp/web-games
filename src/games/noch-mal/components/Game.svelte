@@ -75,10 +75,14 @@
   $: selectedNumber = me?.selectedNumber ?? (selectedNumberFace === 'joker' ? jokerNumber : selectedNumberFace);
   $: checkedSet = new Set(me ? [...me.checkedCells, ...me.pendingCells] : []);
   $: pendingSet = new Set(me?.pendingCells ?? []);
-  $: completedColumnScore = me ? bottomScore.reduce((sum, value, column) => sum + (rows.every((_, row) => me.checkedCells.includes(`${row}-${column}`)) ? value : 0), 0) : 0;
+  $: localCompletedColumnScore = me ? bottomScore.reduce((sum, value, column) => sum + (rows.every((_, row) => me.checkedCells.includes(`${row}-${column}`)) ? value : 0), 0) : 0;
+  $: completedColumnScore = me?.score.columnPoints ?? localCompletedColumnScore;
   $: starPenalty = me ? cells.filter((cell) => cell.hasStar && !me.checkedCells.includes(cell.id)).length * -2 : 0;
   $: colorBonus = me?.score.colorPoints ?? 0;
-  $: totalScore = me?.score.total ?? completedColumnScore + colorBonus + starPenalty - (me?.usedJokers ?? 0);
+  $: currentJokerCost = (selectedColorFace === 'joker' && !me?.selectedColor ? 1 : 0) + (selectedNumberFace === 'joker' && !me?.selectedNumber ? 1 : 0);
+  $: remainingJokers = Math.max(0, jokerCount - (me?.usedJokers ?? 0) - currentJokerCost);
+  $: jokerPenalty = me?.score.jokerPenalty ?? ((me?.usedJokers ?? 0) * -1);
+  $: totalScore = me?.score.total ?? completedColumnScore + colorBonus + starPenalty + jokerPenalty;
   $: confirmedCount = game?.state.confirmedPlayerIds.length ?? 0;
   $: activePlayer = game?.players.find((player) => player.id === game.state.activePlayerId) ?? null;
   $: isAdvantageRound = Boolean(game && game.state.round >= 4);
@@ -157,18 +161,23 @@
     return activeSelectionDone && index !== game.state.activeNumberDieIndex;
   }
 
+  function shouldAutoSelectDice(nextColorDieIndex: number | null, nextNumberDieIndex: number | null) {
+    if (!roll || nextColorDieIndex === null || nextNumberDieIndex === null) return false;
+    return roll.colorDice[nextColorDieIndex] !== 'joker' && roll.numberDice[nextNumberDieIndex] !== 'joker';
+  }
+
   function chooseColorDie(index: number) {
     if (!isColorDieAvailable(index) || !canChooseDiceThisRound) return;
     playSound('select');
     colorDieIndex = index;
-    if (numberDieIndex !== null) setTimeout(selectDice, 0);
+    if (shouldAutoSelectDice(index, numberDieIndex)) setTimeout(selectDice, 0);
   }
 
   function chooseNumberDie(index: number) {
     if (!isNumberDieAvailable(index) || !canChooseDiceThisRound) return;
     playSound('select');
     numberDieIndex = index;
-    if (colorDieIndex !== null) setTimeout(selectDice, 0);
+    if (shouldAutoSelectDice(colorDieIndex, index)) setTimeout(selectDice, 0);
   }
 
   function clearSelection() {
@@ -286,7 +295,7 @@
         {#if me}
           <div class="grid gap-2 text-sm sm:grid-cols-4 xl:min-w-[31rem]">
             <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Punkte</span><strong>{totalScore}</strong></div>
-            <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Joker</span><strong>{jokerCount - me.usedJokers}</strong></div>
+            <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Joker</span><strong>{remainingJokers}</strong></div>
             <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Spalten</span><strong>{completedColumnScore}</strong></div>
             <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Sterne</span><strong>{starPenalty}</strong></div>
           </div>
@@ -342,6 +351,11 @@
                     {/each}
                   </select>
                 </label>
+              {/if}
+              {#if currentJokerCost > 0}
+                <div class="rounded-md border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white/85 sm:col-span-2">
+                  Joker kostet: {currentJokerCost} · übrig danach: {remainingJokers}
+                </div>
               {/if}
               {#if selectedNumberFace === 'joker'}
                 <label class="block text-sm font-semibold text-white/80">
@@ -439,7 +453,7 @@
             <div class="mt-3 space-y-2">
               <div class="flex justify-between gap-3"><span class="text-white/65">Spalten</span><strong>{completedColumnScore}</strong></div>
               <div class="flex justify-between gap-3"><span class="text-white/65">Farben</span><strong>{colorBonus}</strong></div>
-              <div class="flex justify-between gap-3"><span class="text-white/65">Joker</span><strong>-{me.usedJokers}</strong></div>
+              <div class="flex justify-between gap-3"><span class="text-white/65">Joker</span><strong>{jokerPenalty}</strong></div>
               <div class="flex justify-between gap-3"><span class="text-white/65">Sterne</span><strong>{starPenalty}</strong></div>
               <div class="border-t border-white/10 pt-2 text-base flex justify-between gap-3"><span>Total</span><strong>{totalScore}</strong></div>
             </div>
@@ -466,6 +480,7 @@
   </section>
   {/key}
 {/if}
+
 
 
 

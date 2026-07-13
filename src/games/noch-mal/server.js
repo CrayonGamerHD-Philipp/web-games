@@ -6,7 +6,7 @@
  * @typedef {{ columnPoints: number, colorPoints: number, starPenalty: number, jokerPenalty: number, total: number }} NochMalScoreBreakdown
  * @typedef {{ id: string, name: string, checkedCells: string[], usedJokers: number, selectedColor: NochMalColor | null, selectedNumber: number | null, selectedColorDieIndex: number | null, selectedNumberDieIndex: number | null, pendingCells: string[], confirmed: boolean, skipped: boolean, score: NochMalScoreBreakdown }} NochMalPlayer
  * @typedef {{ id: string, colorDice: NochMalColorDie[], numberDice: NochMalNumberDie[] }} NochMalDiceRoll
- * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], activePlayerId: string | null, activeColorDieIndex: number | null, activeNumberDieIndex: number | null, colorBonusClaims: Record<NochMalColor, string[]>, winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
+ * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], activePlayerId: string | null, activeColorDieIndex: number | null, activeNumberDieIndex: number | null, colorBonusClaims: Record<NochMalColor, string[]>, columnBonusClaims: string[][], winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
  * @typedef {{ id: string, gameId: 'noch-mal', name: string, status: 'running' | 'finished', createdAt: string, players: NochMalPlayer[], state: NochMalState }} NochMalSession
  * @typedef {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }} NochMalMove
  */
@@ -31,6 +31,7 @@ const rows = [
   ['yellow', 'yellow', 'blue', 'blue', 'blue', 'blue', 'pink', 'yellow', 'yellow', 'yellow', 'lime', 'lime', 'lime', 'peach', 'peach']
 ];
 const stars = new Set(['0-7', '1-2', '1-4', '1-9', '2-0', '2-6', '3-5', '3-13', '5-1', '5-3', '5-8', '5-10', '5-14', '6-12']);
+const topScore = [5, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 3, 3, 3, 5];
 const bottomScore = [3, 2, 2, 2, 1, 1, 1, 0, 1, 1, 1, 2, 2, 2, 3];
 
 /** @type {Record<string, { id: string, row: number, column: number, color: NochMalColor, hasStar: boolean }>} */
@@ -99,12 +100,13 @@ function hasValidAnchor(player, pending) {
   return pending.some((id) => player.checkedCells.some((checkedId) => areAdjacent(id, checkedId)));
 }
 
-/** @param {NochMalPlayer} player @param {Record<NochMalColor, string[]>} colorBonusClaims */
-function calculateScore(player, colorBonusClaims) {
+/** @param {NochMalPlayer} player @param {Record<NochMalColor, string[]>} colorBonusClaims @param {string[][]} columnBonusClaims */
+function calculateScore(player, colorBonusClaims, columnBonusClaims) {
   const checked = new Set(player.checkedCells);
-  const columnPoints = bottomScore.reduce((sum, value, column) => {
-    const complete = rows.every((_, row) => checked.has(`${row}-${column}`));
-    return sum + (complete ? value : 0);
+  const columnPoints = columnBonusClaims.reduce((sum, claims, column) => {
+    const claimIndex = claims.indexOf(player.id);
+    if (claimIndex < 0) return sum;
+    return sum + (claimIndex === 0 ? topScore[column] : bottomScore[column]);
   }, 0);
   const colorPoints = colors.reduce((sum, color) => {
     const claimIndex = colorBonusClaims[color].indexOf(player.id);
@@ -131,7 +133,26 @@ function completedColorCount(player) {
 /** @param {NochMalSession} session */
 function refreshScores(session) {
   for (const player of session.players) {
-    player.score = calculateScore(player, session.state.colorBonusClaims);
+    player.score = calculateScore(player, session.state.colorBonusClaims, session.state.columnBonusClaims);
+  }
+}
+
+/** @param {NochMalPlayer} player @param {number} column */
+function hasCompletedColumn(player, column) {
+  const checked = new Set(player.checkedCells);
+  return rows.every((_, row) => checked.has(`${row}-${column}`));
+}
+
+/** @param {NochMalSession} session */
+function updateColumnBonusClaims(session) {
+  session.state.columnBonusClaims ??= Array.from({ length: 15 }, () => []);
+
+  for (let column = 0; column < 15; column += 1) {
+    const claims = session.state.columnBonusClaims[column];
+    for (const player of session.players) {
+      if (claims.includes(player.id)) continue;
+      if (hasCompletedColumn(player, column)) claims.push(player.id);
+    }
   }
 }
 
@@ -148,6 +169,7 @@ function updateColorBonusClaims(session) {
 
 /** @param {NochMalSession} session */
 function finishGame(session) {
+  updateColumnBonusClaims(session);
   updateColorBonusClaims(session);
   refreshScores(session);
   const scores = session.players.map((player) => ({ playerId: player.id, score: player.score.total, breakdown: player.score }));
@@ -170,6 +192,7 @@ function nextActivePlayerId(session) {
 
 /** @param {NochMalSession} session */
 function startNextRound(session) {
+  updateColumnBonusClaims(session);
   updateColorBonusClaims(session);
   refreshScores(session);
 
@@ -245,6 +268,7 @@ export function createNochMalSession(players) {
       activeColorDieIndex: null,
       activeNumberDieIndex: null,
       colorBonusClaims,
+      columnBonusClaims: Array.from({ length: 15 }, () => []),
       winnerIds: [],
       winnerId: null,
       isDraw: false,
@@ -404,6 +428,9 @@ export function makeNochMalMove(session, playerId, move) {
     player.checkedCells = [...player.checkedCells, ...player.pendingCells];
     player.pendingCells = [];
     player.confirmed = true;
+    updateColumnBonusClaims(session);
+    updateColorBonusClaims(session);
+    refreshScores(session);
     session.state.confirmedPlayerIds = [...new Set([...session.state.confirmedPlayerIds, player.id])];
     maybeAdvanceRound(session);
     return { session };
@@ -411,6 +438,8 @@ export function makeNochMalMove(session, playerId, move) {
 
   return { error: 'Diese Noch-mal-Aktion ist nicht bekannt.' };
 }
+
+
 
 
 

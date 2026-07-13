@@ -49,6 +49,7 @@ export interface NochMalState {
   activeColorDieIndex: number | null;
   activeNumberDieIndex: number | null;
   colorBonusClaims: Record<NochMalColor, string[]>;
+  columnBonusClaims: string[][];
   winnerIds: string[];
   winnerId: string | null;
   isDraw: boolean;
@@ -72,6 +73,7 @@ export type NochMalMove =
   | { type: 'confirm-turn' }
   | { type: 'clear-selection' }
   | { type: 'skip-turn' };
+
 
 
 
