@@ -81,7 +81,7 @@
     if (!me.selectedColor || !me.selectedNumber) return 'Wähle einen Farbwürfel und einen Zahlenwürfel.';
     if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhängende ${colorNames[me.selectedColor]}-Felder.`;
     if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenhängen.';
-    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte berühren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschließen.';
+    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte berühren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschließen oder die H-Spalte berühren.';
     if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) auswählen.`;
     return 'Auswahl gültig. Bestätige deinen Zug.';
   }
@@ -182,7 +182,7 @@
 
   function hasValidAnchor(player: NochMalPlayer, pending: string[]) {
     if (pending.length === 0) return false;
-    if (player.checkedCells.length === 0) return pending.some((id) => Number(id.split('-')[1]) === 7);
+    if (pending.some((id) => Number(id.split('-')[1]) === 7)) return true;
     return pending.some((id) => player.checkedCells.some((checkedId) => areAdjacent(id, checkedId)));
   }
 
@@ -401,6 +401,7 @@
   </section>
   {/key}
 {/if}
+
 
 
 

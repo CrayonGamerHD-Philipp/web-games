@@ -92,8 +92,8 @@ function isConnectedGroup(ids) {
 
 /** @param {NochMalPlayer} player @param {string[]} pending */
 function hasValidAnchor(player, pending) {
-  if (player.checkedCells.length === 0) {
-    return pending.some((id) => parseCellId(id)?.column === 7);
+  if (pending.some((id) => parseCellId(id)?.column === 7)) {
+    return true;
   }
 
   return pending.some((id) => player.checkedCells.some((checkedId) => areAdjacent(id, checkedId)));
@@ -290,7 +290,7 @@ function validateCandidateGroup(player, candidate) {
   if (!hasValidAnchor(player, candidate)) {
     return player.checkedCells.length === 0
       ? 'Der Zug muss in der mittleren H-Spalte beginnen.'
-      : 'Der Zug muss an deine bestehenden Kreuze anschliessen.';
+      : 'Der Zug muss an deine bestehenden Kreuze anschliessen oder die H-Spalte beruehren.';
   }
   return '';
 }
@@ -313,7 +313,7 @@ function validatePendingMove(player) {
   if (!player.selectedColor || !player.selectedNumber) return 'Waehle zuerst einen Farb- und einen Zahlenwuerfel.';
   if (player.pendingCells.length !== player.selectedNumber) return `Markiere genau ${player.selectedNumber} Feld(er).`;
   if (!isConnectedGroup(player.pendingCells)) return 'Die Felder muessen orthogonal zusammenhaengen.';
-  if (!hasValidAnchor(player, player.pendingCells)) return player.checkedCells.length === 0 ? 'Dein erster Zug muss die mittlere H-Spalte beruehren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschliessen.';
+  if (!hasValidAnchor(player, player.pendingCells)) return player.checkedCells.length === 0 ? 'Dein erster Zug muss die mittlere H-Spalte beruehren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschliessen oder die H-Spalte beruehren.';
   return '';
 }
 
@@ -411,6 +411,7 @@ export function makeNochMalMove(session, playerId, move) {
 
   return { error: 'Diese Noch-mal-Aktion ist nicht bekannt.' };
 }
+
 
 
 
