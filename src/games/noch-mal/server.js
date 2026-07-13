@@ -6,7 +6,7 @@
  * @typedef {{ columnPoints: number, colorPoints: number, starPenalty: number, jokerPenalty: number, total: number }} NochMalScoreBreakdown
  * @typedef {{ id: string, name: string, checkedCells: string[], usedJokers: number, selectedColor: NochMalColor | null, selectedNumber: number | null, selectedColorDieIndex: number | null, selectedNumberDieIndex: number | null, pendingCells: string[], confirmed: boolean, skipped: boolean, score: NochMalScoreBreakdown }} NochMalPlayer
  * @typedef {{ id: string, colorDice: NochMalColorDie[], numberDice: NochMalNumberDie[] }} NochMalDiceRoll
- * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], colorBonusClaims: Record<NochMalColor, string[]>, winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
+ * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], activePlayerId: string | null, activeColorDieIndex: number | null, activeNumberDieIndex: number | null, colorBonusClaims: Record<NochMalColor, string[]>, winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
  * @typedef {{ id: string, gameId: 'noch-mal', name: string, status: 'running' | 'finished', createdAt: string, players: NochMalPlayer[], state: NochMalState }} NochMalSession
  * @typedef {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }} NochMalMove
  */
@@ -162,6 +162,13 @@ function finishGame(session) {
 }
 
 /** @param {NochMalSession} session */
+function nextActivePlayerId(session) {
+  const currentIndex = session.players.findIndex((player) => player.id === session.state.activePlayerId);
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % session.players.length : 0;
+  return session.players[nextIndex]?.id ?? null;
+}
+
+/** @param {NochMalSession} session */
 function startNextRound(session) {
   updateColorBonusClaims(session);
   refreshScores(session);
@@ -175,6 +182,9 @@ function startNextRound(session) {
   session.state.roll = rollDice();
   session.state.phase = 'selecting-dice';
   session.state.confirmedPlayerIds = [];
+  session.state.activePlayerId = nextActivePlayerId(session);
+  session.state.activeColorDieIndex = null;
+  session.state.activeNumberDieIndex = null;
   for (const player of session.players) {
     player.selectedColor = null;
     player.selectedNumber = null;
@@ -231,6 +241,9 @@ export function createNochMalSession(players) {
       round: 1,
       roll: rollDice(),
       confirmedPlayerIds: [],
+      activePlayerId: selectedPlayers[0]?.id ?? null,
+      activeColorDieIndex: null,
+      activeNumberDieIndex: null,
       colorBonusClaims,
       winnerIds: [],
       winnerId: null,
@@ -238,6 +251,37 @@ export function createNochMalSession(players) {
       roundScores: []
     }
   };
+}
+
+/** @param {NochMalSession} session */
+function isAdvantageRound(session) {
+  return session.state.round >= 4;
+}
+
+/** @param {NochMalSession} session */
+function hasActiveSelection(session) {
+  return session.state.activeColorDieIndex !== null && session.state.activeNumberDieIndex !== null;
+}
+
+/** @param {NochMalSession} session @param {string} playerId @param {number} colorDieIndex @param {number} numberDieIndex */
+function validateDiceAvailability(session, playerId, colorDieIndex, numberDieIndex) {
+  if (!isAdvantageRound(session)) return '';
+
+  const isActivePlayer = session.state.activePlayerId === playerId;
+
+  if (!hasActiveSelection(session)) {
+    return isActivePlayer ? '' : 'Warte auf die Auswahl des Startspielers.';
+  }
+
+  if (isActivePlayer) {
+    return 'Der Startspieler hat seine Wuerfel bereits gewaehlt.';
+  }
+
+  if (colorDieIndex === session.state.activeColorDieIndex || numberDieIndex === session.state.activeNumberDieIndex) {
+    return 'Diese Wuerfel wurden vom Startspieler entfernt.';
+  }
+
+  return '';
 }
 
 /** @param {NochMalPlayer} player @param {string[]} candidate */
@@ -288,6 +332,9 @@ export function makeNochMalMove(session, playerId, move) {
     if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= session.state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungueltig.' };
     if (!Number.isInteger(numberDieIndex) || numberDieIndex < 0 || numberDieIndex >= session.state.roll.numberDice.length) return { error: 'Dieser Zahlenwürfel ist ungueltig.' };
 
+    const availabilityError = validateDiceAvailability(session, playerId, colorDieIndex, numberDieIndex);
+    if (availabilityError) return { error: availabilityError };
+
     const colorFace = session.state.roll.colorDice[colorDieIndex];
     const numberFace = session.state.roll.numberDice[numberDieIndex];
     const selectedColor = colorFace === 'joker' ? String(move.color ?? '') : colorFace;
@@ -304,6 +351,11 @@ export function makeNochMalMove(session, playerId, move) {
     player.selectedNumberDieIndex = numberDieIndex;
     player.pendingCells = [];
     session.state.phase = 'selecting-cells';
+
+    if (isAdvantageRound(session) && session.state.activePlayerId === playerId && !hasActiveSelection(session)) {
+      session.state.activeColorDieIndex = colorDieIndex;
+      session.state.activeNumberDieIndex = numberDieIndex;
+    }
 
     if (type === 'select-dice-and-toggle-cell') {
       const cellId = String(move.cellId ?? '');
@@ -359,5 +411,8 @@ export function makeNochMalMove(session, playerId, move) {
 
   return { error: 'Diese Noch-mal-Aktion ist nicht bekannt.' };
 }
+
+
+
 
 

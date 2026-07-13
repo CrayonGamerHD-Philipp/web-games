@@ -45,6 +45,9 @@ export interface NochMalState {
   round: number;
   roll: NochMalDiceRoll;
   confirmedPlayerIds: string[];
+  activePlayerId: string | null;
+  activeColorDieIndex: number | null;
+  activeNumberDieIndex: number | null;
   colorBonusClaims: Record<NochMalColor, string[]>;
   winnerIds: string[];
   winnerId: string | null;
@@ -69,4 +72,6 @@ export type NochMalMove =
   | { type: 'confirm-turn' }
   | { type: 'clear-selection' }
   | { type: 'skip-turn' };
+
+
 

@@ -57,9 +57,15 @@
   $: colorBonus = me?.score.colorPoints ?? 0;
   $: totalScore = me?.score.total ?? completedColumnScore + colorBonus + starPenalty - (me?.usedJokers ?? 0);
   $: confirmedCount = game?.state.confirmedPlayerIds.length ?? 0;
-  $: hasLocalDiceSelection = Boolean(me && roll && !me.confirmed && colorDieIndex !== null && numberDieIndex !== null && selectedColor && selectedNumber !== null);
+  $: activePlayer = game?.players.find((player) => player.id === game.state.activePlayerId) ?? null;
+  $: isAdvantageRound = Boolean(game && game.state.round >= 4);
+  $: activeSelectionDone = Boolean(game && game.state.activeColorDieIndex !== null && game.state.activeNumberDieIndex !== null);
+  $: isActivePlayer = Boolean(me && game?.state.activePlayerId === me.id);
+  $: isPassiveWaiting = Boolean(isAdvantageRound && !isActivePlayer && !activeSelectionDone);
+  $: canChooseDiceThisRound = Boolean(me && !me.confirmed && (!isAdvantageRound || isActivePlayer || activeSelectionDone));
+  $: hasLocalDiceSelection = Boolean(me && roll && canChooseDiceThisRound && colorDieIndex !== null && numberDieIndex !== null && selectedColor && selectedNumber !== null && isColorDieAvailable(colorDieIndex) && isNumberDieAvailable(numberDieIndex));
   $: hasActiveDiceSelection = Boolean(me && !me.confirmed && ((me.selectedColor && me.selectedNumber) || hasLocalDiceSelection));
-  $: canSelectDice = Boolean(hasLocalDiceSelection);
+  $: canSelectDice = Boolean(hasLocalDiceSelection && !me?.selectedColor && !me?.selectedNumber);
   $: canConfirm = Boolean(me && !me.confirmed && me.selectedColor && me.selectedNumber && me.pendingCells.length === me.selectedNumber && isConnectedGroup(me.pendingCells) && hasValidAnchor(me, me.pendingCells));
   $: actionText = getActionText();
 
@@ -68,6 +74,8 @@
     if (!me) return 'Du schaust diese Runde zu.';
     if (game.status === 'finished' || game.state.phase === 'finished') return 'Die Partie ist beendet.';
     if (me.confirmed) return 'Zug bestätigt. Warte auf die anderen Spieler.';
+    if (isPassiveWaiting) return `Warte auf die Auswahl von ${activePlayer?.name ?? 'dem Startspieler'}.`;
+    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: Wähle zuerst einen Farb- und einen Zahlenwürfel.';
     if (!me.selectedColor || !me.selectedNumber) return 'Wähle einen Farbwürfel und einen Zahlenwürfel.';
     if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhängende ${colorNames[me.selectedColor]}-Felder.`;
     if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenhängen.';
@@ -86,6 +94,30 @@
     if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return false;
     onMove({ type: 'select-dice', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber) });
     return true;
+  }
+
+  function isColorDieAvailable(index: number | null) {
+    if (index === null || !game) return false;
+    if (!isAdvantageRound || isActivePlayer) return true;
+    return activeSelectionDone && index !== game.state.activeColorDieIndex;
+  }
+
+  function isNumberDieAvailable(index: number | null) {
+    if (index === null || !game) return false;
+    if (!isAdvantageRound || isActivePlayer) return true;
+    return activeSelectionDone && index !== game.state.activeNumberDieIndex;
+  }
+
+  function chooseColorDie(index: number) {
+    if (!isColorDieAvailable(index) || !canChooseDiceThisRound) return;
+    colorDieIndex = index;
+    if (numberDieIndex !== null) setTimeout(selectDice, 0);
+  }
+
+  function chooseNumberDie(index: number) {
+    if (!isNumberDieAvailable(index) || !canChooseDiceThisRound) return;
+    numberDieIndex = index;
+    if (colorDieIndex !== null) setTimeout(selectDice, 0);
   }
 
   function clearSelection() {
@@ -173,6 +205,9 @@
           <div class="flex flex-wrap items-center gap-2">
             <span class="rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800 ring-1 ring-cyan-200">Runde {game.state.round}</span>
             <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{confirmedCount}/{game.players.length} bestätigt</span>
+            {#if isAdvantageRound}
+              <span class="rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 ring-1 ring-orange-200">Startspieler: {activePlayer?.name ?? 'offen'}</span>
+            {/if}
             {#if me?.confirmed}
               <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"><Check size={14} /> Bestätigt</span>
             {/if}
@@ -200,11 +235,12 @@
                 <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-white/55">Farbwürfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
+                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && index === game.state.activeColorDieIndex}
                     <button
                       type="button"
-                      disabled={isLoading || me?.confirmed}
-                      on:click={() => { colorDieIndex = index; if (numberDieIndex !== null) setTimeout(selectDice, 0); }}
-                      class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {die === 'joker' ? 'border-white/40 bg-white text-slate-950' : `${colorClass[die]} border-white/20`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
+                      disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
+                      on:click={() => chooseColorDie(index)}
+                      class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-white/40 bg-white text-slate-950' : `${colorClass[die]} border-white/20`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
                       aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
                     >{die === 'joker' ? '?' : colorSymbols[die]}</button>
                   {/each}
@@ -215,11 +251,12 @@
                 <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-white/55">Zahlenwürfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
+                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && index === game.state.activeNumberDieIndex}
                     <button
                       type="button"
-                      disabled={isLoading || me?.confirmed}
-                      on:click={() => { numberDieIndex = index; if (colorDieIndex !== null) setTimeout(selectDice, 0); }}
-                      class="grid h-14 w-14 place-items-center rounded-lg border border-white/30 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
+                      disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
+                      on:click={() => chooseNumberDie(index)}
+                      class="grid h-14 w-14 place-items-center rounded-lg border border-white/30 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
                       aria-label={`Zahlenwürfel ${index + 1}: ${numberDieLabel(die)}`}
                     >{numberDieLabel(die)}</button>
                   {/each}
@@ -360,6 +397,9 @@
     </div>
   </section>
 {/if}
+
+
+
 
 
 
