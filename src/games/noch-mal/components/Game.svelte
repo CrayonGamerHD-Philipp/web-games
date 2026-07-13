@@ -39,12 +39,12 @@
     pink: 'Pink',
     peach: 'Orange'
   };
-  const colorSymbols: Record<NochMalColor, string> = {
-    lime: 'â—†',
-    yellow: 'â—',
-    blue: 'â– ',
-    pink: 'âœ¦',
-    peach: 'â¬Ÿ'
+  const colorSymbolClass: Record<NochMalColor, string> = {
+    lime: 'rotate-45 rounded-[2px]',
+    yellow: 'rounded-full',
+    blue: 'rounded-[2px]',
+    pink: 'rotate-45 rounded-sm before:absolute before:left-1/2 before:top-1/2 before:h-1.5 before:w-5 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-current after:absolute after:left-1/2 after:top-1/2 after:h-5 after:w-1.5 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-current',
+    peach: 'rotate-45 rounded-md'
   };
   const colorClass: Record<NochMalColor, string> = {
     lime: 'bg-[#b8d86e] text-[#365b18]',
@@ -370,7 +370,13 @@
                       on:click={() => chooseColorDie(index)}
                       class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
                       aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
-                    >{die === 'joker' ? '?' : colorSymbols[die]}</button>
+                    >
+                      {#if die === 'joker'}
+                        ?
+                      {:else}
+                        <span class="relative block h-5 w-5 bg-current {colorSymbolClass[die]}" aria-hidden="true"></span>
+                      {/if}
+                    </button>
                   {/each}
                 </div>
               </div>
