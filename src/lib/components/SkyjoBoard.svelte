@@ -1,4 +1,4 @@
-<script>
+﻿<script>
   import { Check } from '@lucide/svelte';
   import PlayingCard from './PlayingCard.svelte';
 
@@ -20,6 +20,18 @@
   let drawnCardSelected = false;
   let lastDrawnCardId = '';
 
+  let lastFinishedGameId = '';
+
+  const soundSources = {
+    draw: '/sounds/take_card1.mp3',
+    reveal: '/sounds/turn_card1.mp3',
+    select: '/sounds/select1.mp3',
+    confirm: '/sounds/ping.mp3',
+    win: '/sounds/win1.mp3',
+    lose: '/sounds/lose1.mp3'
+  };
+
+  const audioCache = new Map();
   $: me = /** @type {SkyjoPlayer | undefined} */ (game.players.find((/** @type {SkyjoPlayer} */ player) => player.id === currentPlayerId));
   $: orderedPlayers = me ? [me, ...game.players.filter((/** @type {SkyjoPlayer} */ player) => player.id !== currentPlayerId)] : game.players;
   $: opponents = orderedPlayers.filter((/** @type {SkyjoPlayer} */ player) => player.id !== currentPlayerId);
@@ -37,6 +49,36 @@
   $: currentTurnName = game.players.find((/** @type {SkyjoPlayer} */ player) => player.id === game.state.currentPlayerId)?.name ?? '';
   $: isFinished = game.status === 'finished' || game.state.phase === 'finished';
   $: actionText = getActionText();
+
+  /** @param {keyof typeof soundSources} name */
+  function getAudio(name) {
+    if (typeof Audio === 'undefined') return null;
+
+    const cached = audioCache.get(name);
+    if (cached) return cached;
+
+    const audio = new Audio(soundSources[name]);
+    audio.preload = 'metadata';
+    audioCache.set(name, audio);
+    return audio;
+  }
+
+  /** @param {keyof typeof soundSources} name */
+  function playSound(name) {
+    const audio = getAudio(name);
+    if (!audio) return;
+
+    audio.pause();
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  }
+
+  /** @param {'deck' | 'discard'} source */
+  function drawCard(source) {
+    if (!canDraw) return;
+    playSound(source === 'discard' ? 'select' : 'draw');
+    onMove({ type: 'draw', source });
+  }
 
   function getActionText() {
     if (game.state.phase === 'setup') return 'Decke zwei eigene Karten auf.';
@@ -97,6 +139,7 @@
 
     if (game.state.phase === 'setup') {
       if (revealedCount(me) < 2 && !me.grid[cardIndex].revealed) {
+        playSound('reveal');
         onMove({ type: 'reveal-start', cardIndex });
       }
       return;
@@ -113,6 +156,7 @@
   /** @param {DragEvent} event */
   function handleDrawnDragStart(event) {
     if (!canUseDrawnCard) return;
+    playSound('select');
     draggedDrawnCard = true;
     drawnCardSelected = true;
     event.dataTransfer?.setData('text/plain', 'drawn-card');
@@ -126,6 +170,7 @@
   /** @param {DragEvent} event */
   function handleDiscardDragStart(event) {
     if (!canDraw || !topDiscard) return;
+    playSound('select');
     draggedDiscardCard = true;
     event.dataTransfer?.setData('text/plain', 'discard-card');
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
@@ -205,7 +250,7 @@
       <div class="mx-auto grid w-full max-w-[14rem] grid-cols-3 gap-1.5 justify-self-center sm:max-w-[18rem] sm:gap-2 lg:w-full">
         <div class="min-w-0">
           <p class="mb-1 text-center text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-slate-500 sm:text-xs">Stapel</p>
-          <PlayingCard size="sm" hidden value={null} disabled={!canDraw} label="Vom Nachziehstapel ziehen" on:activate={() => onMove({ type: 'draw', source: 'deck' })} />
+          <PlayingCard size="sm" hidden value={null} disabled={!canDraw} label="Vom Nachziehstapel ziehen" on:activate={() => drawCard('deck')} />
         </div>
         <div class="min-w-0">
           <p class="mb-1 text-center text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-slate-500 sm:text-xs">Ablage</p>
@@ -215,7 +260,7 @@
             disabled={!canDraw || !topDiscard}
             draggable={canDraw && Boolean(topDiscard)}
             label="Von der Ablage nehmen"
-            on:activate={() => onMove({ type: 'draw', source: 'discard' })}
+            on:activate={() => drawCard('discard')}
             on:dragstart={handleDiscardDragStart}
             on:dragend={handleDiscardDragEnd}
           />
@@ -304,4 +349,8 @@
     </div>
   {/if}
 </div>
+
+
+
+
 

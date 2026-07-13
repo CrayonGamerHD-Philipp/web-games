@@ -1,4 +1,4 @@
-<script>
+﻿<script>
   /** @typedef {import('../types').TicTacToeSession} TicTacToeSession */
   /** @typedef {import('../types').TicTacToeMove} TicTacToeMove */
 
@@ -11,15 +11,53 @@
   /** @type {(move: TicTacToeMove) => void} */
   export let onMove = () => {};
 
+  let lastFinishedGameId = '';
+
+  const soundSources = {
+    mark: '/sounds/select1.mp3',
+    win: '/sounds/win2.mp3',
+    lose: '/sounds/lose1.mp3',
+    draw: '/sounds/ping.mp3'
+  };
+
+  const audioCache = new Map();
   $: board = game?.state.board ?? [];
   $: myGamePlayer = game?.players.find((player) => player.id === currentPlayerId);
   $: isMyTurn = Boolean(game && myGamePlayer && game.state.currentPlayerId === currentPlayerId && game.status === 'running');
   $: boardVersion = game ? `${game.id}:${board.join('|')}:${game.state.currentPlayerId}:${game.status}` : '';
+  $: if (game?.status === 'finished' && game.id !== lastFinishedGameId) {
+    lastFinishedGameId = game.id;
+    playSound(game.state.isDraw ? 'draw' : game.state.winnerId === currentPlayerId ? 'win' : 'lose');
+  }
+
+  /** @param {keyof typeof soundSources} name */
+  function getAudio(name) {
+    if (typeof Audio === 'undefined') return null;
+
+    const cached = audioCache.get(name);
+    if (cached) return cached;
+
+    const audio = new Audio(soundSources[name]);
+    audio.preload = 'metadata';
+    audioCache.set(name, audio);
+    return audio;
+  }
+
+  /** @param {keyof typeof soundSources} name */
+  function playSound(name) {
+    const audio = getAudio(name);
+    if (!audio) return;
+
+    audio.pause();
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  }
 
   /** @param {number} cellIndex */
   function makeMove(cellIndex) {
     if (!game || game.status !== 'running' || board[cellIndex]) return;
     if (!myGamePlayer || game.state.currentPlayerId !== currentPlayerId) return;
+    playSound('mark');
     onMove({ cellIndex });
   }
 
@@ -88,3 +126,6 @@
     </div>
   </div>
 {/if}
+
+
+
