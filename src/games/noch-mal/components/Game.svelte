@@ -256,6 +256,33 @@
   function numberDieLabel(value: NochMalNumberDie) {
     return value === 'joker' ? '?' : String(value);
   }
+
+  function columnClaims(column: number) {
+    return game?.state.columnBonusClaims?.[column] ?? [];
+  }
+
+  function isTopColumnClaimedByMe(column: number) {
+    return Boolean(me && columnClaims(column)[0] === me.id);
+  }
+
+  function isTopColumnClaimedByOther(column: number) {
+    return Boolean(me && columnClaims(column).length > 0 && columnClaims(column)[0] !== me.id);
+  }
+
+  function isBottomColumnClaimedByMe(column: number) {
+    return Boolean(me && columnClaims(column).slice(1).includes(me.id));
+  }
+
+  function columnScoreLabel(column: number, tier: 'top' | 'bottom') {
+    const claims = columnClaims(column);
+    if (!me || claims.length === 0) return 'Noch nicht vergeben';
+    if (tier === 'top') {
+      if (claims[0] === me.id) return 'Du hast diesen ersten Spaltenbonus erhalten';
+      return 'Der erste Spaltenbonus wurde bereits vergeben';
+    }
+    if (claims.slice(1).includes(me.id)) return 'Du hast den unteren Spaltenwert erhalten';
+    return claims[0] && claims[0] !== me.id ? 'Unterer Spaltenwert fuer dich noch moeglich' : 'Unterer Spaltenwert wird nach dem ersten Abschluss relevant';
+  }
 </script>
 
 {#if !game}
@@ -423,12 +450,35 @@
 
                 <div class="mt-3 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5">
                   {#each topScore as value, index (`top-${index}`)}
-                    <div class="grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black shadow-sm sm:text-lg {index === 7 ? 'text-red-500' : 'text-slate-950'}">{value}</div>
+                    {@const claimedByMe = isTopColumnClaimedByMe(index)}
+                    {@const claimedByOther = isTopColumnClaimedByOther(index)}
+                    <div
+                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black shadow-sm sm:text-lg {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-4 ring-emerald-400 ring-offset-2 ring-offset-[#0b1b22]' : ''} {claimedByOther ? 'opacity-60' : ''}"
+                      title={columnScoreLabel(index, 'top')}
+                      aria-label={`${letters[index]} oberer Spaltenwert ${value}: ${columnScoreLabel(index, 'top')}`}
+                    >
+                      {value}
+                      {#if claimedByMe}
+                        <span class="pointer-events-none absolute inset-1 rounded-full border-4 border-emerald-500"></span>
+                      {:else if claimedByOther}
+                        <span class="pointer-events-none absolute left-1/2 top-1/2 h-1.5 w-[82%] -translate-x-1/2 -translate-y-1/2 -rotate-12 rounded-full bg-red-500 shadow-sm"></span>
+                      {/if}
+                    </div>
                   {/each}
                 </div>
                 <div class="mt-1 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5">
                   {#each bottomScore as value, index (`bottom-${index}`)}
-                    <div class="grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black shadow-sm sm:text-lg {index === 7 ? 'text-red-500' : 'text-slate-950'}">{value}</div>
+                    {@const claimedByMe = isBottomColumnClaimedByMe(index)}
+                    <div
+                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black shadow-sm sm:text-lg {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-4 ring-emerald-400 ring-offset-2 ring-offset-[#0b1b22]' : ''}"
+                      title={columnScoreLabel(index, 'bottom')}
+                      aria-label={`${letters[index]} unterer Spaltenwert ${value}: ${columnScoreLabel(index, 'bottom')}`}
+                    >
+                      {value}
+                      {#if claimedByMe}
+                        <span class="pointer-events-none absolute inset-1 rounded-full border-4 border-emerald-500"></span>
+                      {/if}
+                    </div>
                   {/each}
                 </div>
               </div>
@@ -480,6 +530,7 @@
   </section>
   {/key}
 {/if}
+
 
 
 
