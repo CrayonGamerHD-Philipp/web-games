@@ -1,4 +1,4 @@
-﻿<script>
+<script>
   import { page } from '$app/stores';
   import { ArrowLeft, Gamepad2 } from '@lucide/svelte';
   import { getGameDefinition, games } from '../../../games/registry';
@@ -6,6 +6,7 @@
   $: gameId = $page.params.gameId;
   $: definition = getGameDefinition(gameId);
   $: GameComponent = definition?.component;
+  $: usesFullWidthGameLayout = gameId === 'noch-mal';
 </script>
 
 <svelte:head>
@@ -13,7 +14,7 @@
 </svelte:head>
 
 <main class="min-h-screen bg-slate-50 text-slate-950">
-  <section class="mx-auto w-full max-w-5xl px-6 py-8 sm:px-8 lg:px-10">
+  <section class="mx-auto w-full {usesFullWidthGameLayout ? 'max-w-[100rem]' : 'max-w-5xl'} px-6 py-8 sm:px-8 lg:px-10">
     <a href="/" class="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950">
       <ArrowLeft size={18} />
       Startseite
@@ -26,7 +27,7 @@
         <p class="mt-2 text-sm leading-6 text-slate-600">Die Spiel-ID <span class="font-semibold">{gameId}</span> ist in der zentralen Registry nicht vorhanden.</p>
       </div>
     {:else}
-      <div class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div class="mt-8 grid gap-6 {usesFullWidthGameLayout ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_18rem]'}">
         <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <p class="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">{definition.id}</p>
           <h1 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-4xl">{definition.name}</h1>
@@ -39,6 +40,7 @@
           </div>
         </div>
 
+        {#if !usesFullWidthGameLayout}
         <aside class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           {#if definition.previewImage}
             <img src={definition.previewImage} alt="Vorschau von {definition.name}" class="aspect-[16/10] w-full rounded-lg border border-slate-200 object-cover object-center" />
@@ -52,7 +54,9 @@
             Party starten
           </a>
         </aside>
+        {/if}
       </div>
     {/if}
   </section>
 </main>
+

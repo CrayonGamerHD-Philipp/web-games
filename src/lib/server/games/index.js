@@ -1,3 +1,4 @@
+import { createNochMalSession, makeNochMalMove, nochMalGame } from '../../../games/noch-mal/server.js';
 import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/skyjo/server.js';
 import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
@@ -31,6 +32,11 @@ const gameHandlers = [
         playerId,
         move
       )
+  },
+  {
+    definition: nochMalGame,
+    createSession: createNochMalSession,
+    applyMove: makeNochMalMove
   }
 ];
 
