@@ -240,6 +240,17 @@ export function createNochMalSession(players) {
   };
 }
 
+/** @param {NochMalPlayer} player @param {string[]} candidate */
+function validateCandidateGroup(player, candidate) {
+  if (!isConnectedGroup(candidate)) return 'Die Felder muessen orthogonal zusammenhaengen.';
+  if (!hasValidAnchor(player, candidate)) {
+    return player.checkedCells.length === 0
+      ? 'Der Zug muss in der mittleren H-Spalte beginnen.'
+      : 'Der Zug muss an deine bestehenden Kreuze anschliessen.';
+  }
+  return '';
+}
+
 /** @param {NochMalPlayer} player @param {string} cellId */
 function validatePendingCell(player, cellId) {
   const cell = parseCellId(cellId);
@@ -248,7 +259,9 @@ function validatePendingCell(player, cellId) {
   if (player.checkedCells.includes(cellId)) return 'Dieses Feld ist bereits angekreuzt.';
   if (cell.color !== player.selectedColor) return 'Dieses Feld hat nicht die gewaehlte Farbe.';
   if (!player.pendingCells.includes(cellId) && player.pendingCells.length >= player.selectedNumber) return 'Du hast bereits genug Felder ausgewaehlt.';
-  return '';
+
+  const candidate = player.pendingCells.includes(cellId) ? player.pendingCells : [...player.pendingCells, cellId];
+  return validateCandidateGroup(player, candidate);
 }
 
 /** @param {NochMalPlayer} player */
@@ -346,4 +359,5 @@ export function makeNochMalMove(session, playerId, move) {
 
   return { error: 'Diese Noch-mal-Aktion ist nicht bekannt.' };
 }
+
 

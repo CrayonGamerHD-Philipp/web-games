@@ -116,7 +116,10 @@
     if (me.checkedCells.includes(cell.id)) return false;
     if (selectedColor && cell.color !== selectedColor) return false;
     if (pendingSet.has(cell.id)) return true;
-    return selectedNumber !== null && me.pendingCells.length < Number(selectedNumber);
+    if (selectedNumber === null || me.pendingCells.length >= Number(selectedNumber)) return false;
+
+    const candidate = [...me.pendingCells, cell.id];
+    return isConnectedGroup(candidate) && hasValidAnchor(me, candidate);
   }
 
   function isConnectedGroup(ids: string[]) {
@@ -357,5 +360,6 @@
     </div>
   </section>
 {/if}
+
 
 
