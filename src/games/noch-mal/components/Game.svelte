@@ -56,6 +56,7 @@
 
   $: nochMalVersion = game ? `${game.id}:${JSON.stringify(game.state)}:${JSON.stringify(game.players)}:${renderNonce}` : '';
   $: me = game?.players.find((player) => player.id === currentPlayerId) ?? null;
+  $: opponents = game?.players.filter((player) => player.id !== currentPlayerId) ?? [];
   $: roll = game?.state.roll ?? null;
   $: if (roll?.id && roll.id !== lastRollId) {
     if (lastRollId) playSound('dice');
@@ -485,6 +486,52 @@
             </div>
           </section>
         {/if}
+
+        {#if opponents.length > 0}
+          <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Mitspieler</p>
+                <h2 class="text-lg font-semibold leading-tight text-slate-950">Andere Spielblätter</h2>
+              </div>
+              <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">Kreuze bleiben privat</span>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {#each opponents as player (player.id)}
+                <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                      <h3 class="truncate text-sm font-semibold text-slate-950">{player.name}</h3>
+                      <p class="text-xs text-slate-500">Punkte: {player.score.total}</p>
+                    </div>
+                    {#if player.confirmed}
+                      <span class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">fertig</span>
+                    {:else}
+                      <span class="rounded bg-white px-2 py-0.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">spielt</span>
+                    {/if}
+                  </div>
+
+                  <div class="overflow-hidden rounded-md border border-slate-200 bg-white p-1">
+                    <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-px">
+                      {#each cells as cell (cell.id)}
+                        <span
+                          class="relative aspect-square min-w-0 rounded-[2px] {colorClass[cell.color]}"
+                          title={`${player.name}: ${letters[cell.column]}${cell.row + 1}`}
+                          aria-label={`${player.name} Feld ${letters[cell.column]}, Reihe ${cell.row + 1}`}
+                        >
+                          {#if cell.hasStar}
+                            <span class="absolute inset-0 grid place-items-center text-[0.45rem] font-black text-white/85">☆</span>
+                          {/if}
+                        </span>
+                      {/each}
+                    </div>
+                  </div>
+                </article>
+              {/each}
+            </div>
+          </section>
+        {/if}
       </div>
 
       <aside class="space-y-3">
@@ -530,6 +577,7 @@
   </section>
   {/key}
 {/if}
+
 
 
 
