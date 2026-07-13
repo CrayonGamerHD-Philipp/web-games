@@ -40,11 +40,11 @@
     peach: 'Orange'
   };
   const colorSymbols: Record<NochMalColor, string> = {
-    lime: '◆',
-    yellow: '●',
-    blue: '■',
-    pink: '✦',
-    peach: '⬟'
+    lime: 'â—†',
+    yellow: 'â—',
+    blue: 'â– ',
+    pink: 'âœ¦',
+    peach: 'â¬Ÿ'
   };
   const colorClass: Record<NochMalColor, string> = {
     lime: 'bg-[#b8d86e] text-[#365b18]',
@@ -356,8 +356,9 @@
     <div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-4 2xl:grid-cols-[minmax(0,1fr)_19rem]">
       <div class="min-w-0 space-y-4">
         <section class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div class="space-y-3">
+          <div class="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(15rem,3fr)] xl:items-start">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div class="space-y-3">
               <div>
                 <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwürfel</p>
                 <div class="flex flex-wrap gap-2">
@@ -421,6 +422,16 @@
                 <Sparkles size={18} /> Auswahl übernehmen
               </button>
             </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
+              <div class="mt-3 grid gap-2">
+                <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
+                <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestätigen</button>
+                <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug möglich</button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -436,7 +447,7 @@
               {/if}
             </div>
 
-            <div class="w-full overflow-x-auto pb-2">
+            <div class="w-full overflow-x-auto px-1 pt-2 pb-2">
               <div class="mx-auto w-full min-w-[40rem] md:min-w-0 2xl:max-w-[118rem]">
                 <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5">
                   {#each letters as letter, index (letter)}
@@ -588,15 +599,6 @@
       </div>
 
       <aside class="space-y-3 2xl:sticky 2xl:top-4 2xl:self-start">
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
-          <div class="mt-3 grid gap-2">
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
-            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestaetigen</button>
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug möglich</button>
-          </div>
-        </div>
-
         {#if me}
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
             <h3 class="font-semibold text-slate-900">Wertung</h3>
