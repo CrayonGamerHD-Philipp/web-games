@@ -353,95 +353,9 @@
       </div>
     </div>
 
-    <div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-4 2xl:grid-cols-[minmax(0,1fr)_19rem]">
+    <div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-4 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="min-w-0 space-y-4">
-        <section class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <div class="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(15rem,3fr)] xl:items-start">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div class="space-y-3">
-              <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwürfel</p>
-                <div class="flex flex-wrap gap-2">
-                  {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
-                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeColorDieIndex}
-                    <button
-                      type="button"
-                      disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
-                      on:click={() => chooseColorDie(index)}
-                      class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
-                    >
-                      {#if die === 'joker'}
-                        ?
-                      {:else}
-                        <span class="relative block h-5 w-5 bg-current {colorSymbolClass[die]}" aria-hidden="true"></span>
-                      {/if}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenwürfel</p>
-                <div class="flex flex-wrap gap-2">
-                  {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
-                    {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeNumberDieIndex}
-                    <button
-                      type="button"
-                      disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
-                      on:click={() => chooseNumberDie(index)}
-                      class="grid h-14 w-14 place-items-center rounded-lg border border-slate-300 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Zahlenwürfel ${index + 1}: ${numberDieLabel(die)}`}
-                    >{numberDieLabel(die)}</button>
-                  {/each}
-                </div>
-              </div>
-            </div>
-
-            <div class="grid gap-2 sm:grid-cols-2 lg:w-[24rem]">
-              {#if selectedColorFace === 'joker'}
-                <label class="block text-sm font-semibold text-slate-700">
-                  Jokerfarbe
-                  <select bind:value={jokerColor} class="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100">
-                    {#each colors as color (color)}
-                      <option value={color}>{colorNames[color]}</option>
-                    {/each}
-                  </select>
-                </label>
-              {/if}
-              {#if currentJokerCost > 0}
-                <div class="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 sm:col-span-2">
-                  Joker kostet: {currentJokerCost} - übrig danach: {remainingJokers}
-                </div>
-              {/if}
-              {#if selectedNumberFace === 'joker'}
-                <label class="block text-sm font-semibold text-slate-700">
-                  Jokerzahl
-                  <select bind:value={jokerNumber} class="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100">
-                    {#each [1, 2, 3, 4, 5] as value (value)}
-                      <option value={value}>{value}</option>
-                    {/each}
-                  </select>
-                </label>
-              {/if}
-              <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
-                <Sparkles size={18} /> Auswahl übernehmen
-              </button>
-            </div>
-            </div>
-
-            <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-              <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
-              <div class="mt-3 grid gap-2">
-                <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
-                <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestätigen</button>
-                <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug möglich</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {#if me}
+{#if me}
           <section class="overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:p-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -453,11 +367,11 @@
               {/if}
             </div>
 
-            <div class="w-full overflow-x-auto px-1 pt-2 pb-2">
-              <div class="mx-auto w-full min-w-[40rem] md:min-w-0 2xl:max-w-[118rem]">
-                <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5">
+            <div class="w-full overflow-x-auto px-1 pt-1 pb-2">
+              <div class="mx-auto w-full min-w-[34rem] md:min-w-0 2xl:max-w-[76rem]">
+                <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
                   {#each letters as letter, index (letter)}
-                    <div class="grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black text-slate-950 shadow-sm sm:text-lg {index === 7 ? 'text-red-500 ring-2 ring-[#e68b2f]' : ''}">{letter}</div>
+                    <div class="grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black text-slate-950 shadow-sm sm:text-base {index === 7 ? 'text-red-500 ring-2 ring-[#e68b2f]' : ''}">{letter}</div>
                   {/each}
                 </div>
 
@@ -477,7 +391,7 @@
                       >
 
                         {#if cell.hasStar}
-                          <Star class="pointer-events-none absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow sm:h-10 sm:w-10 {checked ? 'opacity-25' : ''}" strokeWidth={2.4} />
+                          <Star class="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow sm:h-8 sm:w-8 {checked ? 'opacity-25' : ''}" strokeWidth={2.4} />
                         {/if}
                         {#if checked}
                           <span class="pointer-events-none absolute left-1/2 top-1/2 z-10 h-1.5 w-3/4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-white shadow"></span>
@@ -488,12 +402,12 @@
                   </div>
                 </div>
 
-                <div class="mt-3 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5">
+                <div class="mt-3 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
                   {#each topScore as value, index (`top-${index}`)}
                     {@const claimedByMe = isTopColumnClaimedByMe(index)}
                     {@const claimedByOther = isTopColumnClaimedByOther(index)}
                     <div
-                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black shadow-sm sm:text-lg {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''} {claimedByOther ? 'opacity-60' : ''}"
+                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black shadow-sm sm:text-base {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''} {claimedByOther ? 'opacity-60' : ''}"
                       title={columnScoreLabel(index, 'top')}
                       aria-label={`${letters[index]} oberer Spaltenwert ${value}: ${columnScoreLabel(index, 'top')}`}
                     >
@@ -506,11 +420,11 @@
                     </div>
                   {/each}
                 </div>
-                <div class="mt-1 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5">
+                <div class="mt-1 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
                   {#each bottomScore as value, index (`bottom-${index}`)}
                     {@const claimedByMe = isBottomColumnClaimedByMe(index)}
                     <div
-                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black shadow-sm sm:text-lg {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''}"
+                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black shadow-sm sm:text-base {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''}"
                       title={columnScoreLabel(index, 'bottom')}
                       aria-label={`${letters[index]} unterer Spaltenwert ${value}: ${columnScoreLabel(index, 'bottom')}`}
                     >
@@ -525,8 +439,21 @@
             </div>
           </section>
         {/if}
-
-        {#if opponents.length > 0}
+        <section class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm sm:p-4">
+          <h3 class="font-semibold text-slate-900">Spieler</h3>
+          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {#each game.players as player (player.id)}
+              <div class="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 ring-1 ring-slate-200">
+                <span class="truncate {player.id === currentPlayerId ? 'font-semibold text-cyan-700' : 'text-slate-600'}">{player.name}</span>
+                {#if player.confirmed}
+                  <span class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">fertig</span>
+                {:else}
+                  <span class="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">spielt</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </section>{#if opponents.length > 0}
           <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -604,35 +531,100 @@
         {/if}
       </div>
 
-      <aside class="space-y-3 2xl:sticky 2xl:top-4 2xl:self-start">
+      <aside class="space-y-3 xl:sticky xl:top-4 xl:self-start">
+        <section class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="grid gap-4">
+            <div>
+              <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwürfel</p>
+              <div class="grid grid-cols-3 gap-2">
+                {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
+                  {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeColorDieIndex}
+                  <button
+                    type="button"
+                    disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
+                    on:click={() => chooseColorDie(index)}
+                    class="grid aspect-square min-h-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
+                    aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
+                  >
+                    {#if die === 'joker'}
+                      ?
+                    {:else}
+                      <span class="relative block h-5 w-5 bg-current {colorSymbolClass[die]}" aria-hidden="true"></span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            <div>
+              <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenwürfel</p>
+              <div class="grid grid-cols-3 gap-2">
+                {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
+                  {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeNumberDieIndex}
+                  <button
+                    type="button"
+                    disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
+                    on:click={() => chooseNumberDie(index)}
+                    class="grid aspect-square min-h-14 place-items-center rounded-lg border border-slate-300 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
+                    aria-label={`Zahlenwürfel ${index + 1}: ${numberDieLabel(die)}`}
+                  >{numberDieLabel(die)}</button>
+                {/each}
+              </div>
+            </div>
+
+            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              {#if selectedColorFace === 'joker'}
+                <label class="block text-sm font-semibold text-slate-700">
+                  Jokerfarbe
+                  <select bind:value={jokerColor} class="mt-1 min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100">
+                    {#each colors as color (color)}
+                      <option value={color}>{colorNames[color]}</option>
+                    {/each}
+                  </select>
+                </label>
+              {/if}
+              {#if selectedNumberFace === 'joker'}
+                <label class="block text-sm font-semibold text-slate-700">
+                  Jokerzahl
+                  <select bind:value={jokerNumber} class="mt-1 min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100">
+                    {#each [1, 2, 3, 4, 5] as value (value)}
+                      <option value={value}>{value}</option>
+                    {/each}
+                  </select>
+                </label>
+              {/if}
+              {#if currentJokerCost > 0}
+                <div class="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+                  Joker kostet: {currentJokerCost} - übrig danach: {remainingJokers}
+                </div>
+              {/if}
+              <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+                <Sparkles size={17} /> Auswahl übernehmen
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+          <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
+          <div class="mt-3 grid gap-2">
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
+            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestätigen</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug möglich</button>
+          </div>
+        </section>
         {#if me}
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+          <section class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm">
             <h3 class="font-semibold text-slate-900">Wertung</h3>
             <div class="mt-3 space-y-2">
               <div class="flex justify-between gap-3"><span class="text-slate-500">Spalten</span><strong>{completedColumnScore}</strong></div>
               <div class="flex justify-between gap-3"><span class="text-slate-500">Farben</span><strong>{colorBonus}</strong></div>
               <div class="flex justify-between gap-3"><span class="text-slate-500">Joker</span><strong>{jokerPenalty}</strong></div>
               <div class="flex justify-between gap-3"><span class="text-slate-500">Sterne</span><strong>{starPenalty}</strong></div>
-              <div class="border-t border-slate-200 pt-2 text-base flex justify-between gap-3"><span>Total</span><strong>{totalScore}</strong></div>
+              <div class="flex justify-between gap-3 border-t border-slate-200 pt-2 text-base"><span>Total</span><strong>{totalScore}</strong></div>
             </div>
-          </div>
+          </section>
         {/if}
-
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-          <h3 class="font-semibold text-slate-900">Spieler</h3>
-          <div class="mt-3 space-y-2">
-            {#each game.players as player (player.id)}
-              <div class="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 ring-1 ring-slate-200">
-                <span class="truncate {player.id === currentPlayerId ? 'font-semibold text-cyan-700' : 'text-slate-600'}">{player.name}</span>
-                {#if player.confirmed}
-                  <span class="rounded bg-emerald-400/15 px-2 py-0.5 text-xs font-semibold text-emerald-200">fertig</span>
-                {:else}
-                  <span class="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">spielt</span>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </div>
       </aside>
     </div>
   </section>
