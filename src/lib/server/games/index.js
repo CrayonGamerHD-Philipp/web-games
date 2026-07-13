@@ -1,7 +1,23 @@
+import { createNochMalSession, makeNochMalMove, nochMalGame } from '../../../games/noch-mal/server.js';
 import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/skyjo/server.js';
 import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
 const gameHandlers = [
+  {
+    definition: nochMalGame,
+    createSession: createNochMalSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeNochMalMove(
+        /** @type {Exclude<ReturnType<typeof createNochMalSession>, { error: string }>} */ (session),
+        playerId,
+        move
+      )
+  },
   {
     definition: ticTacToeGame,
     createSession: createTicTacToeSession,
@@ -65,7 +81,7 @@ export function createGameSession(gameId, players, options = {}) {
  * @param {unknown} gameId
  * @param {unknown} session
  * @param {string} playerId
- * @param {{ cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown }} move
+ * @param {{ cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }} move
  */
 export function applyGameMove(gameId, session, playerId, move) {
   const handler = getGameHandler(gameId);
@@ -74,6 +90,6 @@ export function applyGameMove(gameId, session, playerId, move) {
     return { error: 'Dieses Spiel ist nicht verfuegbar.' };
   }
 
-  const applyMove = /** @type {(session: unknown, playerId: string, move: { cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown }) => { session?: unknown, error?: string }} */ (handler.applyMove);
+  const applyMove = /** @type {(session: unknown, playerId: string, move: { cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }) => { session?: unknown, error?: string }} */ (handler.applyMove);
   return applyMove(session, playerId, move);
 }
