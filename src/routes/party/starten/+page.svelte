@@ -1,10 +1,15 @@
-<script>
+﻿<script>
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { ArrowLeft, LoaderCircle, PlusCircle } from '@lucide/svelte';
 
   let name = '';
   let error = '';
   let isSubmitting = false;
+
+  onMount(() => {
+    name ||= localStorage.getItem('web-games:player-name') ?? '';
+  });
 
   async function createParty() {
     error = '';
@@ -23,7 +28,8 @@
         return;
       }
 
-      localStorage.setItem(`party-player:${data.party.code}`, data.playerId);
+      localStorage.setItem('web-games:player-name', name.trim());
+      localStorage.setItem('party-player:' + data.party.code, data.playerId);
       await goto(`/party/${data.party.code}`);
     } catch {
       error = 'Die Party konnte nicht erstellt werden.';
@@ -97,3 +103,7 @@
     </div>
   </section>
 </main>
+
+
+
+

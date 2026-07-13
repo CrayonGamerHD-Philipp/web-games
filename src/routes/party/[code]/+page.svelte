@@ -1,8 +1,8 @@
-<script>
+﻿<script>
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Check, Copy, Gamepad2, LoaderCircle, Play, UserRound } from '@lucide/svelte';
+  import { ArrowLeft, Check, Copy, Gamepad2, LoaderCircle, Play, SquareX, UserRound } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
 
   /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player */
@@ -78,6 +78,31 @@
     }, 1600);
   }
 
+
+  async function closeActiveGame() {
+    gameError = '';
+    isGameActionLoading = true;
+
+    try {
+      const response = await fetch(`/api/parties/${code}/game`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'close', playerId })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        gameError = data.message ?? 'Das Spiel konnte nicht abgebrochen werden.';
+        return;
+      }
+
+      party = data.party;
+    } catch {
+      gameError = 'Das Spiel konnte nicht abgebrochen werden.';
+    } finally {
+      isGameActionLoading = false;
+    }
+  }
   async function startSelectedGame() {
     gameError = '';
     isGameActionLoading = true;
@@ -221,13 +246,26 @@
               <div class="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
                 <span class="font-semibold">{activeGame.name}</span> laeuft gerade.
               </div>
-              <a
-                href={`/party/${party.code}/game`}
-                class="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 sm:w-auto"
-              >
-                <Gamepad2 size={20} />
-                Zum Spiel
-              </a>
+              <div class="mt-5 flex flex-col gap-2 sm:flex-row">
+                <a
+                  href={`/party/${party.code}/game`}
+                  class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 sm:w-auto"
+                >
+                  <Gamepad2 size={20} />
+                  Zum Spiel
+                </a>
+                {#if isCurrentHost}
+                  <button
+                    type="button"
+                    on:click={closeActiveGame}
+                    disabled={isGameActionLoading}
+                    class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-5 py-3 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    <SquareX size={20} />
+                    Spiel abbrechen
+                  </button>
+                {/if}
+              </div>
             {:else if isCurrentHost}
               <div class="mt-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <label class="block">
@@ -312,4 +350,6 @@
     {/if}
   </section>
 </main>
+
+
 

@@ -1,5 +1,5 @@
-<script>
-  import { ArrowLeft, LoaderCircle, RotateCcw, Trophy } from '@lucide/svelte';
+﻿<script>
+  import { ArrowLeft, LoaderCircle, RotateCcw, SquareX, Trophy } from '@lucide/svelte';
   import { getGameDefinition } from '../../../games/registry';
   import GameResultScreen from './GameResultScreen.svelte';
 
@@ -172,10 +172,16 @@
         {/if}
 
         {#if isHost && activeGame.status !== 'finished'}
-          <button type="button" on:click={onRestart} disabled={isActionLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60">
-            <RotateCcw size={18} />
-            Neu starten
-          </button>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <button type="button" on:click={onRestart} disabled={isActionLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60">
+              <RotateCcw size={18} />
+              Neu starten
+            </button>
+            <button type="button" on:click={onChooseNewGame} disabled={isActionLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60">
+              <SquareX size={18} />
+              Spiel abbrechen
+            </button>
+          </div>
         {/if}
       </div>
 
@@ -267,4 +273,5 @@
     </aside>
   </div>
 {/if}
+
 

@@ -126,6 +126,12 @@
     return audio;
   }
 
+  function effectVolume() {
+    if (typeof localStorage === 'undefined') return 0.85;
+    const value = Number(localStorage.getItem('web-games:effects-volume') ?? '0.85');
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.85;
+  }
+
   function playSound(name: SoundName) {
     if (!soundEnabled) return;
 
@@ -134,6 +140,7 @@
 
     audio.pause();
     audio.currentTime = 0;
+    audio.volume = effectVolume();
     void audio.play().catch(() => {
       // Browsers may block playback until the first user gesture.
     });
@@ -623,6 +630,7 @@
   </section>
   {/key}
 {/if}
+
 
 
 

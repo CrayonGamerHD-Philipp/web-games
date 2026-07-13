@@ -1,4 +1,4 @@
-import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
+﻿import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
 
 /**
  * @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player
@@ -229,6 +229,40 @@ export function joinParty(code, name) {
   };
 }
 
+
+/**
+ * @param {unknown} code
+ * @param {unknown} playerId
+ * @param {unknown} name
+ */
+export function renamePlayer(code, playerId, name) {
+  const cleanCode = normalizeCode(code);
+  const cleanPlayerId = normalizePlayerId(playerId);
+  const cleanName = normalizeName(name);
+  const party = store.parties.get(cleanCode);
+
+  if (!party) {
+    return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  }
+
+  if (!cleanName) {
+    return { status: 400, error: 'Bitte gib einen Namen ein.' };
+  }
+
+  const player = party.players.find((/** @type {Player} */ candidate) => candidate.id === cleanPlayerId);
+  if (!player) {
+    return { status: 403, error: 'Dieses Geraet ist nicht in der Party angemeldet.' };
+  }
+
+  player.name = cleanName;
+  if (party.activeGame) {
+    const gamePlayer = party.activeGame.players.find((/** @type {{ id: string, name: string }} */ candidate) => candidate.id === cleanPlayerId);
+    if (gamePlayer) gamePlayer.name = cleanName;
+  }
+
+  notifyParty(party);
+  return { party: publicParty(party) };
+}
 /** @param {unknown} code */
 export function getParty(code) {
   const cleanCode = normalizeCode(code);
@@ -425,4 +459,7 @@ export function makeMove(code, playerId, move) {
 
   return { party: publicParty(activeParty) };
 }
+
+
+
 

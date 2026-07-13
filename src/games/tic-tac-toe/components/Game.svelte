@@ -43,6 +43,12 @@
     return audio;
   }
 
+  function effectVolume() {
+    if (typeof localStorage === 'undefined') return 0.85;
+    const value = Number(localStorage.getItem('web-games:effects-volume') ?? '0.85');
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.85;
+  }
+
   /** @param {keyof typeof soundSources} name */
   function playSound(name) {
     const audio = getAudio(name);
@@ -50,6 +56,7 @@
 
     audio.pause();
     audio.currentTime = 0;
+    audio.volume = effectVolume();
     void audio.play().catch(() => {});
   }
 
@@ -126,6 +133,8 @@
     </div>
   </div>
 {/if}
+
+
 
 
 
