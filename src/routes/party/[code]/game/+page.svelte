@@ -1,4 +1,4 @@
-﻿<script>
+<script>
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import GameShell from '$lib/game-system/components/GameShell.svelte';
@@ -23,7 +23,7 @@
   $: currentPlayer = party?.players.find((player) => player.id === playerId);
   $: isCurrentHost = Boolean(currentPlayer?.isHost);
   $: activeGame = party?.activeGame ?? null;
-  $: shellMaxWidth = activeGame?.gameId === 'skyjo' ? 'max-w-5xl' : 'max-w-6xl lg:px-10';
+  $: shellMaxWidth = activeGame?.gameId === 'noch-mal' ? 'max-w-[1800px] 2xl:max-w-[96vw]' : activeGame?.gameId === 'skyjo' ? 'max-w-5xl' : 'max-w-6xl lg:px-10';
 
   async function flushGameRender() {
     renderNonce += 1;

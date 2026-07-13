@@ -1,4 +1,4 @@
-Ôªø<script lang="ts">
+<script lang="ts">
   import { Check, CircleHelp, RotateCcw, Sparkles } from '@lucide/svelte';
   import { bottomScore, cells, jokerCount, letters, rows, topScore } from '../data/board';
   import type { NochMalColor, NochMalColorDie, NochMalNumberDie, NochMalPlayer, NochMalSession } from '../types';
@@ -33,18 +33,18 @@
 
   const colors: NochMalColor[] = ['lime', 'yellow', 'blue', 'pink', 'peach'];
   const colorNames: Record<NochMalColor, string> = {
-    lime: 'Gr√ºn',
+    lime: 'Gr¸n',
     yellow: 'Gelb',
     blue: 'Blau',
     pink: 'Pink',
     peach: 'Orange'
   };
   const colorSymbols: Record<NochMalColor, string> = {
-    lime: '‚óÜ',
-    yellow: '‚óè',
-    blue: '‚ñ†',
-    pink: '‚ú¶',
-    peach: '‚¨ü'
+    lime: '?',
+    yellow: '?',
+    blue: '¶',
+    pink: '?',
+    peach: '?'
   };
   const colorClass: Record<NochMalColor, string> = {
     lime: 'bg-[#b8d86e] text-[#365b18]',
@@ -99,19 +99,19 @@
   $: actionText = getActionText();
 
   function getActionText() {
-    if (!game) return 'Noch mal wird √ºber eine Party gestartet.';
+    if (!game) return 'Noch mal wird ¸ber eine Party gestartet.';
     if (!me) return 'Du schaust diese Runde zu.';
     if (game.status === 'finished' || game.state.phase === 'finished') return 'Die Partie ist beendet.';
-    if (me.confirmed) return 'Zug best√§tigt. Warte auf die anderen Spieler.';
+    if (me.confirmed) return 'Zug best‰tigt. Warte auf die anderen Spieler.';
     if (isPassiveWaiting) return `Warte auf die Auswahl von ${activePlayer?.name ?? 'dem Startspieler'}.`;
-    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. W√§hle aus allen W√ºrfeln.`;
-    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: W√§hle zuerst einen Farb- und einen Zahlenw√ºrfel.';
-    if (!me.selectedColor || !me.selectedNumber) return 'W√§hle einen Farbw√ºrfel und einen Zahlenw√ºrfel.';
-    if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenh√§ngende ${colorNames[me.selectedColor]}-Felder.`;
-    if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenh√§ngen.';
-    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte ber√ºhren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschlie√üen oder die H-Spalte ber√ºhren.';
-    if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) ausw√§hlen.`;
-    return 'Auswahl g√ºltig. Best√§tige deinen Zug.';
+    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. W‰hle aus allen W¸rfeln.`;
+    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: W‰hle zuerst einen Farb- und einen Zahlenw¸rfel.';
+    if (!me.selectedColor || !me.selectedNumber) return 'W‰hle einen Farbw¸rfel und einen Zahlenw¸rfel.';
+    if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenh‰ngende ${colorNames[me.selectedColor]}-Felder.`;
+    if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenh‰ngen.';
+    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte ber¸hren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschlieﬂen oder die H-Spalte ber¸hren.';
+    if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) ausw‰hlen.`;
+    return 'Auswahl g¸ltig. Best‰tige deinen Zug.';
   }
 
   function getAudio(name: SoundName) {
@@ -310,7 +310,7 @@
 
 {#if !game}
   <div class="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-    Noch mal l√§uft √ºber die Party-Lobby, damit W√ºrfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
+    Noch mal l‰uft ¸ber die Party-Lobby, damit W¸rfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
   </div>
 {:else}
   {#key nochMalVersion}
@@ -320,12 +320,12 @@
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <span class="rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800 ring-1 ring-cyan-200">Runde {game.state.round}</span>
-            <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{confirmedCount}/{game.players.length} best√§tigt</span>
+            <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{confirmedCount}/{game.players.length} best‰tigt</span>
             {#if isAdvantageRound}
               <span class="rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 ring-1 ring-orange-200">Startspieler: {activePlayer?.name ?? 'offen'}</span>
             {/if}
             {#if me?.confirmed}
-              <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"><Check size={14} /> Best√§tigt</span>
+              <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"><Check size={14} /> Best‰tigt</span>
             {/if}
           </div>
           <p class="mt-2 min-h-6 text-sm font-medium text-slate-700">{actionText}</p>
@@ -353,13 +353,13 @@
       </div>
     </div>
 
-    <div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-4 2xl:grid-cols-[minmax(0,1fr)_19rem]">
       <div class="min-w-0 space-y-4">
         <section class="rounded-lg border border-slate-200 bg-slate-50 p-3">
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div class="space-y-3">
               <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbw√ºrfel</p>
+                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbw¸rfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
                     {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeColorDieIndex}
@@ -368,14 +368,14 @@
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
                       on:click={() => chooseColorDie(index)}
                       class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Farbw√ºrfel ${index + 1}: ${colorDieLabel(die)}`}
+                      aria-label={`Farbw¸rfel ${index + 1}: ${colorDieLabel(die)}`}
                     >{die === 'joker' ? '?' : colorSymbols[die]}</button>
                   {/each}
                 </div>
               </div>
 
               <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenw√ºrfel</p>
+                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenw¸rfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
                     {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeNumberDieIndex}
@@ -384,7 +384,7 @@
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
                       on:click={() => chooseNumberDie(index)}
                       class="grid h-14 w-14 place-items-center rounded-lg border border-slate-300 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Zahlenw√ºrfel ${index + 1}: ${numberDieLabel(die)}`}
+                      aria-label={`Zahlenw¸rfel ${index + 1}: ${numberDieLabel(die)}`}
                     >{numberDieLabel(die)}</button>
                   {/each}
                 </div>
@@ -404,7 +404,7 @@
               {/if}
               {#if currentJokerCost > 0}
                 <div class="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 sm:col-span-2">
-                  Joker kostet: {currentJokerCost} ¬∑ √ºbrig danach: {remainingJokers}
+                  Joker kostet: {currentJokerCost} ∑ ¸brig danach: {remainingJokers}
                 </div>
               {/if}
               {#if selectedNumberFace === 'joker'}
@@ -418,7 +418,7 @@
                 </label>
               {/if}
               <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
-                <Sparkles size={18} /> Auswahl √ºbernehmen
+                <Sparkles size={18} /> Auswahl ¸bernehmen
               </button>
             </div>
           </div>
@@ -432,12 +432,12 @@
                 <h2 class="text-xl font-semibold leading-tight sm:text-2xl">{me.name}</h2>
               </div>
               {#if me.selectedColor && me.selectedNumber}
-                <span class="rounded-md bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 ring-1 ring-cyan-200">{colorNames[me.selectedColor]} √ó {me.selectedNumber}</span>
+                <span class="rounded-md bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 ring-1 ring-cyan-200">{colorNames[me.selectedColor]} ◊ {me.selectedNumber}</span>
               {/if}
             </div>
 
             <div class="w-full overflow-x-auto pb-2">
-              <div class="mx-auto min-w-[46rem] max-w-[100rem]">
+              <div class="mx-auto w-full min-w-[40rem] md:min-w-0 2xl:max-w-[118rem]">
                 <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5">
                   {#each letters as letter, index (letter)}
                     <div class="grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-sm font-black text-slate-950 shadow-sm sm:text-lg {index === 7 ? 'text-red-500 ring-2 ring-[#e68b2f]' : ''}">{letter}</div>
@@ -460,7 +460,7 @@
                       >
                         <span class="pointer-events-none absolute left-1 top-1 text-[0.65rem] font-black opacity-70">{colorSymbols[cell.color]}</span>
                         {#if cell.hasStar}
-                          <span class="pointer-events-none absolute inset-0 grid place-items-center text-xl font-black text-white drop-shadow sm:text-3xl {checked ? 'opacity-25' : ''}">‚òÜ</span>
+                          <span class="pointer-events-none absolute inset-0 grid place-items-center text-xl font-black text-white drop-shadow sm:text-3xl {checked ? 'opacity-25' : ''}">?</span>
                         {/if}
                         {#if checked}
                           <span class="pointer-events-none absolute left-1/2 top-1/2 z-10 h-1.5 w-3/4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-white shadow"></span>
@@ -514,12 +514,12 @@
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Mitspieler</p>
-                <h2 class="text-lg font-semibold leading-tight text-slate-950">Andere Spielbl√§tter</h2>
+                <h2 class="text-lg font-semibold leading-tight text-slate-950">Andere Spielbl‰tter</h2>
               </div>
               <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">Live-Stand</span>
             </div>
 
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {#each opponents as player (player.id)}
                 <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <div class="mb-2 flex items-center justify-between gap-2">
@@ -544,7 +544,7 @@
                           aria-label={`${player.name} Feld ${letters[cell.column]}, Reihe ${cell.row + 1}${checked ? ', angekreuzt' : ''}`}
                         >
                           {#if cell.hasStar}
-                            <span class="absolute inset-0 grid place-items-center text-[0.45rem] font-black text-white/85 {checked ? 'opacity-25' : ''}">‚òÜ</span>
+                            <span class="absolute inset-0 grid place-items-center text-[0.45rem] font-black text-white/85 {checked ? 'opacity-25' : ''}">?</span>
                           {/if}
                           {#if checked}
                             <span class="pointer-events-none absolute left-1/2 top-1/2 z-10 h-0.5 w-3/4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-white shadow-sm"></span>
@@ -587,13 +587,13 @@
         {/if}
       </div>
 
-      <aside class="space-y-3">
+      <aside class="space-y-3 2xl:sticky 2xl:top-4 2xl:self-start">
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
           <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
           <div class="mt-3 grid gap-2">
             <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
-            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug best√§tigen</button>
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug m√∂glich</button>
+            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug best‰tigen</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug mˆglich</button>
           </div>
         </div>
 
