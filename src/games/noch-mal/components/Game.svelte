@@ -7,6 +7,7 @@
   export let currentPlayerId = '';
   export let isLoading = false;
   export let onMove: (move: Record<string, unknown>) => void = () => {};
+  export let renderNonce = 0;
 
   let colorDieIndex: number | null = null;
   let numberDieIndex: number | null = null;
@@ -37,6 +38,7 @@
     peach: 'bg-[#e79a4e] text-[#5d2a0d]'
   };
 
+  $: nochMalVersion = game ? `${game.id}:${JSON.stringify(game.state)}:${JSON.stringify(game.players)}:${renderNonce}` : '';
   $: me = game?.players.find((player) => player.id === currentPlayerId) ?? null;
   $: roll = game?.state.roll ?? null;
   $: if (roll?.id && roll.id !== lastRollId) {
@@ -198,6 +200,7 @@
     Noch mal läuft über die Party-Lobby, damit Würfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
   </div>
 {:else}
+  {#key nochMalVersion}
   <section class="w-full space-y-4">
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -396,7 +399,9 @@
       </aside>
     </div>
   </section>
+  {/key}
 {/if}
+
 
 
 
