@@ -50,7 +50,6 @@
   $: winnerPlayer = activeGame?.players.find((player) => player.id === activeGame.state.winnerId);
   $: isMyTurn = Boolean(activeGame && myGamePlayer && activeGame.state.currentPlayerId === currentPlayerId && activeGame.status === 'running');
   $: isSkyjo = activeGame?.gameId === 'skyjo';
-  $: usesFullWidthGameLayout = isSkyjo || activeGame?.gameId === 'noch-mal';
   $: gameScorePlayers = activeGame
     ? activeGame.players.map((gamePlayer) => {
         const partyPlayer = partyPlayers.find((player) => player.id === gamePlayer.id);
@@ -145,7 +144,7 @@
     <p class="mt-2 text-sm leading-6 text-slate-600">Die Spiel-ID <span class="font-semibold">{activeGame.gameId}</span> existiert in der zentralen Registry nicht.</p>
   </div>
 {:else}
-  <div class="mt-4 grid gap-4 {usesFullWidthGameLayout ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_20rem]'}">
+  <div class="mt-4 grid gap-4 {isSkyjo ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_20rem]'}">
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0 flex-1">
@@ -168,7 +167,7 @@
           </p>
         </div>
 
-        {#if definition.previewImage && !usesFullWidthGameLayout}
+        {#if definition.previewImage && !isSkyjo}
           <img src={definition.previewImage} alt="Spielmotiv" class="hidden aspect-[10/7] h-28 w-40 shrink-0 rounded-lg border border-slate-200 object-cover object-center shadow-sm md:block" />
         {/if}
 
@@ -225,7 +224,7 @@
       </div>
     {/if}
 
-    <aside class="space-y-4 {usesFullWidthGameLayout ? 'hidden' : ''}">
+    <aside class="space-y-4 {isSkyjo ? 'hidden' : ''}">
       <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="text-lg font-semibold text-slate-950">Status</h2>
         <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
