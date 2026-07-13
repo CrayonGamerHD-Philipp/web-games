@@ -14,6 +14,22 @@
   let jokerColor: NochMalColor = 'lime';
   let jokerNumber = 1;
   let lastRollId = '';
+  let lastFinishedGameId = '';
+  let soundEnabled = true;
+
+  type SoundName = 'dice' | 'select' | 'mark' | 'confirm' | 'win' | 'lose' | 'notify';
+
+  const soundSources: Record<SoundName, string> = {
+    dice: '/sounds/dice1.mp3',
+    select: '/sounds/select1.mp3',
+    mark: '/sounds/turn_card1.mp3',
+    confirm: '/sounds/ping.mp3',
+    win: '/sounds/win1.mp3',
+    lose: '/sounds/lose1.mp3',
+    notify: '/sounds/take_card1.mp3'
+  };
+
+  const audioCache = new Map<SoundName, HTMLAudioElement>();
 
   const colors: NochMalColor[] = ['lime', 'yellow', 'blue', 'pink', 'peach'];
   const colorNames: Record<NochMalColor, string> = {
@@ -42,11 +58,16 @@
   $: me = game?.players.find((player) => player.id === currentPlayerId) ?? null;
   $: roll = game?.state.roll ?? null;
   $: if (roll?.id && roll.id !== lastRollId) {
+    if (lastRollId) playSound('dice');
     lastRollId = roll.id;
     colorDieIndex = null;
     numberDieIndex = null;
     jokerColor = 'lime';
     jokerNumber = 1;
+  }
+  $: if (game?.status === 'finished' && game.id !== lastFinishedGameId) {
+    lastFinishedGameId = game.id;
+    playSound(game.state.winnerId === currentPlayerId ? 'win' : 'lose');
   }
   $: selectedColorFace = roll && colorDieIndex !== null ? roll.colorDice[colorDieIndex] : null;
   $: selectedNumberFace = roll && numberDieIndex !== null ? roll.numberDice[numberDieIndex] : null;
@@ -86,8 +107,34 @@
     return 'Auswahl gültig. Bestätige deinen Zug.';
   }
 
+  function getAudio(name: SoundName) {
+    if (typeof Audio === 'undefined') return null;
+
+    const cached = audioCache.get(name);
+    if (cached) return cached;
+
+    const audio = new Audio(soundSources[name]);
+    audio.preload = 'metadata';
+    audioCache.set(name, audio);
+    return audio;
+  }
+
+  function playSound(name: SoundName) {
+    if (!soundEnabled) return;
+
+    const audio = getAudio(name);
+    if (!audio) return;
+
+    audio.pause();
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      // Browsers may block playback until the first user gesture.
+    });
+  }
+
   function selectDice() {
     if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return;
+    playSound('confirm');
     onMove({ type: 'select-dice', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber) });
   }
 
@@ -112,26 +159,31 @@
 
   function chooseColorDie(index: number) {
     if (!isColorDieAvailable(index) || !canChooseDiceThisRound) return;
+    playSound('select');
     colorDieIndex = index;
     if (numberDieIndex !== null) setTimeout(selectDice, 0);
   }
 
   function chooseNumberDie(index: number) {
     if (!isNumberDieAvailable(index) || !canChooseDiceThisRound) return;
+    playSound('select');
     numberDieIndex = index;
     if (colorDieIndex !== null) setTimeout(selectDice, 0);
   }
 
   function clearSelection() {
+    playSound('select');
     onMove({ type: 'clear-selection' });
   }
 
   function confirmTurn() {
     if (!canConfirm) return;
+    playSound('confirm');
     onMove({ type: 'confirm-turn' });
   }
 
   function skipTurn() {
+    playSound('notify');
     onMove({ type: 'skip-turn' });
   }
 
@@ -139,9 +191,11 @@
     if (!me || me.confirmed || !hasActiveDiceSelection) return;
     if (!me.selectedColor || !me.selectedNumber) {
       if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return;
+      playSound('mark');
       onMove({ type: 'select-dice-and-toggle-cell', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber), cellId });
       return;
     }
+    playSound(pendingSet.has(cellId) ? 'select' : 'mark');
     onMove({ type: 'toggle-cell', cellId });
   }
 
@@ -216,6 +270,17 @@
             {/if}
           </div>
           <p class="mt-2 min-h-6 text-sm font-medium text-slate-700">{actionText}</p>
+          <button
+            type="button"
+            on:click={() => {
+              soundEnabled = !soundEnabled;
+              if (soundEnabled) playSound('select');
+            }}
+            class="mt-2 inline-flex min-h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+            aria-pressed={soundEnabled}
+          >
+            Sound {soundEnabled ? 'an' : 'aus'}
+          </button>
         </div>
 
         {#if me}
@@ -401,6 +466,7 @@
   </section>
   {/key}
 {/if}
+
 
 
 
