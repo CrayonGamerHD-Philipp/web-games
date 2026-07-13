@@ -1,7 +1,7 @@
-ï»¿<script lang="ts">
+<script lang="ts">
   import { browser } from '$app/environment';
   import { page } from '$app/stores';
-  import { Check, LoaderCircle, Play, Settings, Shuffle, Volume2, X } from '@lucide/svelte';
+  import { Check, LoaderCircle, Music, Play, Settings, Shuffle, User, Volume2, X } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
 
   type MusicTrack = { id: string; name: string; src: string };
@@ -38,11 +38,18 @@
   let previewAudio: HTMLAudioElement | null = null;
   let hasUserInteracted = false;
   let lastStartedTrackId = '';
+  let previewTimeout: ReturnType<typeof setTimeout> | null = null;
+  let resumeMusicAfterPreview = false;
+  let loadedPartyNameKey = '';
 
   $: routeCode = extractPartyCode($page.url.pathname);
   $: currentPlayerId = browser && routeCode ? localStorage.getItem(`party-player:${routeCode}`) ?? '' : '';
   $: selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? tracks[0];
   $: canRenamePartyPlayer = Boolean(routeCode && currentPlayerId && playerName.trim());
+  $: if (browser && routeCode && currentPlayerId && loadedPartyNameKey !== `${routeCode}:${currentPlayerId}`) {
+    loadedPartyNameKey = `${routeCode}:${currentPlayerId}`;
+    void loadPartyPlayerName(routeCode, currentPlayerId);
+  }
 
   function extractPartyCode(pathname: string) {
     const match = pathname.match(/^\/party\/([A-Z0-9]{6})(?:\/|$)/i);
@@ -58,7 +65,8 @@
     if (!browser) return;
 
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? '{}') as StoredAudioSettings;
-    playerName = String(stored.playerName ?? localStorage.getItem('web-games:player-name') ?? '').slice(0, 32);
+    const partyName = routeCode ? localStorage.getItem(`web-games:player-name:${routeCode}`) : '';
+    playerName = String(partyName || stored.playerName || localStorage.getItem('web-games:player-name') || '').slice(0, 32);
     effectsVolume = Number.isFinite(stored.effectsVolume) ? Number(stored.effectsVolume) : 0.85;
     musicVolume = Number.isFinite(stored.musicVolume) ? Number(stored.musicVolume) : 0.35;
     musicEnabled = stored.musicEnabled !== false;
@@ -75,12 +83,30 @@
     const payload = { playerName: playerName.trim(), effectsVolume, musicVolume, musicEnabled, selectedTrackId };
     localStorage.setItem(storageKey, JSON.stringify(payload));
     localStorage.setItem('web-games:player-name', payload.playerName);
+    if (routeCode) localStorage.setItem(`web-games:player-name:${routeCode}`, payload.playerName);
     localStorage.setItem('web-games:effects-volume', String(effectsVolume));
     window.dispatchEvent(new CustomEvent('web-games:audio-settings', { detail: payload }));
     saved = true;
     setTimeout(() => {
       saved = false;
     }, 1300);
+  }
+
+  async function loadPartyPlayerName(code: string, playerId: string) {
+    if (!browser || !code || !playerId) return;
+
+    try {
+      const response = await fetch(`/api/parties/${code}`);
+      const data = await response.json();
+      const partyPlayer = data.party?.players?.find((player: { id: string; name?: string }) => player.id === playerId);
+      const serverName = String(partyPlayer?.name ?? '').slice(0, 32);
+      if (!response.ok || !serverName) return;
+      playerName = serverName;
+      localStorage.setItem('web-games:player-name', serverName);
+      localStorage.setItem(`web-games:player-name:${code}`, serverName);
+    } catch {
+      // Lokaler Name bleibt bestehen, wenn die Party gerade nicht erreichbar ist.
+    }
   }
 
   function setAudioVolume(audio: HTMLAudioElement | null, targetVolume: number) {
@@ -177,17 +203,38 @@
     void startMusic(track, true);
   }
 
+  function stopPreview() {
+    if (previewTimeout) {
+      clearTimeout(previewTimeout);
+      previewTimeout = null;
+    }
+    previewAudio?.pause();
+    previewAudio = null;
+  }
+
   function previewTrack(track: MusicTrack) {
     if (!browser || !track.src) return;
-    previewAudio?.pause();
+
+    stopPreview();
+    resumeMusicAfterPreview = Boolean(activeAudio && !activeAudio.paused && musicEnabled);
+    activeAudio?.pause();
+    fadingAudio?.pause();
+
     previewAudio = new Audio(track.src);
     previewAudio.volume = musicVolume;
     previewAudio.currentTime = 0;
-    void previewAudio.play().then(() => {
-      setTimeout(() => {
-        if (previewAudio) previewAudio.pause();
-      }, 4500);
-    }).catch(() => {});
+    void previewAudio
+      .play()
+      .then(() => {
+        previewTimeout = setTimeout(() => {
+          stopPreview();
+          if (resumeMusicAfterPreview) applyMusic();
+        }, 5000);
+      })
+      .catch(() => {
+        stopPreview();
+        if (resumeMusicAfterPreview) applyMusic();
+      });
   }
 
   function handleFirstGesture() {
@@ -240,12 +287,14 @@
   });
 
   onDestroy(() => {
+    if (!browser) return;
+
     document.removeEventListener('pointerdown', handleFirstGesture);
     document.removeEventListener('keydown', handleFirstGesture);
     window.removeEventListener('storage', handleStorage);
     activeAudio?.pause();
     fadingAudio?.pause();
-    previewAudio?.pause();
+    stopPreview();
   });
 </script>
 
@@ -253,92 +302,127 @@
   <button
     type="button"
     on:click={() => (isOpen = !isOpen)}
-    class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/10 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-    aria-label="Einstellungen Ã¶ffnen"
+    class="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/80 bg-white text-slate-700 shadow-xl shadow-slate-900/15 transition hover:-translate-y-0.5 hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+    aria-label="Einstellungen öffnen"
     aria-expanded={isOpen}
   >
-    <Settings size={21} />
+    <Settings size={22} />
   </button>
 </div>
 
 {#if isOpen}
-  <button type="button" class="fixed inset-0 z-[79] bg-slate-950/25 backdrop-blur-sm" on:click={() => (isOpen = false)} aria-label="Einstellungen schlieÃŸen"></button>
-  <section class="fixed right-3 top-16 z-[81] max-h-[calc(100vh-5rem)] w-[min(92vw,26rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-2xl sm:right-5 sm:top-20 sm:p-5">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Einstellungen</p>
-        <h2 class="mt-1 text-xl font-semibold">Audio & Profil</h2>
+  <button type="button" class="fixed inset-0 z-[79] bg-slate-950/30 backdrop-blur-sm" on:click={() => (isOpen = false)} aria-label="Einstellungen schließen"></button>
+  <section class="fixed right-3 top-16 z-[81] max-h-[calc(100vh-5rem)] w-[min(94vw,29rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-950/25 sm:right-5 sm:top-20">
+    <div class="border-b border-slate-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 px-5 py-4">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="grid h-11 w-11 place-items-center rounded-xl bg-cyan-600 text-white shadow-lg shadow-cyan-700/20">
+            <Settings size={21} />
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Einstellungen</p>
+            <h2 class="mt-0.5 text-xl font-semibold text-slate-950">Audio & Profil</h2>
+          </div>
+        </div>
+        <button type="button" on:click={() => (isOpen = false)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Einstellungen schließen">
+          <X size={19} />
+        </button>
       </div>
-      <button type="button" on:click={() => (isOpen = false)} class="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Einstellungen schlieÃŸen">
-        <X size={19} />
-      </button>
     </div>
 
-    <div class="mt-5 space-y-5">
-      <label class="block">
-        <span class="text-sm font-medium text-slate-700">Spielername</span>
-        <input bind:value={playerName} maxlength="32" class="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-950 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100" placeholder="Dein Name" />
-      </label>
-
-      <button type="button" on:click={renamePlayer} disabled={isRenaming || !playerName.trim()} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300">
-        {#if isRenaming}
-          <LoaderCircle class="animate-spin" size={17} />
-          Speichert
-        {:else if saved || renameStatus}
-          <Check size={17} />
-          Gespeichert
-        {:else}
-          Speichern
-        {/if}
-      </button>
-      {#if renameError}<p class="text-sm text-red-600">{renameError}</p>{/if}
-
-      <div class="grid gap-4 sm:grid-cols-2">
+    <div class="max-h-[calc(100vh-10rem)] space-y-4 overflow-y-auto p-5">
+      <section class="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <User size={17} /> Profil
+        </div>
         <label class="block">
-          <span class="flex items-center gap-2 text-sm font-medium text-slate-700"><Volume2 size={16} /> Effekte</span>
-          <input type="range" min="0" max="1" step="0.01" bind:value={effectsVolume} on:change={persistSettings} class="mt-2 w-full accent-cyan-600" />
-          <span class="text-xs text-slate-500">{Math.round(effectsVolume * 100)}%</span>
+          <span class="text-sm font-medium text-slate-700">Spielername</span>
+          <input bind:value={playerName} maxlength="32" class="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100" placeholder="Dein Name" />
         </label>
-        <label class="block">
-          <span class="flex items-center gap-2 text-sm font-medium text-slate-700"><Volume2 size={16} /> Musik</span>
-          <input type="range" min="0" max="1" step="0.01" bind:value={musicVolume} on:change={() => { persistSettings(); setAudioVolume(activeAudio, musicVolume); }} class="mt-2 w-full accent-cyan-600" />
-          <span class="text-xs text-slate-500">{Math.round(musicVolume * 100)}%</span>
-        </label>
-      </div>
 
-      <label class="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
-        <input type="checkbox" bind:checked={musicEnabled} on:change={() => { persistSettings(); applyMusic(); }} class="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" />
-        <span><span class="block font-semibold text-slate-800">Musik aktiv</span><span class="text-slate-500">Startet nach der ersten Eingabe im Browser.</span></span>
-      </label>
-
-      <label class="block">
-        <span class="text-sm font-medium text-slate-700">Musik-Loop</span>
-        <select bind:value={selectedTrackId} on:change={() => { persistSettings(); applyMusic(); }} class="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-950 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100">
-          {#each tracks as track (track.id)}
-            <option value={track.id}>{track.name}</option>
-          {/each}
-        </select>
-      </label>
-
-      <div class="space-y-2">
-        <div class="flex items-center justify-between gap-3">
-          <h3 class="text-sm font-semibold text-slate-800">Kurz reinhÃ¶ren</h3>
-          <button type="button" on:click={() => { selectedTrackId = 'random'; persistSettings(); applyMusic(); }} class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">
-            <Shuffle size={14} /> Zufall
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <button type="button" on:click={renamePlayer} disabled={isRenaming || !playerName.trim()} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300">
+            {#if isRenaming}
+              <LoaderCircle class="animate-spin" size={17} />
+              Speichert
+            {:else if saved || renameStatus}
+              <Check size={17} />
+              Gespeichert
+            {:else}
+              Speichern
+            {/if}
           </button>
+          {#if routeCode && !currentPlayerId}<span class="text-xs text-slate-500">Kein lokaler Spieler für diese Lobby gefunden.</span>{/if}
+          {#if renameError}<p class="basis-full text-sm text-red-600">{renameError}</p>{/if}
         </div>
-        <div class="grid gap-2 sm:grid-cols-2">
-          {#each playableTracks as track (track.id)}
-            <button type="button" on:click={() => previewTrack(track)} class="inline-flex min-h-9 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700">
-              <span class="truncate">{track.name}</span>
-              <Play size={15} />
-            </button>
-          {/each}
+      </section>
+
+      <section class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Volume2 size={17} /> Lautstärke
         </div>
-      </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="rounded-lg bg-slate-50 p-3">
+            <span class="flex items-center justify-between gap-2 text-sm font-medium text-slate-700"><span>Effekte</span><span class="tabular-nums text-slate-500">{Math.round(effectsVolume * 100)}%</span></span>
+            <input type="range" min="0" max="1" step="0.01" bind:value={effectsVolume} on:change={persistSettings} class="mt-3 w-full accent-cyan-600" />
+          </label>
+          <label class="rounded-lg bg-slate-50 p-3">
+            <span class="flex items-center justify-between gap-2 text-sm font-medium text-slate-700"><span>Musik</span><span class="tabular-nums text-slate-500">{Math.round(musicVolume * 100)}%</span></span>
+            <input type="range" min="0" max="1" step="0.01" bind:value={musicVolume} on:change={() => { persistSettings(); setAudioVolume(activeAudio, musicVolume); }} class="mt-3 w-full accent-cyan-600" />
+          </label>
+        </div>
+      </section>
+
+      <section class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Music size={17} /> Musik-Loop
+        </div>
+        <label class="flex items-start gap-3 rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm">
+          <input type="checkbox" bind:checked={musicEnabled} on:change={() => { persistSettings(); applyMusic(); }} class="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" />
+          <span><span class="block font-semibold text-slate-800">Musik aktiv</span><span class="text-slate-500">Startet nach der ersten Eingabe im Browser.</span></span>
+        </label>
+
+        <div class="mt-4 space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-sm font-semibold text-slate-800">Loop auswählen</h3>
+            <span class="text-xs font-medium text-slate-500">Probe stoppt nach 5 Sekunden</span>
+          </div>
+          <div class="space-y-2">
+            {#each tracks as track (track.id)}
+              <div class:border-cyan-300={selectedTrackId === track.id} class:bg-cyan-50={selectedTrackId === track.id} class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 transition">
+                <button
+                  type="button"
+                  on:click={() => { selectedTrackId = track.id; persistSettings(); applyMusic(); }}
+                  class="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+                  aria-pressed={selectedTrackId === track.id}
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    {#if track.id === 'random'}
+                      <Shuffle size={16} class="shrink-0 text-cyan-700" />
+                    {:else}
+                      <Music size={16} class="shrink-0 text-cyan-700" />
+                    {/if}
+                    <span class="truncate">{track.name}</span>
+                  </span>
+                  {#if selectedTrackId === track.id}
+                    <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-cyan-600 px-2 py-1 text-xs font-semibold text-white"><Check size={13} /> Aktiv</span>
+                  {/if}
+                </button>
+                {#if track.src}
+                  <button
+                    type="button"
+                    on:click={() => previewTrack(track)}
+                    class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-800 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+                    aria-label={`${track.name} 5 Sekunden abspielen`}
+                  >
+                    <Play size={16} />
+                  </button>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </div>
+      </section>
     </div>
   </section>
 {/if}
-
-
-
