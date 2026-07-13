@@ -262,16 +262,28 @@
     return game?.state.columnBonusClaims?.[column] ?? [];
   }
 
+  function isTopColumnClaimedByPlayer(column: number, playerId: string) {
+    return columnClaims(column)[0] === playerId;
+  }
+
+  function isTopColumnClaimedByOtherPlayer(column: number, playerId: string) {
+    return columnClaims(column).length > 0 && columnClaims(column)[0] !== playerId;
+  }
+
+  function isBottomColumnClaimedByPlayer(column: number, playerId: string) {
+    return columnClaims(column).slice(1).includes(playerId);
+  }
+
   function isTopColumnClaimedByMe(column: number) {
-    return Boolean(me && columnClaims(column)[0] === me.id);
+    return Boolean(me && isTopColumnClaimedByPlayer(column, me.id));
   }
 
   function isTopColumnClaimedByOther(column: number) {
-    return Boolean(me && columnClaims(column).length > 0 && columnClaims(column)[0] !== me.id);
+    return Boolean(me && isTopColumnClaimedByOtherPlayer(column, me.id));
   }
 
   function isBottomColumnClaimedByMe(column: number) {
-    return Boolean(me && columnClaims(column).slice(1).includes(me.id));
+    return Boolean(me && isBottomColumnClaimedByPlayer(column, me.id));
   }
 
   function columnScoreLabel(column: number, tier: 'top' | 'bottom') {
@@ -494,7 +506,7 @@
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Mitspieler</p>
                 <h2 class="text-lg font-semibold leading-tight text-slate-950">Andere Spielblätter</h2>
               </div>
-              <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">Kreuze bleiben privat</span>
+              <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">Live-Stand</span>
             </div>
 
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -515,17 +527,48 @@
                   <div class="overflow-hidden rounded-md border border-slate-200 bg-white p-1">
                     <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-px">
                       {#each cells as cell (cell.id)}
+                        {@const checked = player.checkedCells.includes(cell.id)}
                         <span
                           class="relative aspect-square min-w-0 rounded-[2px] {colorClass[cell.color]}"
                           title={`${player.name}: ${letters[cell.column]}${cell.row + 1}`}
-                          aria-label={`${player.name} Feld ${letters[cell.column]}, Reihe ${cell.row + 1}`}
+                          aria-label={`${player.name} Feld ${letters[cell.column]}, Reihe ${cell.row + 1}${checked ? ', angekreuzt' : ''}`}
                         >
                           {#if cell.hasStar}
-                            <span class="absolute inset-0 grid place-items-center text-[0.45rem] font-black text-white/85">☆</span>
+                            <span class="absolute inset-0 grid place-items-center text-[0.45rem] font-black text-white/85 {checked ? 'opacity-25' : ''}">☆</span>
+                          {/if}
+                          {#if checked}
+                            <span class="pointer-events-none absolute left-1/2 top-1/2 z-10 h-0.5 w-3/4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-white shadow-sm"></span>
+                            <span class="pointer-events-none absolute left-1/2 top-1/2 z-10 h-0.5 w-3/4 -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-white shadow-sm"></span>
                           {/if}
                         </span>
                       {/each}
                     </div>
+                  </div>
+
+                  <div class="mt-2 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-px">
+                    {#each topScore as value, index (`mini-top-${player.id}-${index}`)}
+                      {@const claimedByPlayer = isTopColumnClaimedByPlayer(index, player.id)}
+                      {@const claimedByOther = isTopColumnClaimedByOtherPlayer(index, player.id)}
+                      <span class="relative grid aspect-[1.2/1] place-items-center rounded-[2px] bg-white text-[0.55rem] font-black text-slate-900 ring-1 ring-slate-200 {claimedByPlayer ? 'ring-2 ring-emerald-300' : ''} {claimedByOther ? 'opacity-55' : ''}">
+                        {value}
+                        {#if claimedByPlayer}
+                          <span class="pointer-events-none absolute inset-0.5 rounded-full border border-emerald-500"></span>
+                        {:else if claimedByOther}
+                          <span class="pointer-events-none absolute left-1/2 top-1/2 h-0.5 w-[72%] -translate-x-1/2 -translate-y-1/2 -rotate-12 rounded-full bg-rose-500/85"></span>
+                        {/if}
+                      </span>
+                    {/each}
+                  </div>
+                  <div class="mt-1 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-px">
+                    {#each bottomScore as value, index (`mini-bottom-${player.id}-${index}`)}
+                      {@const claimedByPlayer = isBottomColumnClaimedByPlayer(index, player.id)}
+                      <span class="relative grid aspect-[1.2/1] place-items-center rounded-[2px] bg-white text-[0.55rem] font-black text-slate-900 ring-1 ring-slate-200 {claimedByPlayer ? 'ring-2 ring-emerald-300' : ''}">
+                        {value}
+                        {#if claimedByPlayer}
+                          <span class="pointer-events-none absolute inset-0.5 rounded-full border border-emerald-500"></span>
+                        {/if}
+                      </span>
+                    {/each}
                   </div>
                 </article>
               {/each}
@@ -577,6 +620,8 @@
   </section>
   {/key}
 {/if}
+
+
 
 
 
