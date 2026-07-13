@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, CircleHelp, RotateCcw, Sparkles } from '@lucide/svelte';
+  import { Check, CircleHelp, RotateCcw, Sparkles, Star } from '@lucide/svelte';
   import { bottomScore, cells, jokerCount, letters, rows, topScore } from '../data/board';
   import type { NochMalColor, NochMalColorDie, NochMalNumberDie, NochMalPlayer, NochMalSession } from '../types';
 
@@ -33,18 +33,18 @@
 
   const colors: NochMalColor[] = ['lime', 'yellow', 'blue', 'pink', 'peach'];
   const colorNames: Record<NochMalColor, string> = {
-    lime: 'Gruen',
+    lime: 'Grün',
     yellow: 'Gelb',
     blue: 'Blau',
     pink: 'Pink',
     peach: 'Orange'
   };
   const colorSymbols: Record<NochMalColor, string> = {
-    lime: '?',
-    yellow: '?',
-    blue: '�',
-    pink: '?',
-    peach: '?'
+    lime: '◆',
+    yellow: '●',
+    blue: '■',
+    pink: '✦',
+    peach: '⬟'
   };
   const colorClass: Record<NochMalColor, string> = {
     lime: 'bg-[#b8d86e] text-[#365b18]',
@@ -99,19 +99,19 @@
   $: actionText = getActionText();
 
   function getActionText() {
-    if (!game) return 'Noch mal wird ueber eine Party gestartet.';
+    if (!game) return 'Noch mal wird über eine Party gestartet.';
     if (!me) return 'Du schaust diese Runde zu.';
     if (game.status === 'finished' || game.state.phase === 'finished') return 'Die Partie ist beendet.';
-    if (me.confirmed) return 'Zug bestaetigt. Warte auf die anderen Spieler.';
+    if (me.confirmed) return 'Zug bestätigt. Warte auf die anderen Spieler.';
     if (isPassiveWaiting) return `Warte auf die Auswahl von ${activePlayer?.name ?? 'dem Startspieler'}.`;
-    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. Waehle aus allen Wuerfeln.`;
-    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: Waehle zuerst einen Farb- und einen Zahlenwuerfel.';
-    if (!me.selectedColor || !me.selectedNumber) return 'Waehle einen Farbwuerfel und einen Zahlenwuerfel.';
-    if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhaengende ${colorNames[me.selectedColor]}-Felder.`;
-    if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenhaengen.';
-    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte beruehren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschliessen oder die H-Spalte beruehren.';
-    if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) auswaehlen.`;
-    return 'Auswahl gueltig. Bestaetige deinen Zug.';
+    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. Wähle aus allen Würfeln.`;
+    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: Wähle zuerst einen Farb- und einen Zahlenwürfel.';
+    if (!me.selectedColor || !me.selectedNumber) return 'Wähle einen Farbwürfel und einen Zahlenwürfel.';
+    if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhängende ${colorNames[me.selectedColor]}-Felder.`;
+    if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenhängen.';
+    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte berühren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschließen oder die H-Spalte berühren.';
+    if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) auswählen.`;
+    return 'Auswahl gültig. Bestätige deinen Zug.';
   }
 
   function getAudio(name: SoundName) {
@@ -304,13 +304,13 @@
       return 'Der erste Spaltenbonus wurde bereits vergeben';
     }
     if (claims.normal.includes(me.id)) return 'Du hast den unteren Spaltenwert erhalten';
-    return claims.first.length > 0 && !claims.first.includes(me.id) ? 'Unterer Spaltenwert fuer dich noch moeglich' : 'Unterer Spaltenwert wird nach dem ersten Abschluss relevant';
+    return claims.first.length > 0 && !claims.first.includes(me.id) ? 'Unterer Spaltenwert für dich noch möglich' : 'Unterer Spaltenwert wird nach dem ersten Abschluss relevant';
   }
 </script>
 
 {#if !game}
   <div class="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-    Noch mal laeuft ueber die Party-Lobby, damit Wuerfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
+    Noch mal läuft über die Party-Lobby, damit Würfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
   </div>
 {:else}
   {#key nochMalVersion}
@@ -320,12 +320,12 @@
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <span class="rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800 ring-1 ring-cyan-200">Runde {game.state.round}</span>
-            <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{confirmedCount}/{game.players.length} bestaetigt</span>
+            <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{confirmedCount}/{game.players.length} bestätigt</span>
             {#if isAdvantageRound}
               <span class="rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 ring-1 ring-orange-200">Startspieler: {activePlayer?.name ?? 'offen'}</span>
             {/if}
             {#if me?.confirmed}
-              <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"><Check size={14} /> Bestaetigt</span>
+              <span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200"><Check size={14} /> Bestätigt</span>
             {/if}
           </div>
           <p class="mt-2 min-h-6 text-sm font-medium text-slate-700">{actionText}</p>
@@ -359,7 +359,7 @@
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div class="space-y-3">
               <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwuerfel</p>
+                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwürfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
                     {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeColorDieIndex}
@@ -368,14 +368,14 @@
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
                       on:click={() => chooseColorDie(index)}
                       class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Farbwuerfel ${index + 1}: ${colorDieLabel(die)}`}
+                      aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
                     >{die === 'joker' ? '?' : colorSymbols[die]}</button>
                   {/each}
                 </div>
               </div>
 
               <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenwuerfel</p>
+                <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Zahlenwürfel</p>
                 <div class="flex flex-wrap gap-2">
                   {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
                     {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeNumberDieIndex}
@@ -384,7 +384,7 @@
                       disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
                       on:click={() => chooseNumberDie(index)}
                       class="grid h-14 w-14 place-items-center rounded-lg border border-slate-300 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
-                      aria-label={`Zahlenwuerfel ${index + 1}: ${numberDieLabel(die)}`}
+                      aria-label={`Zahlenwürfel ${index + 1}: ${numberDieLabel(die)}`}
                     >{numberDieLabel(die)}</button>
                   {/each}
                 </div>
@@ -404,7 +404,7 @@
               {/if}
               {#if currentJokerCost > 0}
                 <div class="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 sm:col-span-2">
-                  Joker kostet: {currentJokerCost} - uebrig danach: {remainingJokers}
+                  Joker kostet: {currentJokerCost} - übrig danach: {remainingJokers}
                 </div>
               {/if}
               {#if selectedNumberFace === 'joker'}
@@ -418,7 +418,7 @@
                 </label>
               {/if}
               <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
-                <Sparkles size={18} /> Auswahl uebernehmen
+                <Sparkles size={18} /> Auswahl übernehmen
               </button>
             </div>
           </div>
@@ -432,7 +432,7 @@
                 <h2 class="text-xl font-semibold leading-tight sm:text-2xl">{me.name}</h2>
               </div>
               {#if me.selectedColor && me.selectedNumber}
-                <span class="rounded-md bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 ring-1 ring-cyan-200">{colorNames[me.selectedColor]} � {me.selectedNumber}</span>
+                <span class="rounded-md bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 ring-1 ring-cyan-200">{colorNames[me.selectedColor]} × {me.selectedNumber}</span>
               {/if}
             </div>
 
@@ -458,9 +458,9 @@
                         on:click={() => toggleCell(cell.id)}
                         class="relative aspect-square min-w-0 border-b border-r border-slate-900/20 transition focus:z-10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white disabled:cursor-not-allowed {colorClass[cell.color]} {selectable ? 'hover:brightness-110' : ''} {pending ? 'z-10 ring-4 ring-inset ring-white' : ''} {!selectable && !checked && me.selectedColor ? 'opacity-45' : ''}"
                       >
-                        <span class="pointer-events-none absolute left-1 top-1 text-[0.65rem] font-black opacity-70">{colorSymbols[cell.color]}</span>
+
                         {#if cell.hasStar}
-                          <span class="pointer-events-none absolute inset-0 grid place-items-center text-xl font-black text-white drop-shadow sm:text-3xl {checked ? 'opacity-25' : ''}">?</span>
+                          <Star class="pointer-events-none absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow sm:h-10 sm:w-10 {checked ? 'opacity-25' : ''}" strokeWidth={2.4} />
                         {/if}
                         {#if checked}
                           <span class="pointer-events-none absolute left-1/2 top-1/2 z-10 h-1.5 w-3/4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-white shadow"></span>
@@ -514,7 +514,7 @@
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Mitspieler</p>
-                <h2 class="text-lg font-semibold leading-tight text-slate-950">Andere Spielbl�tter</h2>
+                <h2 class="text-lg font-semibold leading-tight text-slate-950">Andere Spielblätter</h2>
               </div>
               <span class="rounded-md bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">Live-Stand</span>
             </div>
@@ -544,7 +544,7 @@
                           aria-label={`${player.name} Feld ${letters[cell.column]}, Reihe ${cell.row + 1}${checked ? ', angekreuzt' : ''}`}
                         >
                           {#if cell.hasStar}
-                            <span class="absolute inset-0 grid place-items-center text-[0.45rem] font-black text-white/85 {checked ? 'opacity-25' : ''}">?</span>
+                            <Star class="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 text-white/90 {checked ? 'opacity-25' : ''}" strokeWidth={2.4} />
                           {/if}
                           {#if checked}
                             <span class="pointer-events-none absolute left-1/2 top-1/2 z-10 h-0.5 w-3/4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-white shadow-sm"></span>
@@ -593,7 +593,7 @@
           <div class="mt-3 grid gap-2">
             <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
             <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestaetigen</button>
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug moeglich</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug möglich</button>
           </div>
         </div>
 
