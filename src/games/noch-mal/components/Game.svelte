@@ -57,7 +57,9 @@
   $: colorBonus = me?.score.colorPoints ?? 0;
   $: totalScore = me?.score.total ?? completedColumnScore + colorBonus + starPenalty - (me?.usedJokers ?? 0);
   $: confirmedCount = game?.state.confirmedPlayerIds.length ?? 0;
-  $: canSelectDice = Boolean(me && roll && !me.confirmed && colorDieIndex !== null && numberDieIndex !== null && selectedColor && typeof selectedNumber === 'number');
+  $: hasLocalDiceSelection = Boolean(me && roll && !me.confirmed && colorDieIndex !== null && numberDieIndex !== null && selectedColor && selectedNumber !== null);
+  $: hasActiveDiceSelection = Boolean(me && !me.confirmed && ((me.selectedColor && me.selectedNumber) || hasLocalDiceSelection));
+  $: canSelectDice = Boolean(hasLocalDiceSelection);
   $: canConfirm = Boolean(me && !me.confirmed && me.selectedColor && me.selectedNumber && me.pendingCells.length === me.selectedNumber && isConnectedGroup(me.pendingCells) && hasValidAnchor(me, me.pendingCells));
   $: actionText = getActionText();
 
@@ -75,8 +77,15 @@
   }
 
   function selectDice() {
-    if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || typeof selectedNumber !== 'number') return;
-    onMove({ type: 'select-dice', colorDieIndex, numberDieIndex, color: selectedColor, number: selectedNumber });
+    if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return;
+    onMove({ type: 'select-dice', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber) });
+  }
+
+  function maybeCommitDiceSelection() {
+    if (!me || me.selectedColor || me.selectedNumber) return true;
+    if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return false;
+    onMove({ type: 'select-dice', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber) });
+    return true;
   }
 
   function clearSelection() {
@@ -93,16 +102,21 @@
   }
 
   function toggleCell(cellId: string) {
-    if (!me || me.confirmed || !me.selectedColor || !me.selectedNumber) return;
+    if (!me || me.confirmed || !hasActiveDiceSelection) return;
+    if (!me.selectedColor || !me.selectedNumber) {
+      if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return;
+      onMove({ type: 'select-dice-and-toggle-cell', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber), cellId });
+      return;
+    }
     onMove({ type: 'toggle-cell', cellId });
   }
 
   function isCellSelectable(cell: { id: string; color: NochMalColor }) {
-    if (!me || me.confirmed || !me.selectedColor || !me.selectedNumber) return false;
+    if (!me || me.confirmed || !hasActiveDiceSelection) return false;
     if (me.checkedCells.includes(cell.id)) return false;
-    if (cell.color !== me.selectedColor) return false;
+    if (selectedColor && cell.color !== selectedColor) return false;
     if (pendingSet.has(cell.id)) return true;
-    return me.pendingCells.length < me.selectedNumber;
+    return selectedNumber !== null && me.pendingCells.length < Number(selectedNumber);
   }
 
   function isConnectedGroup(ids: string[]) {
@@ -186,7 +200,7 @@
                     <button
                       type="button"
                       disabled={isLoading || me?.confirmed}
-                      on:click={() => (colorDieIndex = index)}
+                      on:click={() => { colorDieIndex = index; if (numberDieIndex !== null) setTimeout(selectDice, 0); }}
                       class="grid h-14 w-14 place-items-center rounded-lg border text-sm font-black shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {die === 'joker' ? 'border-white/40 bg-white text-slate-950' : `${colorClass[die]} border-white/20`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
                       aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
                     >{die === 'joker' ? '?' : colorSymbols[die]}</button>
@@ -201,7 +215,7 @@
                     <button
                       type="button"
                       disabled={isLoading || me?.confirmed}
-                      on:click={() => (numberDieIndex = index)}
+                      on:click={() => { numberDieIndex = index; if (colorDieIndex !== null) setTimeout(selectDice, 0); }}
                       class="grid h-14 w-14 place-items-center rounded-lg border border-white/30 bg-white text-xl font-black text-slate-950 shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
                       aria-label={`Zahlenwürfel ${index + 1}: ${numberDieLabel(die)}`}
                     >{numberDieLabel(die)}</button>
@@ -232,7 +246,7 @@
                 </label>
               {/if}
               <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
-                <Sparkles size={18} /> Würfel wählen
+                <Sparkles size={18} /> Auswahl übernehmen
               </button>
             </div>
           </div>
@@ -343,3 +357,5 @@
     </div>
   </section>
 {/if}
+
+

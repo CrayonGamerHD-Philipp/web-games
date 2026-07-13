@@ -269,7 +269,7 @@ export function makeNochMalMove(session, playerId, move) {
 
   const type = String(move.type ?? '');
 
-  if (type === 'select-dice') {
+  if (type === 'select-dice' || type === 'select-dice-and-toggle-cell') {
     const colorDieIndex = Number(move.colorDieIndex);
     const numberDieIndex = Number(move.numberDieIndex);
     if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= session.state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungueltig.' };
@@ -291,6 +291,14 @@ export function makeNochMalMove(session, playerId, move) {
     player.selectedNumberDieIndex = numberDieIndex;
     player.pendingCells = [];
     session.state.phase = 'selecting-cells';
+
+    if (type === 'select-dice-and-toggle-cell') {
+      const cellId = String(move.cellId ?? '');
+      const error = validatePendingCell(player, cellId);
+      if (error) return { error };
+      player.pendingCells = [cellId];
+    }
+
     return { session };
   }
 
@@ -338,3 +346,4 @@ export function makeNochMalMove(session, playerId, move) {
 
   return { error: 'Diese Noch-mal-Aktion ist nicht bekannt.' };
 }
+

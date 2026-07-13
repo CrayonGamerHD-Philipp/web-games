@@ -64,7 +64,9 @@ export interface NochMalSession {
 
 export type NochMalMove =
   | { type: 'select-dice'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number }
+  | { type: 'select-dice-and-toggle-cell'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number; cellId: string }
   | { type: 'toggle-cell'; cellId: string }
   | { type: 'confirm-turn' }
   | { type: 'clear-selection' }
   | { type: 'skip-turn' };
+
