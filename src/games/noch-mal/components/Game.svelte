@@ -25,6 +25,7 @@
 
   type Achievement = {
     key: string;
+    kind: 'column' | 'color';
     playerId: string;
     playerName: string;
     title: string;
@@ -126,6 +127,7 @@
         for (const playerId of claims[tier]) {
           achievements.push({
             key: claimKey('column', column, tier, playerId),
+            kind: 'column',
             playerId,
             playerName: session.players.find((player) => player.id === playerId)?.name ?? 'Ein Spieler',
             title: `Spalte ${letters[column]} abgeschlossen`,
@@ -142,6 +144,7 @@
         for (const playerId of claims[tier]) {
           achievements.push({
             key: claimKey('color', color, tier, playerId),
+            kind: 'color',
             playerId,
             playerName: session.players.find((player) => player.id === playerId)?.name ?? 'Ein Spieler',
             title: `${colorNames[color]} vollständig ausgefüllt`,
@@ -153,6 +156,46 @@
     }
 
     return achievements;
+  }
+
+  function formatList(values: string[]) {
+    if (values.length < 2) return values[0] ?? '';
+    return `${values.slice(0, -1).join(', ')} und ${values.at(-1)}`;
+  }
+
+  function combineSimultaneousColumns(achievements: Achievement[]) {
+    const combined: Achievement[] = [];
+    const columnGroups = new Map<string, Achievement[]>();
+
+    for (const achievement of achievements) {
+      if (achievement.kind !== 'column') {
+        combined.push(achievement);
+        continue;
+      }
+      const group = columnGroups.get(achievement.playerId) ?? [];
+      group.push(achievement);
+      columnGroups.set(achievement.playerId, group);
+    }
+
+    for (const group of columnGroups.values()) {
+      if (group.length === 1) {
+        combined.push(group[0]);
+        continue;
+      }
+
+      const columnLabels = group.map((achievement) => achievement.title.replace(' abgeschlossen', ''));
+      combined.push({
+        key: group.map((achievement) => achievement.key).join('|'),
+        kind: 'column',
+        playerId: group[0].playerId,
+        playerName: group[0].playerName,
+        title: `${formatList(columnLabels)} gleichzeitig abgeschlossen`,
+        detail: `${group.length} Spaltenboni`,
+        points: group.reduce((sum, achievement) => sum + achievement.points, 0)
+      });
+    }
+
+    return combined;
   }
 
   function detectNewAchievements(session: NochMalSession) {
@@ -170,7 +213,7 @@
     if (newAchievements.length === 0) return;
 
     knownClaimKeys = new Set(achievements.map((achievement) => achievement.key));
-    achievementQueue = [...achievementQueue, ...newAchievements];
+    achievementQueue = [...achievementQueue, ...combineSimultaneousColumns(newAchievements)];
     showNextAchievement();
   }
 
