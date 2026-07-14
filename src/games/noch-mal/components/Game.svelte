@@ -702,42 +702,38 @@
 {#if activeAchievement}
   <button
     type="button"
-    class="fixed inset-0 z-[95] cursor-default bg-slate-950/35 backdrop-blur-[2px]"
+    class="fixed inset-0 z-[95] cursor-default bg-slate-950/25"
     on:click={() => closeAchievement()}
     aria-label="Erfolgsmeldung schließen"
   ></button>
   <div
-    class="animate-modal-in fixed inset-x-3 bottom-3 z-[96] overflow-hidden rounded-2xl border border-emerald-200 bg-white text-slate-950 shadow-2xl sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:w-[min(92vw,27rem)] sm:-translate-x-1/2 sm:-translate-y-1/2"
+    class="fixed left-1/2 top-1/2 z-[96] w-[min(calc(100vw-2rem),24rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white text-slate-950 shadow-xl"
     role="dialog"
     aria-live="polite"
     aria-label="Neuer Bonus"
   >
-    <div class="h-1.5 bg-gradient-to-r from-cyan-500 via-emerald-400 to-amber-400"></div>
-    <div class="relative p-5 sm:p-6">
+    <div class="relative p-5">
       <button
         type="button"
         on:click={() => closeAchievement()}
-        class="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+        class="absolute right-2.5 top-2.5 grid h-10 w-10 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-100"
         aria-label="Schließen"
       >
         <X size={20} />
       </button>
 
-      <div class="flex items-start gap-4 pr-10">
-        <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25">
-          <Award size={29} strokeWidth={2.2} />
+      <div class="flex items-start gap-3 pr-9">
+        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+          <Award size={21} strokeWidth={2} />
         </span>
         <div class="min-w-0">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">{activeAchievement.detail}</p>
-          <h2 class="mt-1 text-xl font-semibold leading-tight sm:text-2xl">{activeAchievement.title}</h2>
+          <p class="text-xs font-semibold text-emerald-700">{activeAchievement.detail}</p>
+          <h2 class="mt-1 text-lg font-semibold leading-tight">{activeAchievement.title}</h2>
           <p class="mt-2 text-sm text-slate-600"><span class="font-semibold text-slate-900">{activeAchievement.playerName}</span> erhält <span class="font-bold text-emerald-700">{activeAchievement.points} Punkte</span>.</p>
         </div>
       </div>
 
-      <div class="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-        <span>Schließt automatisch</span>
-        {#if achievementQueue.length > 0}<span class="font-semibold">{achievementQueue.length} weitere Meldung{achievementQueue.length === 1 ? '' : 'en'}</span>{/if}
-      </div>
+      {#if achievementQueue.length > 0}<p class="mt-4 border-t border-slate-100 pt-3 text-right text-xs text-slate-500">{achievementQueue.length} weitere Meldung{achievementQueue.length === 1 ? '' : 'en'}</p>{/if}
     </div>
   </div>
 {/if}
