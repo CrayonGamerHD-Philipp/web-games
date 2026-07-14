@@ -100,6 +100,33 @@ html[data-theme='dark'] .text-amber-900 { color: #fcd34d !important; }
 html[data-theme='dark'] .text-red-600,
 html[data-theme='dark'] .text-red-700 { color: #fca5a5 !important; }
 
+/* Spielmaterial behält im Dark Mode seine eigenen, bedeutungstragenden Farben. */
+html[data-theme='dark'] .noch-mal-paper {
+  background-color: #f7f5ea !important;
+  color: #0f172a !important;
+  border-color: #d6d3c8 !important;
+}
+html[data-theme='dark'] .noch-mal-paper.text-red-500 { color: #ef4444 !important; }
+html[data-theme='dark'] .playing-card-front {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+html[data-theme='dark'] .playing-card-front .bg-slate-50 { background-color: #f8fafc !important; }
+html[data-theme='dark'] .playing-card-front .text-slate-400 { color: #94a3b8 !important; }
+html[data-theme='dark'] .playing-card-front .text-slate-700 { color: #334155 !important; }
+html[data-theme='dark'] .playing-card-front .ring-slate-100 { --tw-ring-color: #e2e8f0 !important; }
+html[data-theme='dark'] .playing-card-front .bg-emerald-50 { background-color: #ecfdf5 !important; }
+html[data-theme='dark'] .playing-card-front .text-emerald-700 { color: #047857 !important; }
+html[data-theme='dark'] .playing-card-front .ring-emerald-100 { --tw-ring-color: #d1fae5 !important; }
+html[data-theme='dark'] .playing-card-front .bg-rose-50 { background-color: #fff1f2 !important; }
+html[data-theme='dark'] .playing-card-front .text-rose-700 { color: #be123c !important; }
+html[data-theme='dark'] .playing-card-front .ring-rose-100 { --tw-ring-color: #ffe4e6 !important; }
+html[data-theme='dark'] .playing-card-front .bg-cyan-50 { background-color: #ecfeff !important; }
+html[data-theme='dark'] .playing-card-front .text-cyan-700 { color: #0e7490 !important; }
+html[data-theme='dark'] .playing-card-front .ring-cyan-100 { --tw-ring-color: #cffafe !important; }
+html[data-theme='dark'] .playing-card-front .from-cyan-500 { --tw-gradient-from: #06b6d4 var(--tw-gradient-from-position) !important; }
+html[data-theme='dark'] .playing-card-front .to-cyan-300 { --tw-gradient-to: #67e8f9 var(--tw-gradient-to-position) !important; }
+
 button,
 a {
   font: inherit;

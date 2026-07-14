@@ -371,7 +371,7 @@
               <div class="mx-auto w-full min-w-[34rem] md:min-w-0 2xl:max-w-[76rem]">
                 <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
                   {#each letters as letter, index (letter)}
-                    <div class="grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black text-slate-950 shadow-sm sm:text-base {index === 7 ? 'text-red-500 ring-2 ring-[#e68b2f]' : ''}">{letter}</div>
+                    <div class="noch-mal-paper grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black text-slate-950 shadow-sm sm:text-base {index === 7 ? 'text-red-500 ring-2 ring-[#e68b2f]' : ''}">{letter}</div>
                   {/each}
                 </div>
 
@@ -407,7 +407,7 @@
                     {@const claimedByMe = isTopColumnClaimedByMe(index)}
                     {@const claimedByOther = isTopColumnClaimedByOther(index)}
                     <div
-                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black shadow-sm sm:text-base {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''} {claimedByOther ? 'opacity-60' : ''}"
+                      class="noch-mal-paper relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black shadow-sm sm:text-base {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''} {claimedByOther ? 'opacity-60' : ''}"
                       title={columnScoreLabel(index, 'top')}
                       aria-label={`${letters[index]} oberer Spaltenwert ${value}: ${columnScoreLabel(index, 'top')}`}
                     >
@@ -424,7 +424,7 @@
                   {#each bottomScore as value, index (`bottom-${index}`)}
                     {@const claimedByMe = isBottomColumnClaimedByMe(index)}
                     <div
-                      class="relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black shadow-sm sm:text-base {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''}"
+                      class="noch-mal-paper relative grid aspect-[1.2/1] place-items-center rounded-md bg-[#f7f5ea] text-xs font-black shadow-sm sm:text-base {index === 7 ? 'text-red-500' : 'text-slate-950'} {claimedByMe ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-white' : ''}"
                       title={columnScoreLabel(index, 'bottom')}
                       aria-label={`${letters[index]} unterer Spaltenwert ${value}: ${columnScoreLabel(index, 'bottom')}`}
                     >
@@ -503,7 +503,7 @@
                     {#each topScore as value, index (`mini-top-${player.id}-${index}`)}
                       {@const claimedByPlayer = isTopColumnClaimedByPlayer(index, player.id)}
                       {@const claimedByOther = isTopColumnClaimedByOtherPlayer(index, player.id)}
-                      <span class="relative grid aspect-[1.2/1] place-items-center rounded-[2px] bg-white text-[0.55rem] font-black text-slate-900 ring-1 ring-slate-200 {claimedByPlayer ? 'ring-2 ring-emerald-300' : ''} {claimedByOther ? 'opacity-55' : ''}">
+                      <span class="noch-mal-paper relative grid aspect-[1.2/1] place-items-center rounded-[2px] bg-white text-[0.55rem] font-black text-slate-900 ring-1 ring-slate-200 {claimedByPlayer ? 'ring-2 ring-emerald-300' : ''} {claimedByOther ? 'opacity-55' : ''}">
                         {value}
                         {#if claimedByPlayer}
                           <span class="pointer-events-none absolute inset-0.5 rounded-full border border-emerald-500"></span>
@@ -516,7 +516,7 @@
                   <div class="mt-1 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-px">
                     {#each bottomScore as value, index (`mini-bottom-${player.id}-${index}`)}
                       {@const claimedByPlayer = isBottomColumnClaimedByPlayer(index, player.id)}
-                      <span class="relative grid aspect-[1.2/1] place-items-center rounded-[2px] bg-white text-[0.55rem] font-black text-slate-900 ring-1 ring-slate-200 {claimedByPlayer ? 'ring-2 ring-emerald-300' : ''}">
+                      <span class="noch-mal-paper relative grid aspect-[1.2/1] place-items-center rounded-[2px] bg-white text-[0.55rem] font-black text-slate-900 ring-1 ring-slate-200 {claimedByPlayer ? 'ring-2 ring-emerald-300' : ''}">
                         {value}
                         {#if claimedByPlayer}
                           <span class="pointer-events-none absolute inset-0.5 rounded-full border border-emerald-500"></span>

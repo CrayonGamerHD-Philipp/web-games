@@ -86,7 +86,7 @@
     style={`transition-delay: ${revealDelayMs}ms;`}
   >
     <span
-      class="absolute inset-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm [backface-visibility:hidden] {disabled || removed ? '' : 'group-hover:-translate-y-0.5 group-hover:shadow-md'}"
+      class="playing-card-front absolute inset-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm [backface-visibility:hidden] {disabled || removed ? '' : 'group-hover:-translate-y-0.5 group-hover:shadow-md'}"
     >
       <span class="absolute left-0 top-0 h-full w-1 bg-gradient-to-b sm:w-1.5 {accentClass}"></span>
 
