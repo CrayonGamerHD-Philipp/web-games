@@ -3,7 +3,7 @@
   import { getGameDefinition } from '../../../games/registry';
   import GameResultScreen from './GameResultScreen.svelte';
 
-  /** @typedef {{ id: string, name: string, score: number, isHost?: boolean }} Player */
+  /** @typedef {{ id: string, name: string, score: number, isHost?: boolean, color?: string }} Player */
   /** @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoSlot */
   /** @typedef {{ id: string, name: string, mark?: string, grid?: SkyjoSlot[] }} GamePlayer */
   /** @typedef {import('../types').GameResult} GameResult */
@@ -51,6 +51,12 @@
   $: isMyTurn = Boolean(activeGame && myGamePlayer && activeGame.state.currentPlayerId === currentPlayerId && activeGame.status === 'running');
   $: isSkyjo = activeGame?.gameId === 'skyjo';
   $: isNochMal = activeGame?.gameId === 'noch-mal';
+  $: identityPlayers = activeGame
+    ? activeGame.players.map((gamePlayer) => ({
+        ...gamePlayer,
+        color: partyPlayers.find((player) => player.id === gamePlayer.id)?.color ?? 'slate'
+      }))
+    : [];
   $: gameScorePlayers = activeGame
     ? activeGame.players.map((gamePlayer) => {
         const partyPlayer = partyPlayers.find((player) => player.id === gamePlayer.id);
@@ -113,6 +119,17 @@
     if (mark === 'X') return 'text-cyan-700';
     if (mark === 'O') return 'text-emerald-700';
     return 'text-slate-300';
+  }
+
+  /** @param {string | undefined} color */
+  function playerColor(color) {
+    /** @type {Record<string, string>} */
+    const colors = {
+      cyan: '#0891b2', violet: '#7c3aed', rose: '#e11d48', emerald: '#059669',
+      orange: '#ea580c', blue: '#2563eb', amber: '#d97706', lime: '#65a30d',
+      teal: '#0d9488', sky: '#0284c7', fuchsia: '#c026d3', red: '#dc2626'
+    };
+    return colors[color ?? ''] ?? '#64748b';
   }
 </script>
 
@@ -189,6 +206,19 @@
       {#if gameError}
         <p class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
       {/if}
+
+      <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+        <div class="flex flex-wrap gap-2" aria-label="Spielerfarben">
+          {#each identityPlayers as player (player.id)}
+            <div class="flex min-h-9 items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5 shadow-sm {activeGame.state.currentPlayerId === player.id ? 'border-cyan-300 ring-2 ring-cyan-100' : 'border-slate-200'}">
+              <span class="h-5 w-5 shrink-0 rounded-full border-2 border-white shadow-sm ring-1 ring-slate-200" style={`background: ${playerColor(player.color)}`}></span>
+              <span class="max-w-32 truncate text-xs font-semibold text-slate-800">{player.name}</span>
+              {#if player.id === currentPlayerId}<span class="rounded bg-slate-100 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Du</span>{/if}
+              {#if activeGame.state.currentPlayerId === player.id && activeGame.status === 'running'}<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" title="Am Zug"></span>{/if}
+            </div>
+          {/each}
+        </div>
+      </div>
 
       {#if activeGame.status === 'finished' && !isSkyjo}
         <div class="mt-8">

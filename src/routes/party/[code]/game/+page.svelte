@@ -4,7 +4,7 @@
   import GameShell from '$lib/game-system/components/GameShell.svelte';
   import { onDestroy, onMount, tick } from 'svelte';
 
-  /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player */
+  /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player */
   /** @typedef {{ id: string, gameId: string, name: string, status: string, players: { id: string, name: string, mark?: string }[], state: Record<string, unknown>, requests: { rematch: string[], newGame: string[] } }} ActiveGame */
   /** @typedef {{ code: string, players: Player[], activeGame: ActiveGame | null }} Party */
 

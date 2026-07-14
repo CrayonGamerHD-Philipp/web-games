@@ -489,7 +489,7 @@
             disabled={occupied || isColorLoading}
             aria-label={occupied ? `${option.name} ist bereits vergeben` : `${option.name} wählen`}
             aria-pressed={currentPlayer.color === option.id}
-            class="relative flex min-h-16 items-center gap-2 overflow-hidden rounded-xl border px-3 py-2 text-left transition focus:outline-none focus:ring-4 focus:ring-cyan-100 {occupied ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 grayscale' : 'border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md'} {currentPlayer.color === option.id ? 'border-cyan-400 bg-cyan-50 ring-2 ring-cyan-200' : ''}"
+            class="relative flex min-h-16 items-center gap-2 overflow-hidden rounded-xl border px-3 py-2 text-left transition focus:outline-none focus:ring-4 focus:ring-cyan-100 {occupied ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md'} {currentPlayer.color === option.id ? 'border-cyan-400 bg-cyan-50 ring-2 ring-cyan-200' : ''}"
           >
             <span class="relative h-8 w-8 shrink-0 rounded-full border-2 border-white shadow-sm" style={`background: ${option.hex}`}>
               {#if currentPlayer.color === option.id}<Check class="absolute inset-0 m-auto text-white drop-shadow" size={16} strokeWidth={3} />{/if}
@@ -504,4 +504,3 @@
     </div>
   </div>
 {/if}
-
