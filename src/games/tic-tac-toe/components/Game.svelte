@@ -104,7 +104,7 @@
     Tic Tac Toe wird ueber eine Party gestartet, damit zwei Spieler verbunden sind.
   </div>
 {:else}
-  <div class="mt-8 flex justify-center">
+  <div class="mt-4 flex justify-center sm:mt-8">
     <div class="w-full max-w-[31rem] rounded-xl border border-slate-200 bg-slate-100 p-2 shadow-inner sm:p-4">
       <div class="grid aspect-square grid-cols-3 gap-2 sm:gap-3">
         {#key boardVersion}
@@ -113,7 +113,7 @@
               type="button"
               on:click={() => makeMove(cellIndex)}
               disabled={!canUseCell(cellIndex)}
-              class="group flex aspect-square items-center justify-center rounded-xl border bg-white shadow-sm transition duration-200 focus:outline-none focus:ring-4 focus:ring-cyan-100 {isWinningCell(cellIndex) ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100' : 'border-slate-200'} {canUseCell(cellIndex) ? 'hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md active:scale-[0.98]' : 'disabled:cursor-default'}"
+              class="group flex aspect-square touch-manipulation select-none items-center justify-center rounded-lg border bg-white shadow-sm transition duration-200 focus:outline-none focus:ring-4 focus:ring-cyan-100 sm:rounded-xl {isWinningCell(cellIndex) ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100' : 'border-slate-200'} {canUseCell(cellIndex) ? 'hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md active:scale-[0.98]' : 'disabled:cursor-default'}"
               aria-label={`Feld ${cellIndex + 1}`}
             >
               {#if cell === 'X' || cell === 'O'}

@@ -437,7 +437,7 @@
           </div>
         </div>
 
-        <aside class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm xl:sticky xl:top-8 xl:self-start">
+        <aside class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6 xl:sticky xl:top-8 xl:self-start">
           <div class="flex items-center justify-between gap-4">
             <h2 class="text-xl font-semibold text-slate-950">Spieler</h2>
             <span class="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700">
@@ -470,7 +470,7 @@
 
 {#if isColorMenuOpen && currentPlayer}
   <button type="button" class="fixed inset-0 z-[89] bg-slate-950/40 backdrop-blur-sm" on:click={() => (isColorMenuOpen = false)} aria-label="Farbmenü schließen"></button>
-  <div class="fixed left-1/2 top-1/2 z-[90] max-h-[min(88vh,42rem)] w-[min(92vw,30rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="color-menu-title">
+  <div class="fixed inset-x-2 bottom-2 z-[90] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,30rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="color-menu-title">
     <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
       <div class="flex items-center gap-3">
         <span class="grid h-10 w-10 place-items-center rounded-xl bg-cyan-600 text-white"><Palette size={20} /></span>
@@ -479,7 +479,7 @@
       <button type="button" on:click={() => (isColorMenuOpen = false)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Schließen"><X size={19} /></button>
     </div>
 
-    <div class="max-h-[calc(min(88vh,42rem)-5rem)] overflow-y-auto p-4 sm:p-5">
+    <div class="max-h-[calc(100dvh-6rem)] overscroll-contain overflow-y-auto p-3 sm:max-h-[calc(min(88vh,42rem)-5rem)] sm:p-5">
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {#each playerColorOptions as option (option.id)}
           {@const occupied = occupiedColors.has(option.id)}

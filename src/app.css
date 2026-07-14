@@ -131,6 +131,36 @@ button,
 a {
   font: inherit;
 }
+
+button,
+a,
+select,
+input[type='checkbox'],
+input[type='range'] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-scroll-x {
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (pointer: coarse) {
+  input[type='checkbox'] {
+    min-width: 1.25rem;
+    min-height: 1.25rem;
+  }
+
+  input[type='range'] {
+    min-height: 2.75rem;
+  }
+
+  .hover-lift:hover {
+    transform: none !important;
+  }
+}
 @keyframes ui-pop-in {
   0% { opacity: 0; transform: translateY(10px) scale(0.98); }
   100% { opacity: 1; transform: translateY(0) scale(1); }

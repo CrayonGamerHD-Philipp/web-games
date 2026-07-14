@@ -134,7 +134,7 @@
   }
 </script>
 
-<a href={lobbyHref} class="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950">
+<a href={lobbyHref} class="inline-flex min-h-11 w-fit items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950">
   <ArrowLeft size={18} />
   Zur Lobby
 </a>
@@ -192,11 +192,11 @@
 
         {#if isHost && activeGame.status !== 'finished'}
           <div class="flex flex-col gap-2 sm:flex-row">
-            <button type="button" on:click={onRestart} disabled={isActionLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" on:click={onRestart} disabled={isActionLoading} class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
               <RotateCcw size={18} />
               Neu starten
             </button>
-            <button type="button" on:click={onChooseNewGame} disabled={isActionLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" on:click={onChooseNewGame} disabled={isActionLoading} class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
               <SquareX size={18} />
               Spiel abbrechen
             </button>
@@ -209,9 +209,9 @@
       {/if}
 
       <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-        <div class="flex flex-wrap gap-2" aria-label="Spielerfarben">
+        <div class="touch-scroll-x flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0" aria-label="Spielerfarben">
           {#each identityPlayers as player (player.id)}
-            <div class="flex min-h-9 items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5 shadow-sm {activeGame.state.currentPlayerId === player.id ? 'border-cyan-300 ring-2 ring-cyan-100' : 'border-slate-200'}">
+            <div class="flex min-h-11 shrink-0 scroll-ml-2 snap-start items-center gap-2 rounded-lg border bg-white px-3 py-1.5 shadow-sm {activeGame.state.currentPlayerId === player.id ? 'border-cyan-300 ring-2 ring-cyan-100' : 'border-slate-200'}">
               <span class="h-5 w-5 shrink-0 rounded-full border-2 border-white shadow-sm ring-1 ring-slate-200" style={`background: ${playerColor(player.color)}`}></span>
               <span class="max-w-32 truncate text-xs font-semibold text-slate-800">{player.name}</span>
               {#if player.id === currentPlayerId}<span class="rounded bg-slate-100 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Du</span>{/if}

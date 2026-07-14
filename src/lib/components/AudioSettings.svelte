@@ -375,8 +375,8 @@
 
 {#if isOpen}
   <button type="button" class="fixed inset-0 z-[79] bg-slate-950/30 backdrop-blur-sm" on:click={() => (isOpen = false)} aria-label="Einstellungen schließen"></button>
-  <section class="fixed right-3 top-16 z-[81] max-h-[calc(100vh-5rem)] w-[min(94vw,29rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-950/25 sm:right-5 sm:top-20">
-    <div class="settings-header border-b border-slate-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 px-5 py-4">
+  <section class="fixed inset-x-2 bottom-2 z-[81] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-950/25 sm:bottom-auto sm:left-auto sm:right-5 sm:top-20 sm:max-h-[calc(100vh-5rem)] sm:w-[min(94vw,29rem)]">
+    <div class="settings-header border-b border-slate-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 px-4 py-3 sm:px-5 sm:py-4">
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
           <div class="grid h-11 w-11 place-items-center rounded-xl bg-cyan-600 text-white shadow-lg shadow-cyan-700/20">
@@ -384,7 +384,7 @@
           </div>
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Einstellungen</p>
-            <h2 class="mt-0.5 text-xl font-semibold text-slate-950">Design, Audio & Profil</h2>
+            <h2 class="mt-0.5 text-lg font-semibold text-slate-950 sm:text-xl">Design, Audio & Profil</h2>
           </div>
         </div>
         <button type="button" on:click={() => (isOpen = false)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Einstellungen schließen">
@@ -393,7 +393,7 @@
       </div>
     </div>
 
-    <div class="max-h-[calc(100vh-10rem)] space-y-4 overflow-y-auto p-5">
+    <div class="max-h-[calc(100dvh-6rem)] space-y-4 overscroll-contain overflow-y-auto p-3 sm:max-h-[calc(100vh-10rem)] sm:p-5">
       <section class="rounded-xl border border-slate-200 bg-white p-4">
         <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
           <Palette size={17} /> Darstellung
@@ -451,7 +451,7 @@
         </label>
 
         <div class="mt-3 flex flex-wrap items-center gap-3">
-          <button type="button" on:click={renamePlayer} disabled={isRenaming || !playerName.trim()} class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300">
+          <button type="button" on:click={renamePlayer} disabled={isRenaming || !playerName.trim()} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300">
             {#if isRenaming}
               <LoaderCircle class="animate-spin" size={17} />
               Speichert
