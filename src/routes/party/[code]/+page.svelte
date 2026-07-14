@@ -513,9 +513,6 @@
                   <span class="block truncate font-semibold text-slate-950">{player.name}</span>
                   <span class="block text-xs text-slate-500">{player.isHost ? 'Host' : 'Beigetreten'}</span>
                 </span>
-                <span class="rounded-md bg-white px-2.5 py-1 text-sm font-semibold text-slate-800 ring-1 ring-slate-200">
-                  {player.score}
-                </span>
                 {#if isCurrentHost && player.id !== playerId}
                   <div class="flex shrink-0 gap-1">
                     <button
@@ -540,6 +537,9 @@
                     </button>
                   </div>
                 {/if}
+                <span class="rounded-md bg-white px-2.5 py-1 text-sm font-semibold text-slate-800 ring-1 ring-slate-200">
+                  {player.score}
+                </span>
               </li>
             {/each}
           </ul>
