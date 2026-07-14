@@ -1,7 +1,7 @@
 ﻿import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
 
 /**
- * @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player
+ * @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player
  * @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch
  * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean }} ActiveGame
  * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null }} Party
@@ -20,6 +20,8 @@ const globalStore = /** @type {typeof globalThis & { __web_games_party_store__?:
 const store = globalStore.__web_games_party_store__ ?? createStore();
 store.listeners ??= new Map();
 globalStore.__web_games_party_store__ = store;
+
+export const playerColors = ['cyan', 'violet', 'rose', 'emerald', 'orange', 'blue', 'amber', 'lime', 'teal', 'sky', 'fuchsia', 'red'];
 
 /** @param {unknown} name */
 function normalizeName(name) {
@@ -49,10 +51,13 @@ function makeCode() {
 
 /** @param {Party} party */
 function normalizeParty(party) {
-  party.players = party.players.map((player) => ({
-    ...player,
-    score: Number.isFinite(player.score) ? player.score : 0
-  }));
+  const usedColors = new Set();
+  party.players = party.players.map((player, index) => {
+    let color = playerColors.includes(player.color) && !usedColors.has(player.color) ? player.color : '';
+    color ||= playerColors.find((candidate) => !usedColors.has(candidate)) ?? playerColors[index % playerColors.length];
+    usedColors.add(color);
+    return { ...player, score: Number.isFinite(player.score) ? player.score : 0, color };
+  });
 
   if (party.activeGame) {
     party.activeGame.requests ??= { rematch: [], newGame: [] };
@@ -72,7 +77,8 @@ function publicParty(party) {
       name: player.name,
       isHost: player.isHost,
       joinedAt: player.joinedAt,
-      score: player.score
+      score: player.score,
+      color: player.color
     })),
     availableGames: availableGames.map((game) => ({ ...game })),
     activeGame: party.activeGame ? structuredClone(party.activeGame) : null
@@ -170,7 +176,8 @@ export function createParty(name) {
     name: cleanName,
     isHost: true,
     joinedAt: new Date().toISOString(),
-    score: 0
+    score: 0,
+    color: playerColors[0]
   };
 
   const party = {
@@ -217,7 +224,8 @@ export function joinParty(code, name) {
     name: cleanName,
     isHost: false,
     joinedAt: new Date().toISOString(),
-    score: 0
+    score: 0,
+    color: playerColors.find((color) => !party.players.some((/** @type {Player} */ candidate) => candidate.color === color)) ?? playerColors[party.players.length % playerColors.length]
   };
 
   party.players.push(player);
@@ -260,6 +268,31 @@ export function renamePlayer(code, playerId, name) {
     if (gamePlayer) gamePlayer.name = cleanName;
   }
 
+  notifyParty(party);
+  return { party: publicParty(party) };
+}
+
+/**
+ * @param {unknown} code
+ * @param {unknown} playerId
+ * @param {unknown} color
+ */
+export function changePlayerColor(code, playerId, color) {
+  const cleanCode = normalizeCode(code);
+  const cleanPlayerId = normalizePlayerId(playerId);
+  const cleanColor = String(color ?? '').trim().toLowerCase();
+  const party = store.parties.get(cleanCode);
+
+  if (!party) return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  normalizeParty(party);
+  const player = party.players.find((/** @type {Player} */ candidate) => candidate.id === cleanPlayerId);
+  if (!player) return { status: 403, error: 'Dieses Geraet ist nicht in der Party angemeldet.' };
+  if (!playerColors.includes(cleanColor)) return { status: 400, error: 'Diese Spielerfarbe ist nicht verfügbar.' };
+  if (party.players.some((/** @type {Player} */ candidate) => candidate.id !== player.id && candidate.color === cleanColor)) {
+    return { status: 409, error: 'Diese Farbe ist bereits vergeben.' };
+  }
+
+  player.color = cleanColor;
   notifyParty(party);
   return { party: publicParty(party) };
 }

@@ -5,6 +5,7 @@ Eine kleine SvelteKit-App fuer temporaere Party-Spiele im Browser. Spieler koenn
 ## Features
 
 - Party erstellen und beitreten
+- Lobby-Einladung per QR-Code und frei wählbare, eindeutige Spielerfarben
 - Live-Updates per Server-Sent Events
 - Temporaere In-Memory-Partys ohne Datenbank
 - Globale Darstellungseinstellungen mit Hell-, Dunkel- und Systemmodus sowie Akzentfarben

@@ -2,10 +2,11 @@
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Check, Copy, Gamepad2, LoaderCircle, Play, SquareX, UserRound } from '@lucide/svelte';
+  import { ArrowLeft, Check, Copy, Gamepad2, LoaderCircle, Play, QrCode, SquareX, UserRound } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
+  import QRCode from 'qrcode';
 
-  /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number }} Player */
+  /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player */
   /** @typedef {{ id: string, name: string, description?: string, previewImage?: string, minPlayers: number, maxPlayers: number }} GameInfo */
   /** @typedef {{ id: string, gameId: string, name: string, status: string }} ActiveGame */
   /** @typedef {{ code: string, createdAt: string, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null }} Party */
@@ -18,11 +19,29 @@
   let isGameActionLoading = false;
   let copied = false;
   let copiedLink = false;
+  let qrCodeDataUrl = '';
+  let joinUrl = '';
+  let colorError = '';
+  let isColorLoading = false;
   let playerId = '';
   let selectedGameId = '';
   let skyjoPlayToHundred = false;
   /** @type {EventSource | null} */
   let events = null;
+  const playerColorOptions = [
+    { id: 'cyan', name: 'Türkis', hex: '#0891b2' },
+    { id: 'violet', name: 'Violett', hex: '#7c3aed' },
+    { id: 'rose', name: 'Rosa', hex: '#e11d48' },
+    { id: 'emerald', name: 'Grün', hex: '#059669' },
+    { id: 'orange', name: 'Orange', hex: '#ea580c' },
+    { id: 'blue', name: 'Blau', hex: '#2563eb' },
+    { id: 'amber', name: 'Gold', hex: '#d97706' },
+    { id: 'lime', name: 'Limette', hex: '#65a30d' },
+    { id: 'teal', name: 'Petrol', hex: '#0d9488' },
+    { id: 'sky', name: 'Himmelblau', hex: '#0284c7' },
+    { id: 'fuchsia', name: 'Fuchsia', hex: '#c026d3' },
+    { id: 'red', name: 'Rot', hex: '#dc2626' }
+  ];
 
   $: code = $page.params.code?.toUpperCase() ?? '';
   $: currentPlayer = party?.players.find((player) => player.id === playerId);
@@ -31,6 +50,7 @@
   $: selectedGame = party?.availableGames.find((game) => game.id === selectedGameId);
   $: selectedGameImage = gameImage(activeGame?.gameId ?? selectedGameId);
   $: canStartSelectedGame = Boolean(party && selectedGame && party.players.length >= selectedGame.minPlayers);
+  $: occupiedColors = new Set(party?.players.filter((player) => player.id !== playerId).map((player) => player.color) ?? []);
 
   /** @param {string | undefined} gameId */
   function gameImage(gameId) {
@@ -71,11 +91,55 @@
   async function copyPartyLink() {
     if (!browser) return;
 
-    await navigator.clipboard.writeText(`${window.location.origin}/party/beitreten?code=${code}`);
+    await navigator.clipboard.writeText(joinUrl || `${window.location.origin}/party/beitreten?code=${code}`);
     copiedLink = true;
     setTimeout(() => {
       copiedLink = false;
     }, 1600);
+  }
+
+  async function createQrCode() {
+    if (!browser || !code) return;
+    joinUrl = `${window.location.origin}/party/beitreten?code=${code}`;
+    try {
+      qrCodeDataUrl = await QRCode.toDataURL(joinUrl, {
+        width: 320,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#0f172a', light: '#ffffff' }
+      });
+    } catch {
+      qrCodeDataUrl = '';
+    }
+  }
+
+  /** @param {string} color */
+  async function changeColor(color) {
+    if (!currentPlayer || color === currentPlayer.color || occupiedColors.has(color) || isColorLoading) return;
+    colorError = '';
+    isColorLoading = true;
+    try {
+      const response = await fetch(`/api/parties/${code}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'change-color', playerId, color })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        colorError = data.message ?? 'Die Farbe konnte nicht geändert werden.';
+        return;
+      }
+      party = data.party;
+    } catch {
+      colorError = 'Die Farbe konnte nicht geändert werden.';
+    } finally {
+      isColorLoading = false;
+    }
+  }
+
+  /** @param {string} color */
+  function playerColor(color) {
+    return playerColorOptions.find((option) => option.id === color)?.hex ?? '#64748b';
   }
 
 
@@ -131,6 +195,7 @@
 
   onMount(() => {
     playerId = localStorage.getItem(`party-player:${code}`) ?? '';
+    void createQrCode();
     connectEvents();
   });
 
@@ -209,9 +274,51 @@
               </div>
             </div>
 
+            <div class="relative z-10 mt-6 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
+              <div class="mx-auto grid h-32 w-32 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+                {#if qrCodeDataUrl}
+                  <img src={qrCodeDataUrl} alt={`QR-Code zum Beitritt in Party ${party.code}`} class="h-full w-full" />
+                {:else}
+                  <QrCode size={42} class="text-slate-400" />
+                {/if}
+              </div>
+              <div>
+                <div class="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={18} /> Per QR-Code beitreten</div>
+                <p class="mt-2 text-sm leading-6 text-slate-600">Mit der Handykamera scannen und direkt mit vorausgefülltem Party-Code beitreten.</p>
+                <p class="mt-2 break-all text-xs text-slate-400">{joinUrl}</p>
+              </div>
+            </div>
+
             {#if currentPlayer}
-              <div class="mt-8 rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
-                Du bist als <span class="font-semibold">{currentPlayer.name}</span> in dieser Party.
+              <div class="mt-6 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">
+                <div class="flex items-center gap-3">
+                  <span class="h-9 w-9 shrink-0 rounded-full border-2 border-white shadow-sm" style={`background: ${playerColor(currentPlayer.color)}`}></span>
+                  <p>Du bist als <span class="font-semibold">{currentPlayer.name}</span> in dieser Party.</p>
+                </div>
+                <div class="mt-4 border-t border-cyan-200 pt-3">
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="font-semibold">Deine Spielerfarbe</p>
+                    {#if isColorLoading}<LoaderCircle class="animate-spin" size={16} />{/if}
+                  </div>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    {#each playerColorOptions as option (option.id)}
+                      {@const occupied = occupiedColors.has(option.id)}
+                      <button
+                        type="button"
+                        on:click={() => changeColor(option.id)}
+                        disabled={occupied || isColorLoading}
+                        aria-label={occupied ? `${option.name} ist bereits vergeben` : `${option.name} wählen`}
+                        aria-pressed={currentPlayer.color === option.id}
+                        title={occupied ? `${option.name} – vergeben` : option.name}
+                        class="relative h-9 w-9 rounded-full border-2 border-white shadow-sm transition hover:scale-110 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-25 {currentPlayer.color === option.id ? 'ring-4 ring-cyan-400' : ''}"
+                        style={`background: ${option.hex}`}
+                      >
+                        {#if currentPlayer.color === option.id}<Check class="absolute inset-0 m-auto text-white drop-shadow" size={17} strokeWidth={3} />{/if}
+                      </button>
+                    {/each}
+                  </div>
+                  {#if colorError}<p class="mt-2 text-xs font-medium text-red-700">{colorError}</p>{/if}
+                </div>
               </div>
             {:else}
               <div class="mt-8 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -331,9 +438,10 @@
 
           <ul class="mt-5 space-y-3">
             {#each party.players as player (player.id)}
-              <li class="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-slate-600 ring-1 ring-slate-200">
-                  <UserRound size={18} />
+              <li class="relative flex items-center gap-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
+                <span class="absolute inset-y-0 left-0 w-1.5" style={`background: ${playerColor(player.color)}`}></span>
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white" style={`background: ${playerColor(player.color)}`}>
+                  <UserRound size={19} />
                 </span>
                 <span class="min-w-0 flex-1">
                   <span class="block truncate font-semibold text-slate-950">{player.name}</span>
