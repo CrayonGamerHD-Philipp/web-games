@@ -207,6 +207,7 @@
         <p class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
       {/if}
 
+      {#if activeGame.gameId !== 'tic-tac-toe'}
       <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
         <div class="flex flex-wrap gap-2" aria-label="Spielerfarben">
           {#each identityPlayers as player (player.id)}
@@ -219,6 +220,7 @@
           {/each}
         </div>
       </div>
+      {/if}
 
       {#if activeGame.status === 'finished' && !isSkyjo}
         <div class="mt-8">
