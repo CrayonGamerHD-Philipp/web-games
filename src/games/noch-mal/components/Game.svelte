@@ -26,6 +26,7 @@
   type Achievement = {
     key: string;
     kind: 'column' | 'color';
+    color?: NochMalColor;
     playerId: string;
     playerName: string;
     title: string;
@@ -68,6 +69,13 @@
     blue: 'bg-[#8fcbed] text-[#0f567b]',
     pink: 'bg-[#cf3f79] text-[#fdf2f8]',
     peach: 'bg-[#e79a4e] text-[#5d2a0d]'
+  };
+  const noticeColorClass: Record<NochMalColor, string> = {
+    lime: 'text-lime-700',
+    yellow: 'text-amber-600',
+    blue: 'text-sky-700',
+    pink: 'text-pink-700',
+    peach: 'text-orange-700'
   };
 
   $: nochMalVersion = game ? `${game.id}:${JSON.stringify(game.state)}:${JSON.stringify(game.players)}:${renderNonce}` : '';
@@ -145,6 +153,7 @@
           achievements.push({
             key: claimKey('color', color, tier, playerId),
             kind: 'color',
+            color,
             playerId,
             playerName: session.players.find((player) => player.id === playerId)?.name ?? 'Ein Spieler',
             title: `${colorNames[color]} vollständig ausgefüllt`,
@@ -774,7 +783,14 @@
         </span>
         <div class="min-w-0">
           <p class="text-xs font-medium text-slate-500">Hinweis</p>
-          <h2 class="mt-1 text-lg font-semibold leading-snug sm:text-xl">{activeAchievement.playerId === currentPlayerId ? 'Du hast' : `${activeAchievement.playerName} hat`} {activeAchievement.title}.</h2>
+          <h2 class="mt-1 text-lg font-semibold leading-snug sm:text-xl">
+            {activeAchievement.playerId === currentPlayerId ? 'Du hast' : `${activeAchievement.playerName} hat`}
+            {#if activeAchievement.kind === 'color' && activeAchievement.color}
+              <span class="font-extrabold {noticeColorClass[activeAchievement.color]}">{colorNames[activeAchievement.color]}</span> vollständig ausgefüllt.
+            {:else}
+              {activeAchievement.title}.
+            {/if}
+          </h2>
           <p class="mt-2 text-sm text-slate-500">{activeAchievement.detail}: +{activeAchievement.points} Punkte</p>
         </div>
       </div>
