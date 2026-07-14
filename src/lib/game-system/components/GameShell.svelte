@@ -51,6 +51,7 @@
   $: isMyTurn = Boolean(activeGame && myGamePlayer && activeGame.state.currentPlayerId === currentPlayerId && activeGame.status === 'running');
   $: isSkyjo = activeGame?.gameId === 'skyjo';
   $: isNochMal = activeGame?.gameId === 'noch-mal';
+  $: isTicTacToe = activeGame?.gameId === 'tic-tac-toe';
   $: identityPlayers = activeGame
     ? activeGame.players.map((gamePlayer) => ({
         ...gamePlayer,
@@ -162,7 +163,7 @@
     <p class="mt-2 text-sm leading-6 text-slate-600">Die Spiel-ID <span class="font-semibold">{activeGame.gameId}</span> existiert in der zentralen Registry nicht.</p>
   </div>
 {:else}
-  <div class="mt-4 grid gap-4 {isSkyjo || isNochMal ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_20rem]'}">
+  <div class="mt-4 grid gap-4 {isSkyjo || isNochMal || isTicTacToe ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_20rem]'}">
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0 flex-1">
@@ -207,7 +208,6 @@
         <p class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
       {/if}
 
-      {#if activeGame.gameId !== 'tic-tac-toe'}
       <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
         <div class="flex flex-wrap gap-2" aria-label="Spielerfarben">
           {#each identityPlayers as player (player.id)}
@@ -220,7 +220,6 @@
           {/each}
         </div>
       </div>
-      {/if}
 
       {#if activeGame.status === 'finished' && !isSkyjo}
         <div class="mt-8">
@@ -263,7 +262,7 @@
       </div>
     {/if}
 
-    <aside class="space-y-4 {isSkyjo || isNochMal ? 'hidden' : ''}">
+    <aside class="space-y-4 {isSkyjo || isNochMal || isTicTacToe ? 'hidden' : ''}">
       <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="text-lg font-semibold text-slate-950">Status</h2>
         <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">

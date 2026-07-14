@@ -329,17 +329,6 @@
             {/if}
           </div>
           <p class="mt-2 min-h-6 text-sm font-medium text-slate-700">{actionText}</p>
-          <button
-            type="button"
-            on:click={() => {
-              soundEnabled = !soundEnabled;
-              if (soundEnabled) playSound('select');
-            }}
-            class="mt-2 inline-flex min-h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-            aria-pressed={soundEnabled}
-          >
-            Sound {soundEnabled ? 'an' : 'aus'}
-          </button>
         </div>
 
         {#if me}
