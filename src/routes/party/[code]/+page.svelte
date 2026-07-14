@@ -491,9 +491,11 @@
                   type="button"
                   on:click={() => performHostAction('set-locked', { locked: !party?.locked })}
                   disabled={Boolean(hostActionKey)}
-                  class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50 {party.locked ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 focus:ring-amber-100'}"
+                  title={party.locked ? 'Lobby für neue Spieler öffnen' : 'Lobby für neue Spieler sperren'}
+                  aria-label={party.locked ? 'Lobby öffnen' : 'Lobby sperren'}
+                  class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50 {party.locked ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 focus:ring-amber-100'}"
                 >
-                  {#if hostActionKey === 'set-locked:'}<LoaderCircle class="animate-spin" size={16} />{:else if party.locked}<LockOpen size={16} /> Öffnen{:else}<Lock size={16} /> Sperren{/if}
+                  {#if hostActionKey === 'set-locked:'}<LoaderCircle class="animate-spin" size={18} />{:else if party.locked}<LockOpen size={18} />{:else}<Lock size={18} />{/if}
                 </button>
               </div>
               {#if hostError}<p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{hostError}</p>{/if}
@@ -502,7 +504,7 @@
 
           <ul class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
             {#each party.players as player (player.id)}
-              <li class="relative flex flex-wrap items-center gap-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
+              <li class="relative flex items-center gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
                 <span class="absolute inset-y-0 left-0 w-1.5" style={`background: ${playerColor(player.color)}`}></span>
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white" style={`background: ${playerColor(player.color)}`}>
                   <UserRound size={19} />
@@ -515,25 +517,26 @@
                   {player.score}
                 </span>
                 {#if isCurrentHost && player.id !== playerId}
-                  <div class="ml-[3.25rem] flex basis-full gap-2">
+                  <div class="flex shrink-0 gap-1">
                     <button
                       type="button"
                       on:click={() => performHostAction('transfer-host', { targetPlayerId: player.id }, `Host-Rolle wirklich an ${player.name} übertragen?`)}
                       disabled={Boolean(hostActionKey)}
-                      class="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      title={`${player.name} zum Host machen`}
+                      aria-label={`${player.name} zum Host machen`}
+                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {#if hostActionKey === `transfer-host:${player.id}`}<LoaderCircle class="animate-spin" size={14} />{:else}<Crown size={14} />{/if}
-                      Zum Host
+                      {#if hostActionKey === `transfer-host:${player.id}`}<LoaderCircle class="animate-spin" size={16} />{:else}<Crown size={16} />{/if}
                     </button>
                     <button
                       type="button"
                       on:click={() => performHostAction('remove-player', { targetPlayerId: player.id }, `${player.name} wirklich aus der Party entfernen?`)}
                       disabled={Boolean(hostActionKey) || Boolean(activeGame)}
-                      title={activeGame ? 'Während eines laufenden Spiels nicht möglich' : 'Spieler entfernen'}
-                      class="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      title={activeGame ? 'Während eines laufenden Spiels nicht möglich' : `${player.name} entfernen`}
+                      aria-label={`${player.name} aus der Party entfernen`}
+                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      {#if hostActionKey === `remove-player:${player.id}`}<LoaderCircle class="animate-spin" size={14} />{:else}<UserMinus size={14} />{/if}
-                      Entfernen
+                      {#if hostActionKey === `remove-player:${player.id}`}<LoaderCircle class="animate-spin" size={16} />{:else}<UserMinus size={16} />{/if}
                     </button>
                   </div>
                 {/if}
