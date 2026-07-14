@@ -180,7 +180,7 @@
     activeAchievement = next;
     achievementQueue = remaining;
     playSound('notify');
-    achievementTimer = setTimeout(() => closeAchievement(), 4200);
+    achievementTimer = setTimeout(() => closeAchievement(), 6000);
   }
 
   function closeAchievement(showNext = true) {
@@ -710,12 +710,12 @@
     aria-label="Erfolgsmeldung schließen"
   ></button>
   <div
-    class="fixed left-1/2 top-1/2 z-[96] w-[min(calc(100vw-2rem),22rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white text-slate-950 shadow-lg"
+    class="fixed left-1/2 top-1/2 z-[96] w-[min(calc(100vw-2rem),27rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white text-slate-950 shadow-lg"
     role="dialog"
     aria-live="polite"
     aria-label="Neuer Bonus"
   >
-    <div class="relative p-5">
+    <div class="relative p-6 sm:p-7">
       <button
         type="button"
         on:click={() => closeAchievement()}
@@ -725,14 +725,14 @@
         <X size={20} />
       </button>
 
-      <div class="flex items-start gap-3 pr-9">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600">
-          <Info size={19} strokeWidth={2} />
+      <div class="flex items-start gap-4 pr-9">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600">
+          <Info size={22} strokeWidth={2} />
         </span>
         <div class="min-w-0">
           <p class="text-xs font-medium text-slate-500">Hinweis</p>
-          <h2 class="mt-1 text-base font-semibold leading-snug">{activeAchievement.playerId === currentPlayerId ? 'Du hast' : `${activeAchievement.playerName} hat`} {activeAchievement.title}.</h2>
-          <p class="mt-1.5 text-sm text-slate-500">{activeAchievement.detail}: +{activeAchievement.points} Punkte</p>
+          <h2 class="mt-1 text-lg font-semibold leading-snug sm:text-xl">{activeAchievement.playerId === currentPlayerId ? 'Du hast' : `${activeAchievement.playerName} hat`} {activeAchievement.title}.</h2>
+          <p class="mt-2 text-sm text-slate-500">{activeAchievement.detail}: +{activeAchievement.points} Punkte</p>
         </div>
       </div>
 
