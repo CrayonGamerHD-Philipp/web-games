@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Award, Check, CircleHelp, RotateCcw, Sparkles, Star, X } from '@lucide/svelte';
+  import { Check, CircleHelp, Info, RotateCcw, Sparkles, Star, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { bottomScore, cells, jokerCount, letters, rows, topScore } from '../data/board';
   import type { NochMalColor, NochMalColorDie, NochMalNumberDie, NochMalPlayer, NochMalSession } from '../types';
@@ -25,6 +25,7 @@
 
   type Achievement = {
     key: string;
+    playerId: string;
     playerName: string;
     title: string;
     detail: string;
@@ -125,6 +126,7 @@
         for (const playerId of claims[tier]) {
           achievements.push({
             key: claimKey('column', column, tier, playerId),
+            playerId,
             playerName: session.players.find((player) => player.id === playerId)?.name ?? 'Ein Spieler',
             title: `Spalte ${letters[column]} abgeschlossen`,
             detail: tier === 'first' ? 'Erster Spaltenbonus' : 'Spaltenbonus',
@@ -140,8 +142,9 @@
         for (const playerId of claims[tier]) {
           achievements.push({
             key: claimKey('color', color, tier, playerId),
+            playerId,
             playerName: session.players.find((player) => player.id === playerId)?.name ?? 'Ein Spieler',
-            title: `${colorNames[color]} vollständig`,
+            title: `${colorNames[color]} vollständig ausgefüllt`,
             detail: tier === 'first' ? 'Erster Farbbonus' : 'Farbbonus',
             points: tier === 'first' ? 5 : 3
           });
@@ -702,12 +705,12 @@
 {#if activeAchievement}
   <button
     type="button"
-    class="fixed inset-0 z-[95] cursor-default bg-slate-950/25"
+    class="fixed inset-0 z-[95] cursor-default bg-slate-950/15"
     on:click={() => closeAchievement()}
     aria-label="Erfolgsmeldung schließen"
   ></button>
   <div
-    class="fixed left-1/2 top-1/2 z-[96] w-[min(calc(100vw-2rem),24rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white text-slate-950 shadow-xl"
+    class="fixed left-1/2 top-1/2 z-[96] w-[min(calc(100vw-2rem),22rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white text-slate-950 shadow-lg"
     role="dialog"
     aria-live="polite"
     aria-label="Neuer Bonus"
@@ -723,13 +726,13 @@
       </button>
 
       <div class="flex items-start gap-3 pr-9">
-        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
-          <Award size={21} strokeWidth={2} />
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600">
+          <Info size={19} strokeWidth={2} />
         </span>
         <div class="min-w-0">
-          <p class="text-xs font-semibold text-emerald-700">{activeAchievement.detail}</p>
-          <h2 class="mt-1 text-lg font-semibold leading-tight">{activeAchievement.title}</h2>
-          <p class="mt-2 text-sm text-slate-600"><span class="font-semibold text-slate-900">{activeAchievement.playerName}</span> erhält <span class="font-bold text-emerald-700">{activeAchievement.points} Punkte</span>.</p>
+          <p class="text-xs font-medium text-slate-500">Hinweis</p>
+          <h2 class="mt-1 text-base font-semibold leading-snug">{activeAchievement.playerId === currentPlayerId ? 'Du hast' : `${activeAchievement.playerName} hat`} {activeAchievement.title}.</h2>
+          <p class="mt-1.5 text-sm text-slate-500">{activeAchievement.detail}: +{activeAchievement.points} Punkte</p>
         </div>
       </div>
 
