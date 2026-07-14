@@ -235,50 +235,50 @@
         </a>
       </div>
     {:else if party}
-      <div class="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div class="space-y-6">
-          <div class="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <img src="/images/decor/lobby.png" alt="" aria-hidden="true" class="pointer-events-none absolute right-4 top-4 h-20 w-20 animate-decor-float object-contain opacity-90 sm:h-24 sm:w-24" />
+      <div class="mt-4 grid gap-4 sm:mt-8 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div class="space-y-4 sm:space-y-6">
+          <div class="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
+            <img src="/images/decor/lobby.png" alt="" aria-hidden="true" class="pointer-events-none absolute right-3 top-3 h-16 w-16 animate-decor-float object-contain opacity-80 sm:right-4 sm:top-4 sm:h-24 sm:w-24 sm:opacity-90" />
             <p class="relative z-10 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">Party-Raum</p>
-            <div class="relative z-10 mt-4 flex flex-col gap-4 pr-16 sm:pr-20 sm:flex-row sm:items-end sm:justify-between">
+            <div class="relative z-10 mt-2 flex flex-col gap-4 pr-12 sm:mt-4 sm:pr-20 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h1 class="text-3xl font-semibold text-slate-950 sm:text-4xl">Code {party.code}</h1>
-                <p class="mt-3 max-w-xl text-base leading-7 text-slate-600">
-                  Teile diesen Code mit anderen Spielern. Der Host waehlt ein Spiel aus, gespielt wird danach auf der Spielseite.
+                <h1 class="text-2xl font-semibold text-slate-950 sm:text-4xl">Code {party.code}</h1>
+                <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 sm:mt-3 sm:text-base sm:leading-7">
+                  Teile den Code oder Einladungslink mit deinen Mitspielern.
                 </p>
               </div>
-              <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row">
                 <button
                   type="button"
                   on:click={copyCode}
-                  class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 sm:w-auto"
+                  class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-2 text-sm font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 sm:w-auto sm:px-4 sm:text-base"
                 >
                   {#if copied}
                     <Check size={19} />
                     Kopiert
                   {:else}
                     <Copy size={19} />
-                    Code kopieren
+                    <span class="sm:hidden">Code</span><span class="hidden sm:inline">Code kopieren</span>
                   {/if}
                 </button>
                 <button
                   type="button"
                   on:click={copyPartyLink}
-                  class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-2 font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:w-auto"
+                  class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-2 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:w-auto sm:px-4 sm:text-base"
                 >
                   {#if copiedLink}
                     <Check size={19} />
                     Link kopiert
                   {:else}
                     <Copy size={19} />
-                    Link kopieren
+                    <span class="sm:hidden">Link</span><span class="hidden sm:inline">Link kopieren</span>
                   {/if}
                 </button>
               </div>
             </div>
 
-            <div class="relative z-10 mt-6 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
-              <div class="mx-auto grid h-32 w-32 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+            <div class="relative z-10 mt-4 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:mt-6 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4 sm:p-4">
+              <div class="grid h-[5.5rem] w-[5.5rem] place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5 shadow-sm sm:h-32 sm:w-32 sm:rounded-xl sm:p-2">
                 {#if qrCodeDataUrl}
                   <img src={qrCodeDataUrl} alt={`QR-Code zum Beitritt in Party ${party.code}`} class="h-full w-full" />
                 {:else}
@@ -287,8 +287,8 @@
               </div>
               <div>
                 <div class="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={18} /> Per QR-Code beitreten</div>
-                <p class="mt-2 text-sm leading-6 text-slate-600">Mit der Handykamera scannen und direkt mit vorausgefülltem Party-Code beitreten.</p>
-                <p class="mt-2 break-all text-xs text-slate-400">{joinUrl}</p>
+                <p class="mt-1 text-xs leading-5 text-slate-600 sm:mt-2 sm:text-sm sm:leading-6">Scannen und direkt der Party beitreten.</p>
+                <p class="mt-2 hidden break-all text-xs text-slate-400 sm:block">{joinUrl}</p>
               </div>
             </div>
 
