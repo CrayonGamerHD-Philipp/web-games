@@ -6,13 +6,99 @@
   color: #172033;
   background: #f7f9fc;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+  --accent-main: #0891b2;
+  --accent-hover: #0e7490;
+  --accent-light: #67e8f9;
+  --accent-soft: #ecfeff;
+  --accent-muted: #cffafe;
+  --accent-border: #a5f3fc;
+  --accent-text: #0e7490;
+  --accent-ink: #164e63;
+}
+
+html[data-accent='violet'] { --accent-main: #7c3aed; --accent-hover: #6d28d9; --accent-light: #c4b5fd; --accent-soft: #f5f3ff; --accent-muted: #ede9fe; --accent-border: #ddd6fe; --accent-text: #6d28d9; --accent-ink: #4c1d95; }
+html[data-accent='rose'] { --accent-main: #e11d48; --accent-hover: #be123c; --accent-light: #fda4af; --accent-soft: #fff1f2; --accent-muted: #ffe4e6; --accent-border: #fecdd3; --accent-text: #be123c; --accent-ink: #881337; }
+html[data-accent='emerald'] { --accent-main: #059669; --accent-hover: #047857; --accent-light: #6ee7b7; --accent-soft: #ecfdf5; --accent-muted: #d1fae5; --accent-border: #a7f3d0; --accent-text: #047857; --accent-ink: #064e3b; }
+html[data-accent='orange'] { --accent-main: #ea580c; --accent-hover: #c2410c; --accent-light: #fdba74; --accent-soft: #fff7ed; --accent-muted: #ffedd5; --accent-border: #fed7aa; --accent-text: #c2410c; --accent-ink: #7c2d12; }
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  color: #e2e8f0;
+  background: #080f1d;
+  --accent-soft: color-mix(in srgb, var(--accent-main) 14%, #111827);
+  --accent-muted: color-mix(in srgb, var(--accent-main) 22%, #111827);
+  --accent-border: color-mix(in srgb, var(--accent-main) 48%, #334155);
+  --accent-text: color-mix(in srgb, var(--accent-main) 55%, white);
+  --accent-ink: color-mix(in srgb, var(--accent-main) 35%, white);
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  background: #f7f9fc;
+  transition: background-color 180ms ease, color 180ms ease;
 }
+
+html[data-theme='dark'] body { background: #080f1d; }
+
+/* Appweite Akzentfarbe für die bestehenden Cyan-Utilities. */
+.bg-cyan-50, .hover\:bg-cyan-50:hover { background-color: var(--accent-soft) !important; }
+.bg-cyan-100 { background-color: var(--accent-muted) !important; }
+.bg-cyan-300, .bg-cyan-400 { background-color: var(--accent-light) !important; }
+.bg-cyan-500, .bg-cyan-600 { background-color: var(--accent-main) !important; }
+.bg-cyan-700, .hover\:bg-cyan-700:hover { background-color: var(--accent-hover) !important; }
+.text-cyan-600, .text-cyan-700, .text-cyan-800, .hover\:text-cyan-700:hover, .hover\:text-cyan-800:hover { color: var(--accent-text) !important; }
+.text-cyan-900, .text-cyan-950 { color: var(--accent-ink) !important; }
+.border-cyan-100, .border-cyan-200, .border-cyan-300, .hover\:border-cyan-300:hover { border-color: var(--accent-border) !important; }
+.border-cyan-400, .border-cyan-500, .focus\:border-cyan-500:focus { border-color: var(--accent-main) !important; }
+.ring-cyan-100, .ring-cyan-200, .ring-cyan-300, .focus\:ring-cyan-100:focus { --tw-ring-color: color-mix(in srgb, var(--accent-main) 24%, transparent) !important; }
+.ring-cyan-500, .focus\:ring-cyan-500:focus { --tw-ring-color: var(--accent-main) !important; }
+.accent-cyan-600 { accent-color: var(--accent-main) !important; }
+.from-cyan-50 { --tw-gradient-from: var(--accent-soft) var(--tw-gradient-from-position) !important; --tw-gradient-to: color-mix(in srgb, var(--accent-soft) 0%, transparent) var(--tw-gradient-to-position) !important; }
+.from-cyan-500 { --tw-gradient-from: var(--accent-main) var(--tw-gradient-from-position) !important; --tw-gradient-to: color-mix(in srgb, var(--accent-main) 0%, transparent) var(--tw-gradient-to-position) !important; }
+.to-cyan-300 { --tw-gradient-to: var(--accent-light) var(--tw-gradient-to-position) !important; }
+
+/* Dunkles Farbschema für gemeinsame Seiten, Karten, Dialoge und Formulare. */
+html[data-theme='dark'] .bg-white,
+html[data-theme='dark'] [class*='bg-white/'] { background-color: #111827 !important; }
+html[data-theme='dark'] .bg-slate-50,
+html[data-theme='dark'] [class*='bg-slate-50/'] { background-color: #0f172a !important; }
+html[data-theme='dark'] .bg-slate-100 { background-color: #1e293b !important; }
+html[data-theme='dark'] .bg-slate-200 { background-color: #334155 !important; }
+html[data-theme='dark'] .text-slate-950,
+html[data-theme='dark'] .text-slate-900,
+html[data-theme='dark'] .text-slate-800 { color: #f1f5f9 !important; }
+html[data-theme='dark'] .text-slate-700,
+html[data-theme='dark'] .text-slate-600 { color: #cbd5e1 !important; }
+html[data-theme='dark'] .text-slate-500 { color: #94a3b8 !important; }
+html[data-theme='dark'] .text-slate-400,
+html[data-theme='dark'] .text-slate-300 { color: #64748b !important; }
+html[data-theme='dark'] .border-white,
+html[data-theme='dark'] [class*='border-white/'],
+html[data-theme='dark'] .border-slate-100,
+html[data-theme='dark'] .border-slate-200 { border-color: #263449 !important; }
+html[data-theme='dark'] .border-slate-300 { border-color: #475569 !important; }
+html[data-theme='dark'] input,
+html[data-theme='dark'] select,
+html[data-theme='dark'] textarea { background-color: #0b1220; color: #f1f5f9; border-color: #475569; }
+html[data-theme='dark'] input::placeholder,
+html[data-theme='dark'] textarea::placeholder { color: #64748b; }
+html[data-theme='dark'] .hover\:bg-white:hover,
+html[data-theme='dark'] .hover\:bg-slate-50:hover { background-color: #1e293b !important; }
+html[data-theme='dark'] .settings-header { background-image: linear-gradient(135deg, var(--accent-soft), #111827 54%, color-mix(in srgb, #059669 12%, #111827)) !important; }
+html[data-theme='dark'] .bg-emerald-50 { background-color: color-mix(in srgb, #059669 14%, #111827) !important; }
+html[data-theme='dark'] .bg-amber-50,
+html[data-theme='dark'] .bg-yellow-50 { background-color: color-mix(in srgb, #d97706 14%, #111827) !important; }
+html[data-theme='dark'] .bg-red-50 { background-color: color-mix(in srgb, #dc2626 14%, #111827) !important; }
+html[data-theme='dark'] .text-emerald-700,
+html[data-theme='dark'] .text-emerald-800 { color: #6ee7b7 !important; }
+html[data-theme='dark'] .text-amber-700,
+html[data-theme='dark'] .text-amber-800,
+html[data-theme='dark'] .text-amber-900 { color: #fcd34d !important; }
+html[data-theme='dark'] .text-red-600,
+html[data-theme='dark'] .text-red-700 { color: #fca5a5 !important; }
 
 button,
 a {

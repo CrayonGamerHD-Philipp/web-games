@@ -7,6 +7,7 @@ Eine kleine SvelteKit-App fuer temporaere Party-Spiele im Browser. Spieler koenn
 - Party erstellen und beitreten
 - Live-Updates per Server-Sent Events
 - Temporaere In-Memory-Partys ohne Datenbank
+- Globale Darstellungseinstellungen mit Hell-, Dunkel- und Systemmodus sowie Akzentfarben
 - Modulares Spiele-System
 - Tic-Tac-Toe
 - Skyjo mit Kartenlogik, Punkten, Endscreen und Revanche-/Neues-Spiel-Flow

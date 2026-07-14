@@ -1,13 +1,29 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { page } from '$app/stores';
-  import { Check, LoaderCircle, Music, Play, Settings, Shuffle, User, Volume2, X } from '@lucide/svelte';
+  import { Check, LoaderCircle, Monitor, Moon, Music, Palette, Play, Settings, Shuffle, Sun, User, Volume2, X } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
 
   type MusicTrack = { id: string; name: string; src: string };
   type StoredAudioSettings = { playerName?: string; effectsVolume?: number; musicVolume?: number; musicEnabled?: boolean; selectedTrackId?: string };
+  type ThemePreference = 'light' | 'dark' | 'system';
+  type AccentColor = 'cyan' | 'violet' | 'rose' | 'emerald' | 'orange';
+  type StoredAppearanceSettings = { theme?: ThemePreference; accentColor?: AccentColor };
 
   const storageKey = 'web-games:audio-settings';
+  const appearanceStorageKey = 'web-games:appearance-settings';
+  const themeOptions: { id: ThemePreference; name: string; icon: typeof Sun }[] = [
+    { id: 'light', name: 'Hell', icon: Sun },
+    { id: 'dark', name: 'Dunkel', icon: Moon },
+    { id: 'system', name: 'System', icon: Monitor }
+  ];
+  const accentOptions: { id: AccentColor; name: string; swatch: string }[] = [
+    { id: 'cyan', name: 'Ozean', swatch: '#0891b2' },
+    { id: 'violet', name: 'Violett', swatch: '#7c3aed' },
+    { id: 'rose', name: 'Ros√©', swatch: '#e11d48' },
+    { id: 'emerald', name: 'Wald', swatch: '#059669' },
+    { id: 'orange', name: 'Orange', swatch: '#ea580c' }
+  ];
   const tracks: MusicTrack[] = [
     { id: 'random', name: 'Zufall', src: '' },
     { id: 'chill_loop1', name: 'Chill Loop 1', src: '/sounds/music/chill_loop1.mp3' },
@@ -29,6 +45,8 @@
   let musicVolume = 0.35;
   let musicEnabled = true;
   let selectedTrackId = 'random';
+  let theme: ThemePreference = 'system';
+  let accentColor: AccentColor = 'cyan';
   let saved = false;
   let renameStatus = '';
   let renameError = '';
@@ -41,6 +59,7 @@
   let previewTimeout: ReturnType<typeof setTimeout> | null = null;
   let resumeMusicAfterPreview = false;
   let loadedPartyNameKey = '';
+  let colorSchemeQuery: MediaQueryList | null = null;
 
   $: routeCode = extractPartyCode($page.url.pathname);
   $: currentPlayerId = browser && routeCode ? localStorage.getItem(`party-player:${routeCode}`) ?? '' : '';
@@ -75,6 +94,45 @@
     if (!stored.selectedTrackId) {
       selectedTrackId = 'random';
     }
+  }
+
+  function loadAppearanceSettings() {
+    if (!browser) return;
+    let stored: StoredAppearanceSettings = {};
+    try {
+      stored = JSON.parse(localStorage.getItem(appearanceStorageKey) ?? '{}') as StoredAppearanceSettings;
+    } catch {
+      localStorage.removeItem(appearanceStorageKey);
+    }
+    theme = ['light', 'dark', 'system'].includes(String(stored.theme)) ? stored.theme as ThemePreference : 'system';
+    accentColor = ['cyan', 'violet', 'rose', 'emerald', 'orange'].includes(String(stored.accentColor)) ? stored.accentColor as AccentColor : 'cyan';
+    applyAppearance();
+  }
+
+  function applyAppearance() {
+    if (!browser) return;
+    const resolvedTheme = theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.dataset.themePreference = theme;
+    document.documentElement.dataset.accent = accentColor;
+  }
+
+  function persistAppearance() {
+    if (!browser) return;
+    const payload: StoredAppearanceSettings = { theme, accentColor };
+    localStorage.setItem(appearanceStorageKey, JSON.stringify(payload));
+    applyAppearance();
+    window.dispatchEvent(new CustomEvent('web-games:appearance-settings', { detail: payload }));
+  }
+
+  function chooseTheme(nextTheme: ThemePreference) {
+    theme = nextTheme;
+    persistAppearance();
+  }
+
+  function chooseAccent(nextAccent: AccentColor) {
+    accentColor = nextAccent;
+    persistAppearance();
   }
 
   function persistSettings() {
@@ -271,6 +329,7 @@
   }
 
   function handleStorage(event: StorageEvent) {
+    if (event.key === appearanceStorageKey) loadAppearanceSettings();
     if (event.key === storageKey || event.key === 'web-games:effects-volume') {
       loadSettings();
       setAudioVolume(activeAudio, musicVolume);
@@ -281,6 +340,9 @@
 
   onMount(() => {
     loadSettings();
+    loadAppearanceSettings();
+    colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    colorSchemeQuery.addEventListener('change', applyAppearance);
     document.addEventListener('pointerdown', handleFirstGesture, { once: true });
     document.addEventListener('keydown', handleFirstGesture, { once: true });
     window.addEventListener('storage', handleStorage);
@@ -292,6 +354,7 @@
     document.removeEventListener('pointerdown', handleFirstGesture);
     document.removeEventListener('keydown', handleFirstGesture);
     window.removeEventListener('storage', handleStorage);
+    colorSchemeQuery?.removeEventListener('change', applyAppearance);
     activeAudio?.pause();
     fadingAudio?.pause();
     stopPreview();
@@ -303,7 +366,7 @@
     type="button"
     on:click={() => (isOpen = !isOpen)}
     class="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/80 bg-white text-slate-700 shadow-xl shadow-slate-900/15 transition hover:-translate-y-0.5 hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-    aria-label="Einstellungen ˆffnen"
+    aria-label="Einstellungen √∂ffnen"
     aria-expanded={isOpen}
   >
     <Settings size={22} />
@@ -311,9 +374,9 @@
 </div>
 
 {#if isOpen}
-  <button type="button" class="fixed inset-0 z-[79] bg-slate-950/30 backdrop-blur-sm" on:click={() => (isOpen = false)} aria-label="Einstellungen schlieﬂen"></button>
+  <button type="button" class="fixed inset-0 z-[79] bg-slate-950/30 backdrop-blur-sm" on:click={() => (isOpen = false)} aria-label="Einstellungen schlie√üen"></button>
   <section class="fixed right-3 top-16 z-[81] max-h-[calc(100vh-5rem)] w-[min(94vw,29rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-950/25 sm:right-5 sm:top-20">
-    <div class="border-b border-slate-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 px-5 py-4">
+    <div class="settings-header border-b border-slate-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 px-5 py-4">
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
           <div class="grid h-11 w-11 place-items-center rounded-xl bg-cyan-600 text-white shadow-lg shadow-cyan-700/20">
@@ -321,16 +384,63 @@
           </div>
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Einstellungen</p>
-            <h2 class="mt-0.5 text-xl font-semibold text-slate-950">Audio & Profil</h2>
+            <h2 class="mt-0.5 text-xl font-semibold text-slate-950">Design, Audio & Profil</h2>
           </div>
         </div>
-        <button type="button" on:click={() => (isOpen = false)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Einstellungen schlieﬂen">
+        <button type="button" on:click={() => (isOpen = false)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Einstellungen schlie√üen">
           <X size={19} />
         </button>
       </div>
     </div>
 
     <div class="max-h-[calc(100vh-10rem)] space-y-4 overflow-y-auto p-5">
+      <section class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Palette size={17} /> Darstellung
+        </div>
+
+        <div>
+          <p class="text-sm font-medium text-slate-700">Farbschema</p>
+          <div class="mt-2 grid grid-cols-3 gap-2">
+            {#each themeOptions as option (option.id)}
+              <button
+                type="button"
+                on:click={() => chooseTheme(option.id)}
+                aria-pressed={theme === option.id}
+                class="flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-cyan-100 {theme === option.id ? 'border-cyan-400 bg-cyan-50 text-cyan-900 ring-1 ring-cyan-200' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-cyan-300 hover:bg-white'}"
+              >
+                <svelte:component this={option.icon} size={20} />
+                {option.name}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-sm font-medium text-slate-700">Akzentfarbe</p>
+            <span class="text-xs text-slate-500">{accentOptions.find((option) => option.id === accentColor)?.name}</span>
+          </div>
+          <div class="mt-2 grid grid-cols-5 gap-2">
+            {#each accentOptions as option (option.id)}
+              <button
+                type="button"
+                on:click={() => chooseAccent(option.id)}
+                aria-label={`${option.name} als Akzentfarbe verwenden`}
+                aria-pressed={accentColor === option.id}
+                title={option.name}
+                class="group grid aspect-square place-items-center rounded-xl border bg-slate-50 transition hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-cyan-100 {accentColor === option.id ? 'border-slate-500 ring-2 ring-slate-300' : 'border-slate-200'}"
+              >
+                <span class="grid h-8 w-8 place-items-center rounded-full shadow-sm transition group-hover:scale-105" style={`background: ${option.swatch}`}>
+                  {#if accentColor === option.id}<Check size={16} class="text-white" strokeWidth={3} />{/if}
+                </span>
+              </button>
+            {/each}
+          </div>
+          <p class="mt-2 text-xs leading-5 text-slate-500">Gilt sofort f√ºr Schaltfl√§chen, Markierungen und Fokusrahmen in der gesamten App.</p>
+        </div>
+      </section>
+
       <section class="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
         <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
           <User size={17} /> Profil
@@ -352,14 +462,14 @@
               Speichern
             {/if}
           </button>
-          {#if routeCode && !currentPlayerId}<span class="text-xs text-slate-500">Kein lokaler Spieler f¸r diese Lobby gefunden.</span>{/if}
+          {#if routeCode && !currentPlayerId}<span class="text-xs text-slate-500">Kein lokaler Spieler f√ºr diese Lobby gefunden.</span>{/if}
           {#if renameError}<p class="basis-full text-sm text-red-600">{renameError}</p>{/if}
         </div>
       </section>
 
       <section class="rounded-xl border border-slate-200 bg-white p-4">
         <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <Volume2 size={17} /> Lautst‰rke
+          <Volume2 size={17} /> Lautst√§rke
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="rounded-lg bg-slate-50 p-3">
@@ -384,7 +494,7 @@
 
         <div class="mt-4 space-y-2">
           <div class="flex items-center justify-between gap-3">
-            <h3 class="text-sm font-semibold text-slate-800">Loop ausw‰hlen</h3>
+            <h3 class="text-sm font-semibold text-slate-800">Loop ausw√§hlen</h3>
             <span class="text-xs font-medium text-slate-500">Probe stoppt nach 5 Sekunden</span>
           </div>
           <div class="space-y-2">

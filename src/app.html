@@ -3,6 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (() => {
+        try {
+          const stored = JSON.parse(localStorage.getItem('web-games:appearance-settings') || '{}');
+          const preference = ['light', 'dark', 'system'].includes(stored.theme) ? stored.theme : 'system';
+          const theme = preference === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : preference;
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.dataset.themePreference = preference;
+          document.documentElement.dataset.accent = ['cyan', 'violet', 'rose', 'emerald', 'orange'].includes(stored.accentColor) ? stored.accentColor : 'cyan';
+        } catch {
+          document.documentElement.dataset.theme = 'light';
+          document.documentElement.dataset.accent = 'cyan';
+        }
+      })();
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
