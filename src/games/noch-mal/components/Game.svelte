@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Check, CircleHelp, RotateCcw, Sparkles, Star } from '@lucide/svelte';
+  import { Award, Check, CircleHelp, RotateCcw, Sparkles, Star, X } from '@lucide/svelte';
+  import { onDestroy } from 'svelte';
   import { bottomScore, cells, jokerCount, letters, rows, topScore } from '../data/board';
   import type { NochMalColor, NochMalColorDie, NochMalNumberDie, NochMalPlayer, NochMalSession } from '../types';
 
@@ -16,6 +17,19 @@
   let lastRollId = '';
   let lastFinishedGameId = '';
   let soundEnabled = true;
+  let claimsInitializedForGameId = '';
+  let knownClaimKeys = new Set<string>();
+  let achievementQueue: Achievement[] = [];
+  let activeAchievement: Achievement | null = null;
+  let achievementTimer: ReturnType<typeof setTimeout> | null = null;
+
+  type Achievement = {
+    key: string;
+    playerName: string;
+    title: string;
+    detail: string;
+    points: number;
+  };
 
   type SoundName = 'dice' | 'select' | 'mark' | 'confirm' | 'win' | 'lose' | 'notify';
 
@@ -97,6 +111,85 @@
   $: canSelectDice = Boolean(hasLocalDiceSelection && !me?.selectedColor && !me?.selectedNumber);
   $: canConfirm = Boolean(me && !me.confirmed && me.selectedColor && me.selectedNumber && me.pendingCells.length === me.selectedNumber && isConnectedGroup(me.pendingCells) && hasValidAnchor(me, me.pendingCells));
   $: actionText = getActionText();
+  $: if (game) detectNewAchievements(game);
+
+  function claimKey(kind: 'column' | 'color', value: string | number, tier: 'first' | 'normal', playerId: string) {
+    return `${kind}:${value}:${tier}:${playerId}`;
+  }
+
+  function collectAchievements(session: NochMalSession) {
+    const achievements: Achievement[] = [];
+
+    session.state.columnBonusClaims.forEach((claims, column) => {
+      for (const tier of ['first', 'normal'] as const) {
+        for (const playerId of claims[tier]) {
+          achievements.push({
+            key: claimKey('column', column, tier, playerId),
+            playerName: session.players.find((player) => player.id === playerId)?.name ?? 'Ein Spieler',
+            title: `Spalte ${letters[column]} abgeschlossen`,
+            detail: tier === 'first' ? 'Erster Spaltenbonus' : 'Spaltenbonus',
+            points: tier === 'first' ? topScore[column] : bottomScore[column]
+          });
+        }
+      }
+    });
+
+    for (const color of colors) {
+      const claims = session.state.colorBonusClaims[color];
+      for (const tier of ['first', 'normal'] as const) {
+        for (const playerId of claims[tier]) {
+          achievements.push({
+            key: claimKey('color', color, tier, playerId),
+            playerName: session.players.find((player) => player.id === playerId)?.name ?? 'Ein Spieler',
+            title: `${colorNames[color]} vollständig`,
+            detail: tier === 'first' ? 'Erster Farbbonus' : 'Farbbonus',
+            points: tier === 'first' ? 5 : 3
+          });
+        }
+      }
+    }
+
+    return achievements;
+  }
+
+  function detectNewAchievements(session: NochMalSession) {
+    const achievements = collectAchievements(session);
+
+    if (claimsInitializedForGameId !== session.id) {
+      claimsInitializedForGameId = session.id;
+      knownClaimKeys = new Set(achievements.map((achievement) => achievement.key));
+      achievementQueue = [];
+      closeAchievement(false);
+      return;
+    }
+
+    const newAchievements = achievements.filter((achievement) => !knownClaimKeys.has(achievement.key));
+    if (newAchievements.length === 0) return;
+
+    knownClaimKeys = new Set(achievements.map((achievement) => achievement.key));
+    achievementQueue = [...achievementQueue, ...newAchievements];
+    showNextAchievement();
+  }
+
+  function showNextAchievement() {
+    if (activeAchievement || achievementQueue.length === 0) return;
+    const [next, ...remaining] = achievementQueue;
+    activeAchievement = next;
+    achievementQueue = remaining;
+    playSound('notify');
+    achievementTimer = setTimeout(() => closeAchievement(), 4200);
+  }
+
+  function closeAchievement(showNext = true) {
+    if (achievementTimer) clearTimeout(achievementTimer);
+    achievementTimer = null;
+    activeAchievement = null;
+    if (showNext) setTimeout(showNextAchievement, 120);
+  }
+
+  onDestroy(() => {
+    if (achievementTimer) clearTimeout(achievementTimer);
+  });
 
   function getActionText() {
     if (!game) return 'Noch mal wird über eine Party gestartet.';
@@ -604,6 +697,49 @@
     </div>
   </section>
   {/key}
+{/if}
+
+{#if activeAchievement}
+  <button
+    type="button"
+    class="fixed inset-0 z-[95] cursor-default bg-slate-950/35 backdrop-blur-[2px]"
+    on:click={() => closeAchievement()}
+    aria-label="Erfolgsmeldung schließen"
+  ></button>
+  <div
+    class="animate-modal-in fixed inset-x-3 bottom-3 z-[96] overflow-hidden rounded-2xl border border-emerald-200 bg-white text-slate-950 shadow-2xl sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:w-[min(92vw,27rem)] sm:-translate-x-1/2 sm:-translate-y-1/2"
+    role="dialog"
+    aria-live="polite"
+    aria-label="Neuer Bonus"
+  >
+    <div class="h-1.5 bg-gradient-to-r from-cyan-500 via-emerald-400 to-amber-400"></div>
+    <div class="relative p-5 sm:p-6">
+      <button
+        type="button"
+        on:click={() => closeAchievement()}
+        class="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+        aria-label="Schließen"
+      >
+        <X size={20} />
+      </button>
+
+      <div class="flex items-start gap-4 pr-10">
+        <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25">
+          <Award size={29} strokeWidth={2.2} />
+        </span>
+        <div class="min-w-0">
+          <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">{activeAchievement.detail}</p>
+          <h2 class="mt-1 text-xl font-semibold leading-tight sm:text-2xl">{activeAchievement.title}</h2>
+          <p class="mt-2 text-sm text-slate-600"><span class="font-semibold text-slate-900">{activeAchievement.playerName}</span> erhält <span class="font-bold text-emerald-700">{activeAchievement.points} Punkte</span>.</p>
+        </div>
+      </div>
+
+      <div class="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+        <span>Schließt automatisch</span>
+        {#if achievementQueue.length > 0}<span class="font-semibold">{achievementQueue.length} weitere Meldung{achievementQueue.length === 1 ? '' : 'en'}</span>{/if}
+      </div>
+    </div>
+  </div>
 {/if}
 
 
