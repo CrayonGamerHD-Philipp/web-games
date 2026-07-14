@@ -2,14 +2,14 @@
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Check, Copy, Gamepad2, LoaderCircle, Palette, Play, QrCode, SquareX, UserRound, X } from '@lucide/svelte';
+  import { ArrowLeft, Check, Copy, Crown, Gamepad2, LoaderCircle, Lock, LockOpen, Palette, Play, QrCode, SquareX, UserMinus, UserRound, X } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
   import QRCode from 'qrcode';
 
   /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player */
   /** @typedef {{ id: string, name: string, description?: string, previewImage?: string, minPlayers: number, maxPlayers: number }} GameInfo */
   /** @typedef {{ id: string, gameId: string, name: string, status: string }} ActiveGame */
-  /** @typedef {{ code: string, createdAt: string, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null }} Party */
+  /** @typedef {{ code: string, createdAt: string, locked: boolean, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null }} Party */
 
   /** @type {Party | null} */
   let party = null;
@@ -24,6 +24,8 @@
   let colorError = '';
   let isColorLoading = false;
   let isColorMenuOpen = false;
+  let hostError = '';
+  let hostActionKey = '';
   let playerId = '';
   let selectedGameId = '';
   let skyjoPlayToHundred = false;
@@ -143,6 +145,36 @@
   /** @param {string} color */
   function playerColor(color) {
     return playerColorOptions.find((option) => option.id === color)?.hex ?? '#64748b';
+  }
+
+  /**
+   * @param {'set-locked' | 'transfer-host' | 'remove-player'} action
+   * @param {Record<string, unknown>} payload
+   * @param {string} [confirmation]
+   */
+  async function performHostAction(action, payload = {}, confirmation = '') {
+    if (!isCurrentHost || hostActionKey) return;
+    if (confirmation && !window.confirm(confirmation)) return;
+
+    hostError = '';
+    hostActionKey = `${action}:${payload.targetPlayerId ?? ''}`;
+    try {
+      const response = await fetch(`/api/parties/${code}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, playerId, ...payload })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        hostError = data.message ?? 'Die Host-Aktion konnte nicht ausgeführt werden.';
+        return;
+      }
+      party = data.party;
+    } catch {
+      hostError = 'Die Host-Aktion konnte nicht ausgeführt werden.';
+    } finally {
+      hostActionKey = '';
+    }
   }
 
 
@@ -439,15 +471,38 @@
 
         <aside class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6 xl:sticky xl:top-8 xl:self-start">
           <div class="flex items-center justify-between gap-4">
-            <h2 class="text-xl font-semibold text-slate-950">Spieler</h2>
-            <span class="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700">
-              {party.players.length}
-            </span>
+            <div>
+              <h2 class="text-xl font-semibold text-slate-950">Spieler</h2>
+              <p class="mt-1 flex items-center gap-1.5 text-xs font-medium {party.locked ? 'text-amber-700' : 'text-emerald-700'}">
+                {#if party.locked}<Lock size={13} /> Lobby gesperrt{:else}<LockOpen size={13} /> Lobby offen{/if}
+              </p>
+            </div>
+            <span class="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700">{party.players.length}</span>
           </div>
+
+          {#if isCurrentHost}
+            <section class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">Hostverwaltung</p>
+                  <p class="mt-0.5 text-xs text-slate-500">{party.locked ? 'Neue Spieler können nicht beitreten.' : 'Neue Spieler können beitreten.'}</p>
+                </div>
+                <button
+                  type="button"
+                  on:click={() => performHostAction('set-locked', { locked: !party?.locked })}
+                  disabled={Boolean(hostActionKey)}
+                  class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50 {party.locked ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 focus:ring-amber-100'}"
+                >
+                  {#if hostActionKey === 'set-locked:'}<LoaderCircle class="animate-spin" size={16} />{:else if party.locked}<LockOpen size={16} /> Öffnen{:else}<Lock size={16} /> Sperren{/if}
+                </button>
+              </div>
+              {#if hostError}<p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{hostError}</p>{/if}
+            </section>
+          {/if}
 
           <ul class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
             {#each party.players as player (player.id)}
-              <li class="relative flex items-center gap-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
+              <li class="relative flex flex-wrap items-center gap-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
                 <span class="absolute inset-y-0 left-0 w-1.5" style={`background: ${playerColor(player.color)}`}></span>
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white" style={`background: ${playerColor(player.color)}`}>
                   <UserRound size={19} />
@@ -459,6 +514,29 @@
                 <span class="rounded-md bg-white px-2.5 py-1 text-sm font-semibold text-slate-800 ring-1 ring-slate-200">
                   {player.score}
                 </span>
+                {#if isCurrentHost && player.id !== playerId}
+                  <div class="ml-[3.25rem] flex basis-full gap-2">
+                    <button
+                      type="button"
+                      on:click={() => performHostAction('transfer-host', { targetPlayerId: player.id }, `Host-Rolle wirklich an ${player.name} übertragen?`)}
+                      disabled={Boolean(hostActionKey)}
+                      class="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {#if hostActionKey === `transfer-host:${player.id}`}<LoaderCircle class="animate-spin" size={14} />{:else}<Crown size={14} />{/if}
+                      Zum Host
+                    </button>
+                    <button
+                      type="button"
+                      on:click={() => performHostAction('remove-player', { targetPlayerId: player.id }, `${player.name} wirklich aus der Party entfernen?`)}
+                      disabled={Boolean(hostActionKey) || Boolean(activeGame)}
+                      title={activeGame ? 'Während eines laufenden Spiels nicht möglich' : 'Spieler entfernen'}
+                      class="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {#if hostActionKey === `remove-player:${player.id}`}<LoaderCircle class="animate-spin" size={14} />{:else}<UserMinus size={14} />{/if}
+                      Entfernen
+                    </button>
+                  </div>
+                {/if}
               </li>
             {/each}
           </ul>

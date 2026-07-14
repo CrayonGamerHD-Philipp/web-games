@@ -4,7 +4,7 @@
  * @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player
  * @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch
  * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean }} ActiveGame
- * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null }} Party
+ * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null, locked?: boolean }} Party
  * @typedef {{ parties: Map<string, Party>, listeners: Map<string, Set<(party: ReturnType<typeof publicParty>) => void>> }} Store
  */
 
@@ -51,6 +51,7 @@ function makeCode() {
 
 /** @param {Party} party */
 function normalizeParty(party) {
+  party.locked ??= false;
   const usedColors = new Set();
   party.players = party.players.map((player, index) => {
     let color = playerColors.includes(player.color) && !usedColors.has(player.color) ? player.color : '';
@@ -72,6 +73,7 @@ function publicParty(party) {
   return {
     code: party.code,
     createdAt: party.createdAt,
+    locked: Boolean(party.locked),
     players: party.players.map((player) => ({
       id: player.id,
       name: player.name,
@@ -184,7 +186,8 @@ export function createParty(name) {
     code,
     createdAt: new Date().toISOString(),
     players: [host],
-    activeGame: null
+    activeGame: null,
+    locked: false
   };
 
   store.parties.set(code, party);
@@ -215,6 +218,10 @@ export function joinParty(code, name) {
 
   if (!party) {
     return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  }
+
+  if (party.locked) {
+    return { status: 423, error: 'Diese Party ist für neue Spieler gesperrt.' };
   }
 
   normalizeParty(party);
@@ -295,6 +302,69 @@ export function changePlayerColor(code, playerId, color) {
   player.color = cleanColor;
   notifyParty(party);
   return { party: publicParty(party) };
+}
+
+/**
+ * @param {unknown} code
+ * @param {unknown} playerId
+ * @param {unknown} locked
+ */
+export function setPartyLocked(code, playerId, locked) {
+  const cleanCode = normalizeCode(code);
+  const party = store.parties.get(cleanCode);
+  if (!party) return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  if (!isHost(party, playerId)) return { status: 403, error: 'Nur der Host kann die Party sperren.' };
+
+  party.locked = Boolean(locked);
+  notifyParty(party);
+  return { party: publicParty(party) };
+}
+
+/**
+ * @param {unknown} code
+ * @param {unknown} playerId
+ * @param {unknown} targetPlayerId
+ */
+export function transferPartyHost(code, playerId, targetPlayerId) {
+  const cleanCode = normalizeCode(code);
+  const cleanPlayerId = normalizePlayerId(playerId);
+  const cleanTargetId = normalizePlayerId(targetPlayerId);
+  const party = store.parties.get(cleanCode);
+  if (!party) return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  if (!isHost(party, cleanPlayerId)) return { status: 403, error: 'Nur der Host kann die Host-Rolle übertragen.' };
+  if (cleanTargetId === cleanPlayerId) return { status: 400, error: 'Du bist bereits der Host.' };
+
+  const currentHost = party.players.find((/** @type {Player} */ player) => player.id === cleanPlayerId);
+  const nextHost = party.players.find((/** @type {Player} */ player) => player.id === cleanTargetId);
+  if (!currentHost || !nextHost) return { status: 404, error: 'Der ausgewählte Spieler wurde nicht gefunden.' };
+
+  currentHost.isHost = false;
+  nextHost.isHost = true;
+  notifyParty(party);
+  return { party: publicParty(party) };
+}
+
+/**
+ * @param {unknown} code
+ * @param {unknown} playerId
+ * @param {unknown} targetPlayerId
+ */
+export function removePartyPlayer(code, playerId, targetPlayerId) {
+  const cleanCode = normalizeCode(code);
+  const cleanPlayerId = normalizePlayerId(playerId);
+  const cleanTargetId = normalizePlayerId(targetPlayerId);
+  const party = store.parties.get(cleanCode);
+  if (!party) return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  if (!isHost(party, cleanPlayerId)) return { status: 403, error: 'Nur der Host kann Spieler entfernen.' };
+  if (cleanTargetId === cleanPlayerId) return { status: 400, error: 'Der Host kann sich nicht selbst entfernen.' };
+  if (party.activeGame) return { status: 409, error: 'Während eines laufenden Spiels können keine Spieler entfernt werden.' };
+
+  const playerIndex = party.players.findIndex((/** @type {Player} */ player) => player.id === cleanTargetId);
+  if (playerIndex < 0) return { status: 404, error: 'Der ausgewählte Spieler wurde nicht gefunden.' };
+
+  party.players.splice(playerIndex, 1);
+  notifyParty(party);
+  return { party: publicParty(party), removedPlayerId: cleanTargetId };
 }
 /** @param {unknown} code */
 export function getParty(code) {
