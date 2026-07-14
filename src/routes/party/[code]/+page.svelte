@@ -209,7 +209,7 @@
 </svelte:head>
 
 <main class="min-h-screen bg-slate-50 text-slate-950">
-  <section class="mx-auto w-full max-w-5xl px-6 py-8 sm:px-8 lg:px-10">
+  <section class="mx-auto w-full max-w-[92rem] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:px-10">
     <a href="/" class="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950">
       <ArrowLeft size={18} />
       Startseite
@@ -232,7 +232,7 @@
         </a>
       </div>
     {:else if party}
-      <div class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div class="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div class="space-y-6">
           <div class="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <img src="/images/decor/lobby.png" alt="" aria-hidden="true" class="pointer-events-none absolute right-4 top-4 h-20 w-20 animate-decor-float object-contain opacity-90 sm:h-24 sm:w-24" />
@@ -300,7 +300,7 @@
                     <p class="font-semibold">Deine Spielerfarbe</p>
                     {#if isColorLoading}<LoaderCircle class="animate-spin" size={16} />{/if}
                   </div>
-                  <div class="mt-2 flex flex-wrap gap-2">
+                  <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                     {#each playerColorOptions as option (option.id)}
                       {@const occupied = occupiedColors.has(option.id)}
                       <button
@@ -310,10 +310,16 @@
                         aria-label={occupied ? `${option.name} ist bereits vergeben` : `${option.name} wählen`}
                         aria-pressed={currentPlayer.color === option.id}
                         title={occupied ? `${option.name} – vergeben` : option.name}
-                        class="relative h-9 w-9 rounded-full border-2 border-white shadow-sm transition hover:scale-110 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-25 {currentPlayer.color === option.id ? 'ring-4 ring-cyan-400' : ''}"
-                        style={`background: ${option.hex}`}
+                        class="relative flex min-h-12 items-center gap-2 overflow-hidden rounded-lg border px-3 py-2 text-left transition focus:outline-none focus:ring-4 focus:ring-cyan-200 {occupied ? 'cursor-not-allowed border-slate-300 bg-slate-100 text-slate-400 grayscale' : 'border-white/80 bg-white/70 text-slate-800 shadow-sm hover:-translate-y-0.5 hover:border-cyan-300'} {currentPlayer.color === option.id ? 'ring-2 ring-cyan-400' : ''}"
                       >
-                        {#if currentPlayer.color === option.id}<Check class="absolute inset-0 m-auto text-white drop-shadow" size={17} strokeWidth={3} />{/if}
+                        <span class="relative h-7 w-7 shrink-0 rounded-full border-2 border-white shadow-sm" style={`background: ${option.hex}`}>
+                          {#if currentPlayer.color === option.id}<Check class="absolute inset-0 m-auto text-white drop-shadow" size={14} strokeWidth={3} />{/if}
+                          {#if occupied}<span class="absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-slate-700"></span>{/if}
+                        </span>
+                        <span class="min-w-0">
+                          <span class="block truncate text-xs font-semibold {occupied ? 'line-through' : ''}">{option.name}</span>
+                          <span class="block text-[0.65rem] {occupied ? 'font-semibold uppercase tracking-wide' : 'text-slate-500'}">{occupied ? 'Vergeben' : currentPlayer.color === option.id ? 'Ausgewählt' : 'Frei'}</span>
+                        </span>
                       </button>
                     {/each}
                   </div>
@@ -341,9 +347,11 @@
               </div>
             </div>
 
-            <div class="game-image-frame mt-6 aspect-[16/9] rounded-lg border border-slate-200">
-              <img src={selectedGameImage} alt="Vorschau des ausgewaehlten Spiels" class="h-full w-full object-cover object-center" />
-            </div>
+            {#if activeGame}
+              <div class="game-image-frame mt-6 aspect-[21/9] rounded-xl border border-slate-200">
+                <img src={selectedGameImage} alt="Vorschau des laufenden Spiels" class="h-full w-full object-cover object-center" />
+              </div>
+            {/if}
 
             {#if gameError}
               <p class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
@@ -374,45 +382,67 @@
                 {/if}
               </div>
             {:else if isCurrentHost}
-              <div class="mt-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <label class="block">
-                  <span class="text-sm font-medium text-slate-700">Verfuegbare Spiele</span>
-                  <select
-                    bind:value={selectedGameId}
-                    class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-base text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  >
-                    {#each party.availableGames as game (game.id)}
-                      <option value={game.id}>{game.name}</option>
-                    {/each}
-                  </select>
-                </label>
+              <div class="mt-6">
+                <div class="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-950">Verfügbare Spiele</h3>
+                    <p class="mt-1 text-sm text-slate-500">Wähle eine Karte aus und starte die Runde.</p>
+                  </div>
+                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{party.players.length} Spieler in der Lobby</span>
+                </div>
 
-                <button
-                  type="button"
-                  on:click={startSelectedGame}
-                  disabled={!canStartSelectedGame || isGameActionLoading}
-                  class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-emerald-300"
-                >
-                  {#if isGameActionLoading}
-                    <LoaderCircle class="animate-spin" size={20} />
-                    Startet
-                  {:else}
-                    <Play size={20} />
-                    Spiel starten
-                  {/if}
-                </button>
-
-                {#if selectedGameId === 'skyjo'}
-                  <label class="rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 sm:col-span-2">
-                    <span class="flex items-start gap-3">
-                      <input type="checkbox" bind:checked={skyjoPlayToHundred} class="mt-1 h-4 w-4 shrink-0 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500" />
-                      <span class="min-w-0">
-                        <span class="block font-semibold">Skyjo bis 100 Gesamtpunkte</span>
-                        <span class="mt-1 block leading-5 text-cyan-800">Rundenpunkte werden addiert. Sobald jemand 100 erreicht, gewinnt der niedrigste Gesamtstand.</span>
+                <div class="mt-4 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                  {#each party.availableGames as game (game.id)}
+                    {@const selected = selectedGameId === game.id}
+                    {@const enoughPlayers = party.players.length >= game.minPlayers}
+                    <button
+                      type="button"
+                      on:click={() => (selectedGameId = game.id)}
+                      aria-pressed={selected}
+                      class="group overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-emerald-100 {selected ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-emerald-300'}"
+                    >
+                      <span class="game-image-frame relative block aspect-[16/9] border-b border-slate-200">
+                        <img src={game.previewImage ?? '/images/party-hero.png'} alt={`Vorschau von ${game.name}`} class="h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.03]" />
+                        {#if selected}
+                          <span class="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow"><Check size={14} /> Ausgewählt</span>
+                        {/if}
                       </span>
-                    </span>
-                  </label>
-                {/if}
+                      <span class="block p-4">
+                        <span class="flex items-start justify-between gap-3">
+                          <span class="text-lg font-semibold text-slate-950">{game.name}</span>
+                          <span class="shrink-0 rounded-md px-2 py-1 text-xs font-semibold {enoughPlayers ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}">{game.minPlayers}–{game.maxPlayers}</span>
+                        </span>
+                        <span class="mt-2 block min-h-10 text-sm leading-5 text-slate-600">{game.description ?? 'Gemeinsam in der Party spielen.'}</span>
+                        <span class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold {enoughPlayers ? 'text-emerald-700' : 'text-amber-700'}"><UserRound size={14} /> {enoughPlayers ? 'Spielbereit' : `Noch ${game.minPlayers - party.players.length} Spieler benötigt`}</span>
+                      </span>
+                    </button>
+                  {/each}
+                </div>
+
+                <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  {#if selectedGameId === 'skyjo'}
+                    <label class="mb-4 block rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
+                      <span class="flex items-start gap-3">
+                        <input type="checkbox" bind:checked={skyjoPlayToHundred} class="mt-1 h-4 w-4 shrink-0 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500" />
+                        <span class="min-w-0"><span class="block font-semibold">Skyjo bis 100 Gesamtpunkte</span><span class="mt-1 block leading-5 text-cyan-800">Rundenpunkte werden addiert. Der niedrigste Gesamtstand gewinnt.</span></span>
+                      </span>
+                    </label>
+                  {/if}
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p class="font-semibold text-slate-950">{selectedGame?.name ?? 'Kein Spiel ausgewählt'}</p>
+                      <p class="mt-1 text-sm text-slate-500">{canStartSelectedGame ? 'Alle Voraussetzungen sind erfüllt.' : `Mindestens ${selectedGame?.minPlayers ?? 2} Spieler erforderlich.`}</p>
+                    </div>
+                    <button
+                      type="button"
+                      on:click={startSelectedGame}
+                      disabled={!canStartSelectedGame || isGameActionLoading}
+                      class="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                    >
+                      {#if isGameActionLoading}<LoaderCircle class="animate-spin" size={20} /> Startet{:else}<Play size={20} /> {selectedGame?.name ?? 'Spiel'} starten{/if}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {#if !canStartSelectedGame}
@@ -428,7 +458,7 @@
           </div>
         </div>
 
-        <aside class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <aside class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm xl:sticky xl:top-8 xl:self-start">
           <div class="flex items-center justify-between gap-4">
             <h2 class="text-xl font-semibold text-slate-950">Spieler</h2>
             <span class="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700">
@@ -436,7 +466,7 @@
             </span>
           </div>
 
-          <ul class="mt-5 space-y-3">
+          <ul class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
             {#each party.players as player (player.id)}
               <li class="relative flex items-center gap-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
                 <span class="absolute inset-y-0 left-0 w-1.5" style={`background: ${playerColor(player.color)}`}></span>
