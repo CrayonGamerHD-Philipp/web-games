@@ -38,6 +38,7 @@
 
       localStorage.setItem('web-games:player-name', name.trim());
       localStorage.setItem('party-player:' + data.party.code, data.playerId);
+      localStorage.setItem('party-token:' + data.party.code, data.token);
       await goto(`/party/${data.party.code}`);
     } catch {
       error = 'Du konntest der Party nicht beitreten.';

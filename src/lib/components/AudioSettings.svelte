@@ -63,8 +63,9 @@
 
   $: routeCode = extractPartyCode($page.url.pathname);
   $: currentPlayerId = browser && routeCode ? localStorage.getItem(`party-player:${routeCode}`) ?? '' : '';
+  $: currentPlayerToken = browser && routeCode ? localStorage.getItem(`party-token:${routeCode}`) ?? '' : '';
   $: selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? tracks[0];
-  $: canRenamePartyPlayer = Boolean(routeCode && currentPlayerId && playerName.trim());
+  $: canRenamePartyPlayer = Boolean(routeCode && currentPlayerId && currentPlayerToken && playerName.trim());
   $: if (browser && routeCode && currentPlayerId && loadedPartyNameKey !== `${routeCode}:${currentPlayerId}`) {
     loadedPartyNameKey = `${routeCode}:${currentPlayerId}`;
     void loadPartyPlayerName(routeCode, currentPlayerId);
@@ -313,7 +314,7 @@
       const response = await fetch(`/api/parties/${routeCode}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'rename', playerId: currentPlayerId, name: playerName })
+        body: JSON.stringify({ action: 'rename', token: currentPlayerToken, name: playerName })
       });
       const data = await response.json();
       if (!response.ok) {

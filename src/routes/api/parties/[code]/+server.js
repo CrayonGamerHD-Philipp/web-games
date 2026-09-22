@@ -13,17 +13,23 @@ export function GET({ params }) {
 
 export async function POST({ params, request }) {
   const body = await request.json().catch(() => ({}));
-  const result = body.action === 'rename'
-    ? renamePlayer(params.code, body.playerId, body.name)
-    : body.action === 'change-color'
-      ? changePlayerColor(params.code, body.playerId, body.color)
-      : body.action === 'set-locked'
-        ? setPartyLocked(params.code, body.playerId, body.locked)
-        : body.action === 'transfer-host'
-          ? transferPartyHost(params.code, body.playerId, body.targetPlayerId)
-          : body.action === 'remove-player'
-            ? removePartyPlayer(params.code, body.playerId, body.targetPlayerId)
-            : joinParty(params.code, body.name);
+  let result;
+
+  if (body.action === 'rename') {
+    result = renamePlayer(params.code, body.token, body.name);
+  } else if (body.action === 'change-color') {
+    result = changePlayerColor(params.code, body.token, body.color);
+  } else if (body.action === 'set-locked') {
+    result = setPartyLocked(params.code, body.token, body.locked);
+  } else if (body.action === 'transfer-host') {
+    result = transferPartyHost(params.code, body.token, body.targetPlayerId);
+  } else if (body.action === 'remove-player') {
+    result = removePartyPlayer(params.code, body.token, body.targetPlayerId);
+  } else if (!body.action || body.action === 'join') {
+    result = joinParty(params.code, body.name);
+  } else {
+    result = { status: 400, error: 'Diese Aktion ist nicht bekannt.' };
+  }
 
   if (result.error) {
     return json({ message: result.error }, { status: result.status ?? 400 });

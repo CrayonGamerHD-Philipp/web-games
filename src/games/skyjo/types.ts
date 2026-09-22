@@ -46,7 +46,7 @@ export interface SkyjoMatch {
 
 export interface SkyjoState {
   phase: 'setup' | 'running' | 'final-turns' | 'finished';
-  deck: SkyjoCard[];
+  deckCount: number;
   discardPile: SkyjoCard[];
   currentPlayerId: string | null;
   drawnCard: SkyjoCard | null;

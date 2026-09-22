@@ -110,7 +110,6 @@
   /** @param {SkyjoSlot} slot */
   function canTargetSlot(slot) {
     if (slot.removed) return false;
-    if (canDraw && topDiscard) return true;
     if (!canUseDrawnCard) return false;
     if (forcedReplace || drawnCardSelected || draggedDrawnCard) return true;
     return game.state.drawnFrom === 'deck' && !slot.revealed;
@@ -249,7 +248,7 @@
           <div class="mt-3 flex flex-wrap gap-2 text-xs sm:text-sm">
             <span class="rounded-md bg-cyan-50 px-2.5 py-1 font-semibold text-cyan-800 ring-1 ring-cyan-200">Sichtbar: {visibleScore(me)}</span>
             <span class="rounded-md bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">Offen: {revealedCount(me)}</span>
-            <span class="rounded-md bg-white px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">Deck: {game.state.deck.length}</span>
+            <span class="rounded-md bg-white px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">Deck: {game.state.deckCount}</span>
           </div>
         {/if}
       </div>

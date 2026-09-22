@@ -15,6 +15,7 @@
   let isLoading = true;
   let isActionLoading = false;
   let playerId = '';
+  let token = '';
   let renderNonce = 0;
   /** @type {EventSource | null} */
   let events = null;
@@ -69,7 +70,7 @@
       const response = await fetch(`/api/parties/${code}/game`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action, playerId, ...payload })
+        body: JSON.stringify({ action, token, ...payload })
       });
       const data = await response.json();
 
@@ -99,6 +100,7 @@
 
   onMount(() => {
     playerId = localStorage.getItem(`party-player:${code}`) ?? '';
+    token = localStorage.getItem(`party-token:${code}`) ?? '';
     connectEvents();
   });
 

@@ -2,7 +2,7 @@
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Check, Copy, Crown, Gamepad2, LoaderCircle, Lock, LockOpen, Palette, Play, QrCode, SquareX, UserMinus, UserRound, X } from '@lucide/svelte';
+  import { ArrowLeft, Check, Copy, Crown, Gamepad2, LoaderCircle, Lock, LockOpen, Palette, Play, QrCode, SquareX, TriangleAlert, UserMinus, UserRound, X } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
   import QRCode from 'qrcode';
 
@@ -26,7 +26,10 @@
   let isColorMenuOpen = false;
   let hostError = '';
   let hostActionKey = '';
+  /** @type {{ message: string, run: () => void } | null} */
+  let pendingConfirmation = null;
   let playerId = '';
+  let token = '';
   let selectedGameId = '';
   let skyjoPlayToHundred = false;
   /** @type {EventSource | null} */
@@ -126,7 +129,7 @@
       const response = await fetch(`/api/parties/${code}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'change-color', playerId, color })
+        body: JSON.stringify({ action: 'change-color', token, color })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -154,7 +157,10 @@
    */
   async function performHostAction(action, payload = {}, confirmation = '') {
     if (!isCurrentHost || hostActionKey) return;
-    if (confirmation && !window.confirm(confirmation)) return;
+    if (confirmation) {
+      pendingConfirmation = { message: confirmation, run: () => performHostAction(action, payload) };
+      return;
+    }
 
     hostError = '';
     hostActionKey = `${action}:${payload.targetPlayerId ?? ''}`;
@@ -162,7 +168,7 @@
       const response = await fetch(`/api/parties/${code}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action, playerId, ...payload })
+        body: JSON.stringify({ action, token, ...payload })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -177,6 +183,11 @@
     }
   }
 
+  function confirmPendingAction() {
+    const run = pendingConfirmation?.run;
+    pendingConfirmation = null;
+    run?.();
+  }
 
   async function closeActiveGame() {
     gameError = '';
@@ -186,7 +197,7 @@
       const response = await fetch(`/api/parties/${code}/game`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'close', playerId })
+        body: JSON.stringify({ action: 'close', token })
       });
       const data = await response.json();
 
@@ -210,7 +221,7 @@
       const response = await fetch(`/api/parties/${code}/game`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'start', playerId, gameId: selectedGameId, settings: selectedGameId === 'skyjo' ? { playToHundred: skyjoPlayToHundred } : {} })
+        body: JSON.stringify({ action: 'start', token, gameId: selectedGameId, settings: selectedGameId === 'skyjo' ? { playToHundred: skyjoPlayToHundred } : {} })
       });
       const data = await response.json();
 
@@ -230,6 +241,7 @@
 
   onMount(() => {
     playerId = localStorage.getItem(`party-player:${code}`) ?? '';
+    token = localStorage.getItem(`party-token:${code}`) ?? '';
     void createQrCode();
     connectEvents();
   });
@@ -493,7 +505,7 @@
                   disabled={Boolean(hostActionKey)}
                   title={party.locked ? 'Lobby für neue Spieler öffnen' : 'Lobby für neue Spieler sperren'}
                   aria-label={party.locked ? 'Lobby öffnen' : 'Lobby sperren'}
-                  class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50 {party.locked ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 focus:ring-amber-100'}"
+                  class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60 {party.locked ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 focus:ring-amber-100'}"
                 >
                   {#if hostActionKey === 'set-locked:'}<LoaderCircle class="animate-spin" size={18} />{:else if party.locked}<LockOpen size={18} />{:else}<Lock size={18} />{/if}
                 </button>
@@ -521,7 +533,7 @@
                       disabled={Boolean(hostActionKey)}
                       title={`${player.name} zum Host machen`}
                       aria-label={`${player.name} zum Host machen`}
-                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {#if hostActionKey === `transfer-host:${player.id}`}<LoaderCircle class="animate-spin" size={16} />{:else}<Crown size={16} />{/if}
                     </button>
@@ -531,7 +543,7 @@
                       disabled={Boolean(hostActionKey) || Boolean(activeGame)}
                       title={activeGame ? 'Während eines laufenden Spiels nicht möglich' : `${player.name} entfernen`}
                       aria-label={`${player.name} aus der Party entfernen`}
-                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {#if hostActionKey === `remove-player:${player.id}`}<LoaderCircle class="animate-spin" size={16} />{:else}<UserMinus size={16} />{/if}
                     </button>
@@ -582,6 +594,39 @@
       </div>
       {#if colorError}<p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{colorError}</p>{/if}
       {#if isColorLoading}<p class="mt-3 flex items-center justify-center gap-2 text-sm text-slate-500"><LoaderCircle class="animate-spin" size={16} /> Farbe wird gespeichert …</p>{/if}
+    </div>
+  </div>
+{/if}
+
+{#if pendingConfirmation}
+  <button type="button" class="fixed inset-0 z-[93] bg-slate-950/40 backdrop-blur-sm" on:click={() => (pendingConfirmation = null)} aria-label="Bestätigung schließen"></button>
+  <div class="fixed inset-x-2 bottom-2 z-[94] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,26rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+    <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
+      <div class="flex items-center gap-3">
+        <span class="grid h-10 w-10 place-items-center rounded-xl bg-red-600 text-white"><TriangleAlert size={20} /></span>
+        <div><h2 id="confirm-dialog-title" class="font-semibold text-slate-950">Aktion bestätigen</h2></div>
+      </div>
+      <button type="button" on:click={() => (pendingConfirmation = null)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Schließen"><X size={19} /></button>
+    </div>
+
+    <div class="p-5">
+      <p class="text-sm leading-6 text-slate-700">{pendingConfirmation.message}</p>
+      <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          on:click={() => (pendingConfirmation = null)}
+          class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+        >
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          on:click={confirmPendingAction}
+          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
+        >
+          Bestätigen
+        </button>
+      </div>
     </div>
   </div>
 {/if}

@@ -6,17 +6,17 @@ export async function POST({ params, request }) {
   let result;
 
   if (body.action === 'start') {
-    result = startGame(params.code, body.playerId, body.gameId, body.settings ?? {});
+    result = startGame(params.code, body.token, body.gameId, body.settings ?? {});
   } else if (body.action === 'restart') {
-    result = restartGame(params.code, body.playerId);
+    result = restartGame(params.code, body.token);
   } else if (body.action === 'close') {
-    result = closeGame(params.code, body.playerId);
+    result = closeGame(params.code, body.token);
   } else if (body.action === 'request-rematch') {
-    result = requestGameEndAction(params.code, body.playerId, 'rematch');
+    result = requestGameEndAction(params.code, body.token, 'rematch');
   } else if (body.action === 'request-new-game') {
-    result = requestGameEndAction(params.code, body.playerId, 'newGame');
+    result = requestGameEndAction(params.code, body.token, 'newGame');
   } else if (body.action === 'move') {
-    result = makeMove(params.code, body.playerId, body.move ?? { cellIndex: body.cellIndex });
+    result = makeMove(params.code, body.token, body.move ?? { cellIndex: body.cellIndex });
   } else {
     result = { status: 400, error: 'Diese Spielaktion ist nicht bekannt.' };
   }
