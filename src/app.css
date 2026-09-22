@@ -100,6 +100,23 @@ html[data-theme='dark'] .text-amber-900 { color: #fcd34d !important; }
 html[data-theme='dark'] .text-red-600,
 html[data-theme='dark'] .text-red-700 { color: #fca5a5 !important; }
 
+/* Spielmaterial behält seine eigenen, bedeutungstragenden Farben – unabhängig von der Akzentfarbe. */
+.playing-card-front .bg-slate-50 { background-color: #f8fafc !important; }
+.playing-card-front .text-slate-400 { color: #94a3b8 !important; }
+.playing-card-front .text-slate-700 { color: #334155 !important; }
+.playing-card-front .ring-slate-100 { --tw-ring-color: #e2e8f0 !important; }
+.playing-card-front .bg-emerald-50 { background-color: #ecfdf5 !important; }
+.playing-card-front .text-emerald-700 { color: #047857 !important; }
+.playing-card-front .ring-emerald-100 { --tw-ring-color: #d1fae5 !important; }
+.playing-card-front .bg-rose-50 { background-color: #fff1f2 !important; }
+.playing-card-front .text-rose-700 { color: #be123c !important; }
+.playing-card-front .ring-rose-100 { --tw-ring-color: #ffe4e6 !important; }
+.playing-card-front .bg-cyan-50 { background-color: #ecfeff !important; }
+.playing-card-front .text-cyan-700 { color: #0e7490 !important; }
+.playing-card-front .ring-cyan-100 { --tw-ring-color: #cffafe !important; }
+.playing-card-front .from-cyan-500 { --tw-gradient-from: #06b6d4 var(--tw-gradient-from-position) !important; }
+.playing-card-front .to-cyan-300 { --tw-gradient-to: #67e8f9 var(--tw-gradient-to-position) !important; }
+
 /* Spielmaterial behält im Dark Mode seine eigenen, bedeutungstragenden Farben. */
 html[data-theme='dark'] .noch-mal-paper {
   background-color: #f7f5ea !important;
