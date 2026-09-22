@@ -64,14 +64,24 @@ function normalizeBonusClaim(value) {
   return emptyBonusClaim();
 }
 
+const JOKER_CHANCE = 0.08;
+
+/**
+ * @template T
+ * @param {T[]} nonJokerFaces
+ * @returns {T | 'joker'}
+ */
+function rollFace(nonJokerFaces) {
+  if (Math.random() < JOKER_CHANCE) return 'joker';
+  return nonJokerFaces[Math.floor(Math.random() * nonJokerFaces.length)];
+}
+
 /** @returns {NochMalDiceRoll} */
 function rollDice() {
-  const colorFaces = /** @type {NochMalColorDie[]} */ ([...colors, 'joker']);
-  const numberFaces = /** @type {NochMalNumberDie[]} */ ([1, 2, 3, 4, 5, 'joker']);
   return {
     id: crypto.randomUUID(),
-    colorDice: Array.from({ length: 3 }, () => colorFaces[Math.floor(Math.random() * colorFaces.length)]),
-    numberDice: Array.from({ length: 3 }, () => numberFaces[Math.floor(Math.random() * numberFaces.length)])
+    colorDice: Array.from({ length: 3 }, () => rollFace(colors)),
+    numberDice: Array.from({ length: 3 }, () => rollFace([1, 2, 3, 4, 5]))
   };
 }
 
