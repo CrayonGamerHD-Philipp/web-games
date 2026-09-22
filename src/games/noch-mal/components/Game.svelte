@@ -16,7 +16,6 @@
   let jokerNumber = 1;
   let lastRollId = '';
   let lastFinishedGameId = '';
-  let soundEnabled = true;
   let claimsInitializedForGameId = '';
   let knownClaimKeys = new Set<string>();
   let achievementQueue: Achievement[] = [];
@@ -281,8 +280,6 @@
   }
 
   function playSound(name: SoundName) {
-    if (!soundEnabled) return;
-
     const audio = getAudio(name);
     if (!audio) return;
 
@@ -298,13 +295,6 @@
     if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return;
     playSound('confirm');
     onMove({ type: 'select-dice', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber) });
-  }
-
-  function maybeCommitDiceSelection() {
-    if (!me || me.selectedColor || me.selectedNumber) return true;
-    if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return false;
-    onMove({ type: 'select-dice', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber) });
-    return true;
   }
 
   function isColorDieAvailable(index: number | null) {
@@ -666,7 +656,7 @@
                     type="button"
                     disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
                     on:click={() => chooseColorDie(index)}
-                    class="grid aspect-square min-h-12 touch-manipulation place-items-center rounded-lg border text-sm font-black shadow-sm transition active:scale-95 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-14 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
+                    class="grid aspect-square min-h-12 touch-manipulation place-items-center rounded-lg border text-sm font-black shadow-sm transition active:scale-95 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-14 {removedByActive ? 'hidden' : ''} {die === 'joker' ? 'border-slate-300 bg-white text-slate-950' : `${colorClass[die]} border-slate-200`} {colorDieIndex === index || me?.selectedColorDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
                     aria-label={`Farbwürfel ${index + 1}: ${colorDieLabel(die)}`}
                   >
                     {#if die === 'joker'}
@@ -688,7 +678,7 @@
                     type="button"
                     disabled={isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
                     on:click={() => chooseNumberDie(index)}
-                    class="grid aspect-square min-h-12 touch-manipulation place-items-center rounded-lg border border-slate-300 bg-white text-lg font-black text-slate-950 shadow-sm transition active:scale-95 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-14 sm:text-xl {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
+                    class="grid aspect-square min-h-12 touch-manipulation place-items-center rounded-lg border border-slate-300 bg-white text-lg font-black text-slate-950 shadow-sm transition active:scale-95 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-14 sm:text-xl {removedByActive ? 'hidden' : ''} {numberDieIndex === index || me?.selectedNumberDieIndex === index ? 'ring-4 ring-cyan-300' : ''}"
                     aria-label={`Zahlenwürfel ${index + 1}: ${numberDieLabel(die)}`}
                   >{numberDieLabel(die)}</button>
                 {/each}
@@ -721,7 +711,7 @@
                   Joker kostet: {currentJokerCost} - übrig danach: {remainingJokers}
                 </div>
               {/if}
-              <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+              <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2 xl:col-span-1 2xl:col-span-2">
                 <Sparkles size={17} /> Auswahl übernehmen
               </button>
             </div>
@@ -731,9 +721,9 @@
         <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
           <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
           <div class="mt-3 grid grid-cols-2 gap-2">
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw size={17} /> Auswahl leeren</button>
-            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="order-first col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"><Check size={17} /> Zug bestätigen</button>
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CircleHelp size={17} /> Kein Zug möglich</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"><RotateCcw size={17} /> Auswahl leeren</button>
+            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="order-first col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"><Check size={17} /> Zug bestätigen</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"><CircleHelp size={17} /> Kein Zug möglich</button>
           </div>
         </section>
         {#if me}

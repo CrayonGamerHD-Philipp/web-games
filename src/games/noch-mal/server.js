@@ -422,6 +422,14 @@ export function makeNochMalMove(session, playerId, move) {
     const jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
     if (player.usedJokers + jokerCost > 8) return { error: 'Du hast nicht mehr genug Joker.' };
 
+    let cellId = '';
+    if (type === 'select-dice-and-toggle-cell') {
+      cellId = String(move.cellId ?? '');
+      const projectedPlayer = { ...player, selectedColor: /** @type {NochMalColor} */ (selectedColor), selectedNumber: Number(selectedNumber), pendingCells: [] };
+      const error = validatePendingCell(projectedPlayer, cellId);
+      if (error) return { error };
+    }
+
     player.selectedColor = /** @type {NochMalColor} */ (selectedColor);
     player.selectedNumber = Number(selectedNumber);
     player.selectedColorDieIndex = colorDieIndex;
@@ -435,9 +443,6 @@ export function makeNochMalMove(session, playerId, move) {
     }
 
     if (type === 'select-dice-and-toggle-cell') {
-      const cellId = String(move.cellId ?? '');
-      const error = validatePendingCell(player, cellId);
-      if (error) return { error };
       player.pendingCells = [cellId];
     }
 

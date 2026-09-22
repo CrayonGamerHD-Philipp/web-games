@@ -24,7 +24,6 @@
   $: board = game?.state.board ?? [];
   $: myGamePlayer = game?.players.find((player) => player.id === currentPlayerId);
   $: isMyTurn = Boolean(game && myGamePlayer && game.state.currentPlayerId === currentPlayerId && game.status === 'running');
-  $: boardVersion = game ? `${game.id}:${board.join('|')}:${game.state.currentPlayerId}:${game.status}` : '';
   $: if (game?.status === 'finished' && game.id !== lastFinishedGameId) {
     lastFinishedGameId = game.id;
     playSound(game.state.isDraw ? 'draw' : game.state.winnerId === currentPlayerId ? 'win' : 'lose');
@@ -107,28 +106,28 @@
   <div class="mt-4 flex justify-center sm:mt-8">
     <div class="w-full max-w-[31rem] rounded-xl border border-slate-200 bg-slate-100 p-2 shadow-inner sm:p-4">
       <div class="grid aspect-square grid-cols-3 gap-2 sm:gap-3">
-        {#key boardVersion}
-          {#each board as cell, cellIndex}
-            <button
-              type="button"
-              on:click={() => makeMove(cellIndex)}
-              disabled={!canUseCell(cellIndex)}
-              class="group flex aspect-square touch-manipulation select-none items-center justify-center rounded-lg border bg-white shadow-sm transition duration-200 focus:outline-none focus:ring-4 focus:ring-cyan-100 sm:rounded-xl {isWinningCell(cellIndex) ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100' : 'border-slate-200'} {canUseCell(cellIndex) ? 'hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md active:scale-[0.98]' : 'disabled:cursor-default'}"
-              aria-label={`Feld ${cellIndex + 1}`}
-            >
-              {#if cell === 'X' || cell === 'O'}
+        {#each board as cell, cellIndex (cellIndex)}
+          <button
+            type="button"
+            on:click={() => makeMove(cellIndex)}
+            disabled={!canUseCell(cellIndex)}
+            class="group flex aspect-square touch-manipulation select-none items-center justify-center rounded-lg border bg-white shadow-sm transition duration-200 focus:outline-none focus:ring-4 focus:ring-cyan-100 sm:rounded-xl {isWinningCell(cellIndex) ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100' : 'border-slate-200'} {canUseCell(cellIndex) ? 'hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md active:scale-[0.98]' : 'disabled:cursor-default'}"
+            aria-label={`Feld ${cellIndex + 1}`}
+          >
+            {#if cell === 'X' || cell === 'O'}
+              {#key cell}
                 <img
                   src={markImage(cellIndex, cell)}
                   alt={cell === 'X' ? 'Kreuz' : 'Kreis'}
                   class="h-[72%] w-[72%] animate-ttt-mark-in object-contain drop-shadow-sm"
                   style={markStyle(cellIndex, cell)}
                 />
-              {:else}
-                <span class="h-14 w-14 rounded-xl border border-dashed border-slate-200 opacity-0 transition group-hover:opacity-100"></span>
-              {/if}
-            </button>
-          {/each}
-        {/key}
+              {/key}
+            {:else}
+              <span class="h-14 w-14 rounded-xl border border-dashed border-slate-200 opacity-0 transition group-hover:opacity-100"></span>
+            {/if}
+          </button>
+        {/each}
       </div>
     </div>
   </div>

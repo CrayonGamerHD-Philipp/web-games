@@ -128,7 +128,13 @@ function advanceTurn(session, playerId) {
   if (player && isPlayerFullyRevealed(player)) {
     session.state.phase = 'final-turns';
     session.state.finalTriggerPlayerId = player.id;
-    session.state.remainingFinalPlayerIds = session.players
+
+    const triggerIndex = session.players.findIndex((candidate) => candidate.id === player.id);
+    const rotatedPlayers = [
+      ...session.players.slice(triggerIndex + 1),
+      ...session.players.slice(0, triggerIndex + 1)
+    ];
+    session.state.remainingFinalPlayerIds = rotatedPlayers
       .filter((candidate) => candidate.id !== player.id)
       .map((candidate) => candidate.id);
 
@@ -208,9 +214,6 @@ function clearMatchingLines(session, player) {
 
       for (const index of activeIndexes) {
         const slot = player.grid[index];
-        if (slot.value !== null) {
-          session.state.discardPile.push({ id: slot.id, value: slot.value });
-        }
         slot.removed = true;
       }
 
@@ -366,6 +369,10 @@ export function makeSkyjoMove(session, playerId, move) {
 
     if (player.grid.filter((slot) => slot.revealed).length >= 2) {
       return { error: 'Du hast bereits zwei Startkarten aufgedeckt.' };
+    }
+
+    if (player.grid[index].revealed) {
+      return { error: 'Diese Karte ist bereits aufgedeckt.' };
     }
 
     player.grid[index].revealed = true;

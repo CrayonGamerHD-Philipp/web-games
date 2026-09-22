@@ -96,7 +96,7 @@ export function makeTicTacToeMove(session, playerId, cellIndex) {
   if (winningLine) {
     session.status = 'finished';
     session.state.winnerId = player.id;
-    session.state.winningLine = winningLine;
+    session.state.winningLine = [...winningLine];
     return { session };
   }
 
