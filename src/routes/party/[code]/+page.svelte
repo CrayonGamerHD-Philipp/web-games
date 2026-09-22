@@ -267,7 +267,7 @@
         <LoaderCircle class="animate-spin" size={28} />
       </div>
     {:else if error}
-      <div class="mt-8 rounded-lg border border-red-200 bg-white p-6 shadow-sm sm:p-8">
+      <div class="mt-8 rounded-2xl border border-red-200 bg-white p-6 shadow-sm sm:p-8">
         <p class="text-sm font-semibold uppercase tracking-[0.18em] text-red-600">Fehler</p>
         <h1 class="mt-3 text-3xl font-semibold text-slate-950">Party nicht erreichbar</h1>
         <p class="mt-3 text-base leading-7 text-slate-600">{error}</p>
@@ -279,9 +279,9 @@
         </a>
       </div>
     {:else if party}
-      <div class="mt-4 grid gap-4 sm:mt-8 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div class="mt-4 grid gap-4 sm:mt-8 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <div class="space-y-4 sm:space-y-6">
-          <div class="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
+          <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
             <img src="/images/decor/lobby.png" alt="" aria-hidden="true" class="pointer-events-none absolute right-3 top-3 h-16 w-16 animate-decor-float object-contain opacity-80 sm:right-4 sm:top-4 sm:h-24 sm:w-24 sm:opacity-90" />
             <p class="relative z-10 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">Party-Raum</p>
             <div class="relative z-10 mt-2 flex flex-col gap-4 pr-12 sm:mt-4 sm:pr-20 sm:flex-row sm:items-end sm:justify-between">
@@ -322,7 +322,7 @@
             </div>
 
             <div class="relative z-10 mt-4 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:mt-6 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4 sm:p-4">
-              <div class="grid h-[5.5rem] w-[5.5rem] place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5 shadow-sm sm:h-32 sm:w-32 sm:rounded-xl sm:p-2">
+              <div class="grid h-[5.5rem] w-[5.5rem] place-items-center overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm sm:h-32 sm:w-32 sm:p-2">
                 {#if qrCodeDataUrl}
                   <img src={qrCodeDataUrl} alt={`QR-Code zum Beitritt in Party ${party.code}`} class="h-full w-full" />
                 {:else}
@@ -350,14 +350,14 @@
                 </button>
               </div>
             {:else}
-              <div class="mt-8 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div class="mt-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 Dieses Geraet ist noch nicht als Spieler verbunden.
                 <a class="font-semibold underline underline-offset-2" href={`/party/beitreten?code=${code}`}>Jetzt beitreten</a>
               </div>
             {/if}
           </div>
 
-          <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <div class="flex items-start gap-3">
               <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
                 <Gamepad2 size={23} />
@@ -377,11 +377,11 @@
             {/if}
 
             {#if gameError}
-              <p class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
+              <p class="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
             {/if}
 
             {#if activeGame}
-              <div class="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+              <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
                 <span class="font-semibold">{activeGame.name}</span> laeuft gerade.
               </div>
               <div class="mt-5 flex flex-col gap-2 sm:flex-row">
@@ -399,7 +399,7 @@
                     disabled={isGameActionLoading}
                     class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-5 py-3 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
-                    <SquareX size={20} />
+                    {#if isGameActionLoading}<LoaderCircle class="animate-spin" size={20} />{:else}<SquareX size={20} />{/if}
                     Spiel abbrechen
                   </button>
                 {/if}
@@ -444,7 +444,7 @@
 
                 <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   {#if selectedGameId === 'skyjo'}
-                    <label class="mb-4 block rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
+                    <label class="mb-4 block rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
                       <span class="flex items-start gap-3">
                         <input type="checkbox" bind:checked={skyjoPlayToHundred} class="mt-1 h-4 w-4 shrink-0 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500" />
                         <span class="min-w-0"><span class="block font-semibold">Skyjo bis 100 Gesamtpunkte</span><span class="mt-1 block leading-5 text-cyan-800">Rundenpunkte werden addiert. Der niedrigste Gesamtstand gewinnt.</span></span>
@@ -469,19 +469,19 @@
               </div>
 
               {#if !canStartSelectedGame}
-                <p class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   Fuer {selectedGame?.name ?? 'dieses Spiel'} muessen mindestens {selectedGame?.minPlayers ?? 2} Spieler in der Party sein.
                 </p>
               {/if}
             {:else}
-              <div class="mt-6 rounded-md border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
+              <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
                 Warte darauf, dass der Host ein Spiel startet.
               </div>
             {/if}
           </div>
         </div>
 
-        <aside class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6 xl:sticky xl:top-8 xl:self-start">
+        <aside class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:sticky lg:top-8 lg:self-start">
           <div class="flex items-center justify-between gap-4">
             <div>
               <h2 class="text-xl font-semibold text-slate-950">Spieler</h2>
@@ -493,7 +493,7 @@
           </div>
 
           {#if isCurrentHost}
-            <section class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <section class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-slate-900">Hostverwaltung</p>
@@ -510,13 +510,13 @@
                   {#if hostActionKey === 'set-locked:'}<LoaderCircle class="animate-spin" size={18} />{:else if party.locked}<LockOpen size={18} />{:else}<Lock size={18} />{/if}
                 </button>
               </div>
-              {#if hostError}<p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{hostError}</p>{/if}
+              {#if hostError}<p class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{hostError}</p>{/if}
             </section>
           {/if}
 
           <ul class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
             {#each party.players as player (player.id)}
-              <li class="relative flex items-center gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
+              <li class="relative flex items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
                 <span class="absolute inset-y-0 left-0 w-1.5" style={`background: ${playerColor(player.color)}`}></span>
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white" style={`background: ${playerColor(player.color)}`}>
                   <UserRound size={19} />
@@ -563,7 +563,7 @@
 
 {#if isColorMenuOpen && currentPlayer}
   <button type="button" class="fixed inset-0 z-[89] bg-slate-950/40 backdrop-blur-sm" on:click={() => (isColorMenuOpen = false)} aria-label="Farbmenü schließen"></button>
-  <div class="fixed inset-x-2 bottom-2 z-[90] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,30rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="color-menu-title">
+  <div class="fixed inset-x-2 bottom-2 z-[90] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl animate-modal-in sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,30rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="color-menu-title">
     <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
       <div class="flex items-center gap-3">
         <span class="grid h-10 w-10 place-items-center rounded-xl bg-cyan-600 text-white"><Palette size={20} /></span>
@@ -592,7 +592,7 @@
           </button>
         {/each}
       </div>
-      {#if colorError}<p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{colorError}</p>{/if}
+      {#if colorError}<p class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{colorError}</p>{/if}
       {#if isColorLoading}<p class="mt-3 flex items-center justify-center gap-2 text-sm text-slate-500"><LoaderCircle class="animate-spin" size={16} /> Farbe wird gespeichert …</p>{/if}
     </div>
   </div>
@@ -600,7 +600,7 @@
 
 {#if pendingConfirmation}
   <button type="button" class="fixed inset-0 z-[93] bg-slate-950/40 backdrop-blur-sm" on:click={() => (pendingConfirmation = null)} aria-label="Bestätigung schließen"></button>
-  <div class="fixed inset-x-2 bottom-2 z-[94] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,26rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+  <div class="fixed inset-x-2 bottom-2 z-[94] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl animate-modal-in sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,26rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
     <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
       <div class="flex items-center gap-3">
         <span class="grid h-10 w-10 place-items-center rounded-xl bg-red-600 text-white"><TriangleAlert size={20} /></span>

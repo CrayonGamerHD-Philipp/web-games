@@ -144,27 +144,27 @@
     <LoaderCircle class="animate-spin" size={28} />
   </div>
 {:else if error}
-  <div class="mt-8 rounded-lg border border-red-200 bg-white p-6 shadow-sm sm:p-8">
+  <div class="mt-8 rounded-2xl border border-red-200 bg-white p-6 shadow-sm sm:p-8">
     <p class="text-sm font-semibold uppercase tracking-[0.18em] text-red-600">Fehler</p>
     <h1 class="mt-3 text-3xl font-semibold text-slate-950">Spiel nicht erreichbar</h1>
     <p class="mt-2 text-sm leading-6 text-slate-600">{error}</p>
   </div>
 {:else if !activeGame}
-  <div class="mt-8 rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <p class="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Kein Spiel</p>
     <h1 class="mt-3 text-3xl font-semibold text-slate-950">Es laeuft gerade kein Spiel.</h1>
     <p class="mt-2 text-sm leading-6 text-slate-600">Zurueck in die Lobby, damit der Host ein Spiel starten kann.</p>
     <a href={lobbyHref} class="mt-6 inline-flex min-h-12 items-center justify-center rounded-md bg-slate-950 px-5 py-3 font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200">Zur Lobby</a>
   </div>
 {:else if !definition || !GameComponent}
-  <div class="mt-8 rounded-lg border border-red-200 bg-white p-6 shadow-sm sm:p-8">
+  <div class="mt-8 rounded-2xl border border-red-200 bg-white p-6 shadow-sm sm:p-8">
     <p class="text-sm font-semibold uppercase tracking-[0.18em] text-red-600">Unbekanntes Spiel</p>
     <h1 class="mt-3 text-3xl font-semibold text-slate-950">Dieses Spiel ist nicht registriert.</h1>
     <p class="mt-2 text-sm leading-6 text-slate-600">Die Spiel-ID <span class="font-semibold">{activeGame.gameId}</span> existiert in der zentralen Registry nicht.</p>
   </div>
 {:else}
   <div class="mt-4 grid gap-4 {isSkyjo || isNochMal || isTicTacToe ? 'lg:grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_20rem]'}">
-    <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+    <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">{code}</p>
@@ -193,11 +193,11 @@
         {#if isHost && activeGame.status !== 'finished'}
           <div class="flex flex-col gap-2 sm:flex-row">
             <button type="button" on:click={onRestart} disabled={isActionLoading} class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
-              <RotateCcw size={18} />
+              {#if isActionLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<RotateCcw size={18} />{/if}
               Neu starten
             </button>
             <button type="button" on:click={onChooseNewGame} disabled={isActionLoading} class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
-              <SquareX size={18} />
+              {#if isActionLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<SquareX size={18} />{/if}
               Spiel abbrechen
             </button>
           </div>
@@ -205,10 +205,10 @@
       </div>
 
       {#if gameError}
-        <p class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
+        <p class="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
       {/if}
 
-      <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+      <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
         <div class="touch-scroll-x flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0" aria-label="Spielerfarben">
           {#each identityPlayers as player (player.id)}
             <div class="flex min-h-11 shrink-0 scroll-ml-2 snap-start items-center gap-2 rounded-lg border bg-white px-3 py-1.5 shadow-sm {activeGame.state.currentPlayerId === player.id ? 'border-cyan-300 ring-2 ring-cyan-100' : 'border-slate-200'}">
@@ -244,7 +244,7 @@
 
     {#if isSkyjo && activeGame.status === 'finished'}
       <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:py-8">
-        <div class="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl shadow-2xl animate-modal-in">
+        <div class="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl shadow-2xl animate-modal-in">
           <GameResultScreen
             {result}
             {currentPlayerId}
@@ -263,9 +263,9 @@
     {/if}
 
     <aside class="space-y-4 {isSkyjo || isNochMal || isTicTacToe ? 'hidden' : ''}">
-      <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="text-lg font-semibold text-slate-950">Status</h2>
-        <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           {#if activeGame.state.winnerId}
             <p class="flex items-center gap-2 text-sm font-medium text-slate-600"><Trophy size={17} /> Gewinner</p>
             <p class="mt-1 text-xl font-semibold text-emerald-700">{winnerPlayer?.name}</p>
@@ -282,11 +282,11 @@
         </div>
       </div>
 
-      <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="text-lg font-semibold text-slate-950">Spieler</h2>
         <div class="mt-4 space-y-3">
           {#each activeGame.players as gamePlayer (gamePlayer.id)}
-            <div class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div class="min-w-0">
                 <p class="truncate font-semibold text-slate-950">{gamePlayer.name}</p>
                 <p class="text-xs text-slate-500">{gamePlayer.id === currentPlayerId ? 'Du' : 'Spieler'}</p>
@@ -300,7 +300,7 @@
       </div>
 
       {#if !myGamePlayer}
-        <p class="rounded-lg border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">Du schaust diese Runde zu.</p>
+        <p class="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">Du schaust diese Runde zu.</p>
       {/if}
     </aside>
   </div>

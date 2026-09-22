@@ -164,6 +164,16 @@ input[type='range'] {
   -webkit-overflow-scrolling: touch;
 }
 
+.board-scroll-fade-left,
+.board-scroll-fade-right {
+  transition: opacity 150ms ease;
+}
+
+.board-scroll-fade-left { background: linear-gradient(to right, #fff, transparent); }
+.board-scroll-fade-right { background: linear-gradient(to left, #fff, transparent); }
+html[data-theme='dark'] .board-scroll-fade-left { background: linear-gradient(to right, #111827, transparent); }
+html[data-theme='dark'] .board-scroll-fade-right { background: linear-gradient(to left, #111827, transparent); }
+
 @media (pointer: coarse) {
   input[type='checkbox'] {
     min-width: 1.25rem;

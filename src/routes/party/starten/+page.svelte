@@ -52,7 +52,7 @@
         Zurueck
       </a>
 
-      <div class="mt-8 rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div class="flex h-12 w-12 items-center justify-center rounded-md bg-cyan-600 text-white">
           <PlusCircle size={26} strokeWidth={2.2} />
         </div>
@@ -74,7 +74,7 @@
           </label>
 
           {#if error}
-            <p class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+            <p class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
           {/if}
 
           <button

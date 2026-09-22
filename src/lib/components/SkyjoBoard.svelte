@@ -231,7 +231,7 @@
 </script>
 
 <div class="space-y-3 sm:space-y-4">
-  <section class="animate-ui-soft-rise rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+  <section class="animate-ui-soft-rise rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
       <div class="min-w-0">
         <div class="flex items-start justify-between gap-3">
@@ -240,15 +240,15 @@
             <p class="mt-1 min-h-10 text-sm leading-5 text-slate-600 sm:min-h-5">{actionText}</p>
           </div>
           {#if isMyTurn && !isFinished}
-            <span class="shrink-0 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200">Du bist dran</span>
+            <span class="shrink-0 rounded-xl bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200">Du bist dran</span>
           {/if}
         </div>
 
         {#if me}
           <div class="mt-3 flex flex-wrap gap-2 text-xs sm:text-sm">
-            <span class="rounded-md bg-cyan-50 px-2.5 py-1 font-semibold text-cyan-800 ring-1 ring-cyan-200">Sichtbar: {visibleScore(me)}</span>
-            <span class="rounded-md bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">Offen: {revealedCount(me)}</span>
-            <span class="rounded-md bg-white px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">Deck: {game.state.deckCount}</span>
+            <span class="rounded-xl bg-cyan-50 px-2.5 py-1 font-semibold text-cyan-800 ring-1 ring-cyan-200">Sichtbar: {visibleScore(me)}</span>
+            <span class="rounded-xl bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">Offen: {revealedCount(me)}</span>
+            <span class="rounded-xl bg-white px-2.5 py-1 font-semibold text-slate-700 ring-1 ring-slate-200">Deck: {game.state.deckCount}</span>
           </div>
         {/if}
       </div>
@@ -291,7 +291,7 @@
   </section>
 
   {#if me}
-    <section class="animate-ui-soft-rise rounded-lg border border-cyan-200 bg-white p-2.5 shadow-sm sm:p-4">
+    <section class="animate-ui-soft-rise rounded-2xl border border-cyan-200 bg-white p-2.5 shadow-sm sm:p-4">
       <div class="mb-1.5 flex items-center justify-between gap-3 sm:mb-3">
         <div class="min-w-0">
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700 sm:text-sm">Dein Feld</p>
@@ -299,7 +299,7 @@
         </div>
       </div>
 
-      <div class="mx-auto grid max-w-[20rem] grid-cols-4 gap-1.5 sm:max-w-[30rem] sm:gap-3">
+      <div class="mx-auto grid max-w-[20rem] grid-cols-4 gap-1.5 sm:max-w-[30rem] sm:gap-3 lg:max-w-[36rem] lg:gap-4">
         {#each me.grid as slot, cardIndex (cardIndex)}
           <div class="relative">
             {#if cardIndex < 4 && isClearedColumn(cardIndex)}
@@ -332,20 +332,20 @@
   {/if}
 
   {#if opponents.length > 0}
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {#each opponents as player (player.id)}
-        <section class="animate-ui-soft-rise rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <section class="animate-ui-soft-rise rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0">
               <h3 class="truncate text-base font-semibold text-slate-950">{player.name}</h3>
               <p class="text-xs text-slate-500">Sichtbar: {visibleScore(player)}</p>
             </div>
             {#if player.id === game.state.currentPlayerId}
-              <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200">Am Zug</span>
+              <span class="rounded-xl bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200">Am Zug</span>
             {/if}
           </div>
 
-          <div class="mt-3 grid grid-cols-4 gap-1.5">
+          <div class="mt-3 grid grid-cols-4 gap-1.5 sm:gap-2">
             {#each player.grid as slot, cardIndex (cardIndex)}
               <PlayingCard size="sm" value={slot.value} hidden={!slot.revealed} removed={slot.removed} revealDelayMs={isFinished && !slot.removed ? 900 + cardIndex * 45 : 0} disabled label={`Karte ${cardIndex + 1} von ${player.name}`} />
             {/each}

@@ -19,7 +19,7 @@
 </script>
 
 {#if !game}
-  <div class="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
     Skyjo wird ueber eine Party gestartet, damit Spieler, Reihenfolge und Punkte synchron bleiben.
   </div>
 {:else}

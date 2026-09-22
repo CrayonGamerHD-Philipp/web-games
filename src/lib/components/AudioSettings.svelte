@@ -376,7 +376,7 @@
 
 {#if isOpen}
   <button type="button" class="fixed inset-0 z-[79] bg-slate-950/30 backdrop-blur-sm" on:click={() => (isOpen = false)} aria-label="Einstellungen schließen"></button>
-  <section class="fixed inset-x-2 bottom-2 z-[81] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-950/25 sm:bottom-auto sm:left-auto sm:right-5 sm:top-20 sm:max-h-[calc(100vh-5rem)] sm:w-[min(94vw,29rem)]">
+  <section class="fixed inset-x-2 bottom-2 z-[81] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-950/25 animate-modal-in sm:bottom-auto sm:left-auto sm:right-5 sm:top-20 sm:max-h-[calc(100vh-5rem)] sm:w-[min(94vw,29rem)]">
     <div class="settings-header border-b border-slate-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 px-4 py-3 sm:px-5 sm:py-4">
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
@@ -500,7 +500,7 @@
           </div>
           <div class="space-y-2">
             {#each tracks as track (track.id)}
-              <div class:border-cyan-300={selectedTrackId === track.id} class:bg-cyan-50={selectedTrackId === track.id} class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 transition">
+              <div class:border-cyan-300={selectedTrackId === track.id} class:bg-cyan-50={selectedTrackId === track.id} class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 transition">
                 <button
                   type="button"
                   on:click={() => { selectedTrackId = track.id; persistSettings(); applyMusic(); }}

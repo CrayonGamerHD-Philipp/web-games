@@ -24,7 +24,7 @@
       <div class="mt-10 grid gap-4 sm:grid-cols-2">
         <a
           href="/party/starten"
-          class="group relative flex min-h-44 flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-cyan-100"
+          class="group relative flex min-h-44 flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-cyan-100"
           aria-label="Neue Party starten"
         >
           <img src="/images/decor/lobby.png" alt="" aria-hidden="true" class="absolute right-3 top-3 h-14 w-14 object-contain opacity-80 transition group-hover:scale-105 sm:h-16 sm:w-16" />
@@ -41,7 +41,7 @@
 
         <a
           href="/party/beitreten"
-          class="group flex min-h-44 flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          class="group flex min-h-44 flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-emerald-100"
           aria-label="Einer Party beitreten"
         >
           <span class="flex h-11 w-11 items-center justify-center rounded-md bg-emerald-600 text-white">

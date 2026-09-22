@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, CircleHelp, Info, RotateCcw, Sparkles, Star, X } from '@lucide/svelte';
+  import { Check, CircleHelp, Info, LoaderCircle, RotateCcw, Sparkles, Star, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { bottomScore, cells, jokerCount, letters, rows, topScore } from '../data/board';
   import type { NochMalColor, NochMalColorDie, NochMalNumberDie, NochMalPlayer, NochMalSession } from '../types';
@@ -21,6 +21,9 @@
   let achievementQueue: Achievement[] = [];
   let activeAchievement: Achievement | null = null;
   let achievementTimer: ReturnType<typeof setTimeout> | null = null;
+  let boardScrollLeft = 0;
+  let showBoardScrollLeftFade = false;
+  let showBoardScrollRightFade = false;
 
   type Achievement = {
     key: string;
@@ -245,6 +248,32 @@
     if (achievementTimer) clearTimeout(achievementTimer);
   });
 
+  function updateBoardScrollFade(node: HTMLElement) {
+    showBoardScrollLeftFade = node.scrollLeft > 4;
+    showBoardScrollRightFade = node.scrollLeft < node.scrollWidth - node.clientWidth - 4;
+  }
+
+  function persistBoardScroll(node: HTMLElement) {
+    node.scrollLeft = boardScrollLeft;
+    updateBoardScrollFade(node);
+
+    const onScroll = () => {
+      boardScrollLeft = node.scrollLeft;
+      updateBoardScrollFade(node);
+    };
+    const resizeObserver = new ResizeObserver(() => updateBoardScrollFade(node));
+
+    node.addEventListener('scroll', onScroll, { passive: true });
+    resizeObserver.observe(node);
+
+    return {
+      destroy() {
+        node.removeEventListener('scroll', onScroll);
+        resizeObserver.disconnect();
+      }
+    };
+  }
+
   function getActionText() {
     if (!game) return 'Noch mal wird über eine Party gestartet.';
     if (!me) return 'Du schaust diese Runde zu.';
@@ -447,14 +476,14 @@
 </script>
 
 {#if !game}
-  <div class="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
     Noch mal läuft über die Party-Lobby, damit Würfelrunde, Spielerstatus, Reconnect und Ergebnis wie bei Skyjo synchron bleiben.
   </div>
 {:else}
   {#key nochMalVersion}
   <section class="w-full space-y-4">
-    <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <span class="rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800 ring-1 ring-cyan-200">Runde {game.state.round}</span>
@@ -470,7 +499,7 @@
         </div>
 
         {#if me}
-          <div class="grid gap-2 text-sm sm:grid-cols-4 xl:min-w-[31rem]">
+          <div class="grid gap-2 text-sm sm:grid-cols-4 lg:min-w-[27rem]">
             <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Punkte</span><strong>{totalScore}</strong></div>
             <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Joker</span><strong>{remainingJokers}</strong></div>
             <div class="rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span class="block text-xs text-slate-500">Spalten</span><strong>{completedColumnScore}</strong></div>
@@ -480,10 +509,10 @@
       </div>
     </div>
 
-    <div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-4 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
-      <div class="order-2 min-w-0 space-y-4 xl:order-1">
+    <div class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-4 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div class="order-2 min-w-0 space-y-4 lg:order-1">
 {#if me}
-          <section class="overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:p-4">
+          <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:p-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Privates Spielblatt</p>
@@ -494,7 +523,8 @@
               {/if}
             </div>
 
-            <div class="touch-scroll-x w-full overscroll-x-contain overflow-x-auto px-1 pt-1 pb-3">
+            <div class="relative">
+              <div class="touch-scroll-x w-full overscroll-x-contain overflow-x-auto px-1 pt-1 pb-3" use:persistBoardScroll>
               <div class="mx-auto w-full min-w-[34rem] md:min-w-0 2xl:max-w-[76rem]">
                 <div class="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
                   {#each letters as letter, index (letter)}
@@ -502,7 +532,7 @@
                   {/each}
                 </div>
 
-                <div class="mt-2 overflow-hidden rounded-lg border border-slate-200">
+                <div class="mt-2 overflow-hidden rounded-xl border border-slate-200">
                   <div class="grid grid-cols-[repeat(15,minmax(0,1fr))]">
                     {#each cells as cell (cell.id)}
                       {@const checked = checkedSet.has(cell.id)}
@@ -563,11 +593,18 @@
                   {/each}
                 </div>
               </div>
+              </div>
+              {#if showBoardScrollLeftFade}
+                <div class="board-scroll-fade-left pointer-events-none absolute inset-y-1 left-0 w-8 rounded-l-lg" aria-hidden="true"></div>
+              {/if}
+              {#if showBoardScrollRightFade}
+                <div class="board-scroll-fade-right pointer-events-none absolute inset-y-1 right-0 w-8 rounded-r-lg" aria-hidden="true"></div>
+              {/if}
             </div>
           </section>
         {/if}
         {#if opponents.length > 0}
-          <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <section class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Mitspieler</p>
@@ -578,7 +615,7 @@
 
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {#each opponents as player (player.id)}
-                <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <article class="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div class="mb-2 flex items-center justify-between gap-2">
                     <div class="min-w-0">
                       <h3 class="truncate text-sm font-semibold text-slate-950">{player.name}</h3>
@@ -644,9 +681,9 @@
         {/if}
       </div>
 
-      <aside class="order-1 space-y-3 xl:order-2 xl:sticky xl:top-4 xl:self-start">
-        <section class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-1">
+      <aside class="order-1 space-y-3 lg:order-2 lg:sticky lg:top-4 lg:self-start">
+        <section class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-1">
             <div>
               <p class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Farbwürfel</p>
               <div class="grid grid-cols-3 gap-2">
@@ -685,7 +722,7 @@
               </div>
             </div>
 
-            <div class="col-span-2 grid gap-2 sm:grid-cols-2 xl:col-span-1 xl:grid-cols-1 2xl:grid-cols-2">
+            <div class="col-span-2 grid gap-2 sm:grid-cols-2 lg:col-span-1 lg:grid-cols-1 2xl:grid-cols-2">
               {#if selectedColorFace === 'joker'}
                 <label class="block text-sm font-semibold text-slate-700">
                   Jokerfarbe
@@ -707,27 +744,27 @@
                 </label>
               {/if}
               {#if currentJokerCost > 0}
-                <div class="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+                <div class="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900 sm:col-span-2 lg:col-span-1 2xl:col-span-2">
                   Joker kostet: {currentJokerCost} - übrig danach: {remainingJokers}
                 </div>
               {/if}
-              <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2 xl:col-span-1 2xl:col-span-2">
-                <Sparkles size={17} /> Auswahl übernehmen
+              <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2 lg:col-span-1 2xl:col-span-2">
+                {#if isLoading}<LoaderCircle class="animate-spin" size={17} />{:else}<Sparkles size={17} />{/if} Auswahl übernehmen
               </button>
             </div>
           </div>
         </section>
 
-        <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <h3 class="text-sm font-semibold text-slate-900">Aktionen</h3>
           <div class="mt-3 grid grid-cols-2 gap-2">
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"><RotateCcw size={17} /> Auswahl leeren</button>
-            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="order-first col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"><Check size={17} /> Zug bestätigen</button>
-            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"><CircleHelp size={17} /> Kein Zug möglich</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60">{#if isLoading}<LoaderCircle class="animate-spin" size={17} />{:else}<RotateCcw size={17} />{/if} Auswahl leeren</button>
+            <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="order-first col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60">{#if isLoading}<LoaderCircle class="animate-spin" size={17} />{:else}<Check size={17} />{/if} Zug bestätigen</button>
+            <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60">{#if isLoading}<LoaderCircle class="animate-spin" size={17} />{:else}<CircleHelp size={17} />{/if} Kein Zug möglich</button>
           </div>
         </section>
         {#if me}
-          <section class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm xl:block">
+          <section class="hidden rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm lg:block">
             <h3 class="font-semibold text-slate-900">Wertung</h3>
             <div class="mt-3 space-y-2">
               <div class="flex justify-between gap-3"><span class="text-slate-500">Spalten</span><strong>{completedColumnScore}</strong></div>
@@ -752,7 +789,7 @@
     aria-label="Erfolgsmeldung schließen"
   ></button>
   <div
-    class="fixed left-1/2 top-1/2 z-[96] w-[min(calc(100vw-2rem),27rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white text-slate-950 shadow-lg"
+    class="fixed left-1/2 top-1/2 z-[96] w-[min(calc(100vw-2rem),27rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-lg animate-modal-in"
     role="dialog"
     aria-live="polite"
     aria-label="Neuer Bonus"

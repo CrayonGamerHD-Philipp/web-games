@@ -1,5 +1,5 @@
 <script>
-  import { Gamepad2, RotateCcw, Trophy } from '@lucide/svelte';
+  import { Gamepad2, LoaderCircle, RotateCcw, Trophy } from '@lucide/svelte';
   import PlayingCard from '../../components/PlayingCard.svelte';
 
   /** @typedef {{ id: string, name: string, score?: number, isHost?: boolean }} ScorePlayer */
@@ -97,7 +97,7 @@
   }
 </script>
 
-<div class="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm animate-ui-pop-in sm:p-8">
+<div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm animate-ui-pop-in sm:p-8">
   <span class="pointer-events-none absolute right-8 top-8 h-2 w-2 rounded-full bg-cyan-300 animate-decor-spark"></span>
   <span class="pointer-events-none absolute right-20 top-20 h-2.5 w-2.5 rounded-full bg-amber-300 animate-decor-spark [animation-delay:320ms]"></span>
   <span class="pointer-events-none absolute right-32 top-10 h-1.5 w-1.5 rounded-full bg-emerald-300 animate-decor-spark [animation-delay:640ms]"></span>
@@ -124,7 +124,7 @@
     </div>
 
     {#if winner}
-      <div class="flex min-w-40 items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
+      <div class="flex min-w-40 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
         <Trophy size={22} />
         <div>
           <p class="text-xs font-medium uppercase tracking-[0.16em]">Gewinner</p>
@@ -135,7 +135,7 @@
   </div>
 
   {#if skyjoRows.length}
-  <div class="relative z-10 mt-7 rounded-lg border border-cyan-200 bg-cyan-50 p-4">
+  <div class="relative z-10 mt-7 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-800">Skyjo Gesamtstand</h3>
@@ -148,7 +148,7 @@
       </span>
     </div>
 
-    <div class="mt-4 overflow-hidden rounded-md border border-cyan-200 bg-white">
+    <div class="mt-4 overflow-hidden rounded-xl border border-cyan-200 bg-white">
       <div class="grid grid-cols-[3rem_minmax(0,1fr)_5rem_5rem] bg-cyan-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-950">
         <span>Rang</span>
         <span>Spieler</span>
@@ -165,7 +165,7 @@
       {/each}
     </div>
     {#if skyjoRoundHistory.length && skyjoHistoryPlayers.length}
-      <div class="mt-4 overflow-x-auto rounded-md border border-cyan-200 bg-white">
+      <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-200 bg-white">
         <div class="min-w-[32rem]">
           <div class="grid bg-cyan-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-950" style={skyjoHistoryGridStyle}>
             <span>Runde</span>
@@ -192,7 +192,7 @@
         <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Rundenpunkte</h3>
         <div class="mt-3 space-y-2">
           {#each scoreRows as row, index (row.playerId)}
-            <div class="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div class="min-w-0">
                 <p class="truncate font-semibold text-slate-950">{index + 1}. {row.player?.name ?? 'Spieler'}</p>
                 <p class="text-xs text-slate-500">{row.playerId === currentPlayerId ? 'Du' : 'Runde'}</p>
@@ -208,7 +208,7 @@
 
       <div class="mt-3 space-y-2">
         {#each sortedPlayers as player, index (player.id)}
-          <div class="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+          <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <div class="min-w-0">
               <p class="truncate font-semibold text-slate-950">{index + 1}. {player.name}</p>
               <p class="text-xs text-slate-500">{player.id === currentPlayerId ? 'Du' : player.isHost ? 'Host' : 'Spieler'}</p>
@@ -222,21 +222,21 @@
     <div>
       <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Aktionen</h3>
       <div class="mt-3 space-y-2 text-sm text-slate-600">
-        <p class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">Revanche: <span class="font-semibold text-slate-950">{requests.rematch.length}</span></p>
-        <p class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">Neues Spiel: <span class="font-semibold text-slate-950">{requests.newGame.length}</span></p>
+        <p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">Revanche: <span class="font-semibold text-slate-950">{requests.rematch.length}</span></p>
+        <p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">Neues Spiel: <span class="font-semibold text-slate-950">{requests.newGame.length}</span></p>
       </div>
 
       <div class="mt-5 flex flex-col gap-3">
         {#if currentPlayerLost || isDraw}
           <button type="button" on:click={onRequestRematch} disabled={isLoading || alreadyRequestedRematch} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60">
-            <RotateCcw size={18} />
+            {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<RotateCcw size={18} />{/if}
             {alreadyRequestedRematch ? 'Revanche angefragt' : 'Revanche fordern'}
           </button>
         {/if}
 
         {#if currentPlayerWon || isDraw}
           <button type="button" on:click={onRequestNewGame} disabled={isLoading || alreadyRequestedNewGame} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-emerald-300 hover:text-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60">
-            <Gamepad2 size={18} />
+            {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<Gamepad2 size={18} />{/if}
             {alreadyRequestedNewGame ? 'Neues Spiel angefragt' : 'Neues Spiel anfordern'}
           </button>
         {/if}
@@ -246,7 +246,7 @@
 
 
   {#if skyjoBoards.length}
-    <div class="relative z-10 mt-7 rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <div class="relative z-10 mt-7 rounded-xl border border-slate-200 bg-slate-50 p-4">
       <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">Aufgedeckte Karten</h3>
@@ -257,7 +257,7 @@
 
       <div class="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
         {#each skyjoBoards as board (board.playerId)}
-          <section class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+          <section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div class="mb-3 flex items-center justify-between gap-3">
               <h4 class="truncate text-sm font-semibold text-slate-950">{board.playerName}</h4>
               <span class="rounded-md bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
@@ -283,15 +283,15 @@
     </div>
   {/if}
   {#if isHost}
-    <div class="relative z-10 mt-7 rounded-md border border-cyan-200 bg-cyan-50 p-4">
+    <div class="relative z-10 mt-7 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
       <p class="text-sm font-semibold text-cyan-950">Host-Entscheidung</p>
       <div class="mt-3 flex flex-col gap-3 sm:flex-row">
         <button type="button" on:click={onPlayAgain} disabled={isLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-cyan-300">
-          <RotateCcw size={18} />
+          {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<RotateCcw size={18} />{/if}
           {skyjoMatch?.enabled && !skyjoMatch?.matchFinished ? 'Naechste Runde starten' : 'Erneut spielen'}
         </button>
         <button type="button" on:click={onBackToGames} disabled={isLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-emerald-300">
-          <Gamepad2 size={18} />
+          {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<Gamepad2 size={18} />{/if}
           Zur Spielauswahl
         </button>
       </div>
