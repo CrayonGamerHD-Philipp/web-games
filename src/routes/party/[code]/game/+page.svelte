@@ -24,7 +24,7 @@
   $: currentPlayer = party?.players.find((player) => player.id === playerId);
   $: isCurrentHost = Boolean(currentPlayer?.isHost);
   $: activeGame = party?.activeGame ?? null;
-  $: shellMaxWidth = activeGame?.gameId === 'noch-mal' ? 'max-w-[1800px] 2xl:max-w-[96vw]' : activeGame?.gameId === 'skyjo' ? 'max-w-5xl' : 'max-w-6xl lg:px-10';
+  $: shellMaxWidth = activeGame?.gameId === 'noch-mal' ? 'max-w-[1800px] 2xl:max-w-[96vw]' : activeGame?.gameId === 'skyjo' || activeGame?.gameId === 'kunterbunt' ? 'max-w-5xl' : activeGame?.gameId === 'schiffe-versenken' ? 'max-w-6xl' : activeGame?.gameId === 'tic-tac-toe' ? 'max-w-3xl' : 'max-w-6xl lg:px-10';
 
   async function flushGameRender() {
     renderNonce += 1;
@@ -38,7 +38,7 @@
 
   function connectEvents() {
     events?.close();
-    events = new EventSource(`/api/parties/${code}/events`);
+    events = new EventSource(`/api/parties/${code}/events?token=${encodeURIComponent(token)}`);
 
     events.addEventListener('party', async (event) => {
       const data = JSON.parse(event.data);
@@ -113,8 +113,8 @@
   <title>Spiel {code} | Web Games</title>
 </svelte:head>
 
-<main class="min-h-screen bg-slate-50 text-slate-950">
-  <section class="mx-auto w-full px-3 py-3 sm:px-5 sm:py-5 {shellMaxWidth}">
+<main class="min-h-screen" style="background: var(--ground); color: var(--text)">
+  <section class="mx-auto w-full px-3 pb-8 pt-3 sm:px-5 sm:pt-5 {shellMaxWidth}">
     <GameShell
       {code}
       partyPlayers={party?.players ?? []}

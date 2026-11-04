@@ -1,11 +1,11 @@
-import { applyGameMove, availableGames, createGameSession, getGame } from './games/index.js';
+import { applyGameMove, availableGames, createGameSession, getGame, redactGameSession } from './games/index.js';
 
 /**
  * @typedef {{ id: string, token: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player
  * @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch
  * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean }} ActiveGame
  * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null, locked?: boolean, lastActivityAt?: number }} Party
- * @typedef {{ parties: Map<string, Party>, listeners: Map<string, Set<(party: ReturnType<typeof publicParty>) => void>> }} Store
+ * @typedef {{ parties: Map<string, Party>, listeners: Map<string, Set<(party: Party) => void>> }} Store
  */
 
 function createStore() {
@@ -101,9 +101,18 @@ function normalizeParty(party) {
   }
 }
 
-/** @param {ActiveGame} game */
-function redactActiveGame(game) {
-  if (game.gameId === 'skyjo') {
+/**
+ * Strips hidden information from a cloned game before it leaves the server.
+ * `viewerId` is the player the data is sent to (null = anonymous spectator).
+ * @param {ActiveGame} game
+ * @param {string | null} viewerId
+ */
+function redactActiveGame(game, viewerId) {
+  if (game.gameId !== 'skyjo') {
+    return /** @type {ActiveGame} */ (redactGameSession(game.gameId, game, viewerId));
+  }
+
+  {
     const state = /** @type {any} */ (game.state);
 
     for (const player of /** @type {any[]} */ (game.players)) {
@@ -121,8 +130,11 @@ function redactActiveGame(game) {
   return game;
 }
 
-/** @param {Party} party */
-function publicParty(party) {
+/**
+ * @param {Party} party
+ * @param {string | null} [viewerId]
+ */
+function publicParty(party, viewerId = null) {
   normalizeParty(party);
 
   return {
@@ -138,28 +150,37 @@ function publicParty(party) {
       color: player.color
     })),
     availableGames: availableGames.map((game) => ({ ...game })),
-    activeGame: party.activeGame ? redactActiveGame(structuredClone(party.activeGame)) : null
+    activeGame: party.activeGame ? redactActiveGame(structuredClone(party.activeGame), viewerId) : null
   };
 }
 
 /** @param {Party} party */
 function notifyParty(party) {
   touchParty(party);
-  const publicData = publicParty(party);
   const listeners = store.listeners.get(party.code);
 
   if (!listeners) return;
 
+  // Each subscriber gets its own view, so private hands/boards stay private.
   for (const listener of listeners) {
-    listener(publicData);
+    listener(party);
   }
+}
+
+/**
+ * @param {Party} party
+ * @param {unknown} token
+ */
+function viewerIdFor(party, token) {
+  return resolvePlayer(party, token)?.id ?? null;
 }
 
 /**
  * @param {unknown} code
  * @param {(party: ReturnType<typeof publicParty>) => void} listener
+ * @param {string | null} [token] identifies the viewer; private game state is redacted for everyone else
  */
-export function subscribeParty(code, listener) {
+export function subscribeParty(code, listener, token = null) {
   const cleanCode = normalizeCode(code);
   const party = store.parties.get(cleanCode);
 
@@ -175,13 +196,15 @@ export function subscribeParty(code, listener) {
     return { status: 429, error: 'Zu viele gleichzeitige Verbindungen fuer diese Party.' };
   }
 
-  listeners.add(listener);
+  /** @param {Party} rawParty */
+  const viewerListener = (rawParty) => listener(publicParty(rawParty, viewerIdFor(rawParty, token)));
+  listeners.add(viewerListener);
   store.listeners.set(cleanCode, listeners);
-  listener(publicParty(party));
+  viewerListener(party);
 
   return {
     unsubscribe: () => {
-      listeners.delete(listener);
+      listeners.delete(viewerListener);
       if (listeners.size === 0) {
         store.listeners.delete(cleanCode);
       }
@@ -253,7 +276,7 @@ export function createParty(name) {
   store.parties.set(code, party);
 
   return {
-    party: publicParty(party),
+    party: publicParty(party, host.id),
     playerId: host.id,
     token: host.token
   };
@@ -301,7 +324,7 @@ export function joinParty(code, name) {
   notifyParty(party);
 
   return {
-    party: publicParty(party),
+    party: publicParty(party, player.id),
     playerId: player.id,
     token: player.token
   };
@@ -338,7 +361,7 @@ export function renamePlayer(code, token, name) {
   }
 
   notifyParty(party);
-  return { party: publicParty(party) };
+  return { party: publicParty(party, viewerIdFor(party, token)) };
 }
 
 /**
@@ -362,7 +385,7 @@ export function changePlayerColor(code, token, color) {
 
   player.color = cleanColor;
   notifyParty(party);
-  return { party: publicParty(party) };
+  return { party: publicParty(party, viewerIdFor(party, token)) };
 }
 
 /**
@@ -379,7 +402,7 @@ export function setPartyLocked(code, token, locked) {
 
   party.locked = Boolean(locked);
   notifyParty(party);
-  return { party: publicParty(party) };
+  return { party: publicParty(party, viewerIdFor(party, token)) };
 }
 
 /**
@@ -402,7 +425,7 @@ export function transferPartyHost(code, token, targetPlayerId) {
   actor.isHost = false;
   nextHost.isHost = true;
   notifyParty(party);
-  return { party: publicParty(party) };
+  return { party: publicParty(party, viewerIdFor(party, token)) };
 }
 
 /**
@@ -425,7 +448,7 @@ export function removePartyPlayer(code, token, targetPlayerId) {
 
   party.players.splice(playerIndex, 1);
   notifyParty(party);
-  return { party: publicParty(party), removedPlayerId: cleanTargetId };
+  return { party: publicParty(party, viewerIdFor(party, token)), removedPlayerId: cleanTargetId };
 }
 /** @param {unknown} code */
 export function getParty(code) {
@@ -487,7 +510,7 @@ export function startGame(code, token, gameId, settings = {}) {
   };
   notifyParty(party);
 
-  return { party: publicParty(party) };
+  return { party: publicParty(party, viewerIdFor(party, token)) };
 }
 
 /**
@@ -529,7 +552,7 @@ export function restartGame(code, token) {
     };
     notifyParty(party);
 
-    return { party: publicParty(party) };
+    return { party: publicParty(party, viewerIdFor(party, token)) };
   }
 
   return startGame(code, getHost(party)?.token, gameId);
@@ -556,7 +579,7 @@ export function closeGame(code, token) {
   party.activeGame = null;
   notifyParty(party);
 
-  return { party: publicParty(party) };
+  return { party: publicParty(party, viewerIdFor(party, token)) };
 }
 
 /**
@@ -593,7 +616,7 @@ export function requestGameEndAction(code, token, requestType) {
 
   notifyParty(party);
 
-  return { party: publicParty(party) };
+  return { party: publicParty(party, viewerIdFor(party, token)) };
 }
 
 /**
@@ -630,5 +653,5 @@ export function makeMove(code, token, move) {
   awardScoreIfNeeded(activeParty);
   notifyParty(activeParty);
 
-  return { party: publicParty(activeParty) };
+  return { party: publicParty(activeParty, actor.id) };
 }

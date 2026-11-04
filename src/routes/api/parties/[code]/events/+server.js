@@ -1,6 +1,8 @@
 import { subscribeParty } from '$lib/server/parties.js';
 
-export function GET({ params }) {
+export function GET({ params, url }) {
+  // The token selects the viewer, so private game state (hands, ships) is only sent to its owner.
+  const token = url.searchParams.get('token');
   /** @type {ReturnType<typeof setInterval> | null} */
   let keepAliveId = null;
   /** @type {(() => void) | null} */
@@ -20,7 +22,7 @@ export function GET({ params }) {
 
       const subscription = subscribeParty(params.code, (party) => {
         send('party', { party });
-      });
+      }, token);
 
       if ('error' in subscription) {
         send('error', { message: subscription.error });

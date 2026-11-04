@@ -8,7 +8,7 @@
 export const ticTacToeGame = {
   id: 'tic-tac-toe',
   name: 'Tic Tac Toe',
-  description: 'Klassisches Drei-gewinnt fuer zwei Spieler.',
+  description: 'Klassisches Drei-gewinnt für zwei Spieler.',
   previewImage: '/images/tic-tac-toe-scene.png',
   minPlayers: 2,
   maxPlayers: 2

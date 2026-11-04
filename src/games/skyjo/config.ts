@@ -5,7 +5,7 @@ import Game from './components/Game.svelte';
 export const skyjoGame: GameDefinition<SkyjoSession, SkyjoMove> = {
   id: 'skyjo',
   name: 'Skyjo',
-  description: 'Kartenspielrunde mit niedrigen Punkten, Ablage und finalen Zuegen.',
+  description: 'Kartenspiel: Sammle möglichst wenige Punkte, tausche und decke Karten auf.',
   component: Game,
   icon: 'cards',
   previewImage: '/images/skyjo-scene.png',

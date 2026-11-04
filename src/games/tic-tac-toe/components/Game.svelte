@@ -1,4 +1,4 @@
-﻿<script>
+<script>
   /** @typedef {import('../types').TicTacToeSession} TicTacToeSession */
   /** @typedef {import('../types').TicTacToeMove} TicTacToeMove */
 
@@ -10,6 +10,11 @@
   export let isLoading = false;
   /** @type {(move: TicTacToeMove) => void} */
   export let onMove = () => {};
+  /** Party-Spieler ({ id, name, color, … }) für Avatare in Spielerfarbe. */
+  /** @type {{ id: string, name?: string, color?: string }[]} */
+  export let players = [];
+  // Teil der gemeinsamen Spiel-API; die Spielerleiste mit Avataren zeigt die Shell.
+  $: void players;
 
   let lastFinishedGameId = '';
 
@@ -26,6 +31,8 @@
   $: isMyTurn = Boolean(game && myGamePlayer && game.state.currentPlayerId === currentPlayerId && game.status === 'running');
   $: currentTurnPlayer = game?.players.find((player) => player.id === game.state.currentPlayerId);
   $: statusText = getStatusText(game, isMyTurn, currentTurnPlayer);
+  // Eigene Person zuerst, dann der Gegner.
+  $: seats = game ? [...game.players].sort((a, b) => Number(b.id === currentPlayerId) - Number(a.id === currentPlayerId)) : [];
   $: if (game?.status === 'finished' && game.id !== lastFinishedGameId) {
     lastFinishedGameId = game.id;
     playSound(game.state.isDraw ? 'draw' : game.state.winnerId === currentPlayerId ? 'win' : 'lose');
@@ -43,7 +50,10 @@
       const winner = session.players.find((player) => player.id === session.state.winnerId);
       return winner ? `${winner.name} hat gewonnen.` : 'Die Partie ist beendet.';
     }
-    if (myTurn) return 'Du bist am Zug.';
+    if (myTurn) {
+      const mine = session.players.find((player) => player.id === session.state.currentPlayerId)?.mark;
+      return `Tippe ein freies Feld für ${mine === 'O' ? 'deinen Kreis' : 'dein Kreuz'}.`;
+    }
     return turnPlayer ? `${turnPlayer.name} ist am Zug.` : 'Das Spiel läuft.';
   }
 
@@ -117,63 +127,207 @@
 </script>
 
 {#if !game}
-  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-    Tic Tac Toe wird ueber eine Party gestartet, damit zwei Spieler verbunden sind.
-  </div>
+  <p class="ui-panel ui-muted">
+    Tic Tac Toe wird über eine Party gestartet, damit zwei Spieler verbunden sind.
+  </p>
 {:else}
-  <div class="relative mt-4 flex justify-center px-1 sm:mt-6 lg:mt-8">
-    <img src="/images/tictactoe/x-2.png" alt="" aria-hidden="true" class="pointer-events-none absolute left-0 top-1/2 hidden h-36 w-36 -translate-x-1/4 -translate-y-1/2 -rotate-12 opacity-[0.05] lg:block xl:h-48 xl:w-48" />
-    <img src="/images/tictactoe/o-2.png" alt="" aria-hidden="true" class="pointer-events-none absolute right-0 top-1/2 hidden h-36 w-36 translate-x-1/4 -translate-y-1/2 rotate-12 opacity-[0.05] lg:block xl:h-48 xl:w-48" />
-    <div class="w-full max-w-[26rem] sm:max-w-[28rem] lg:max-w-[34rem] xl:max-w-[36rem]">
-      <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5 lg:p-8">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-4">
-          <div class="min-w-0">
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">Tic Tac Toe</p>
-            <p class="mt-1 min-h-5 truncate text-sm font-medium text-slate-600">{statusText}</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            {#each game.players as player (player.id)}
-              {@const isTurn = game.status === 'running' && game.state.currentPlayerId === player.id}
-              <span class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold {isTurn ? 'border-cyan-300 bg-cyan-50 text-cyan-800 ring-1 ring-cyan-100' : 'border-slate-200 bg-slate-50 text-slate-600'}">
-                <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-[0.65rem] font-black ring-1 ring-slate-200 {player.mark === 'X' ? 'text-cyan-700' : 'text-emerald-700'}">{player.mark}</span>
-                <span class="max-w-24 truncate">{player.name}{player.id === currentPlayerId ? ' (Du)' : ''}</span>
-              </span>
-            {/each}
-          </div>
-        </div>
+  <div class="ttt">
+    <header class="g-status">
+      <p class="g-status-text" aria-live="polite">{statusText}</p>
+      {#if isMyTurn}
+        <span class="ui-chip ui-chip--accent">Du bist dran</span>
+      {/if}
+    </header>
 
-        <div class="rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-inner sm:p-3 lg:p-4">
-          <div class="grid aspect-square grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
-            {#each board as cell, cellIndex (cellIndex)}
-              <button
-                type="button"
-                on:click={() => makeMove(cellIndex)}
-                disabled={!canUseCell(cellIndex)}
-                class="group relative flex aspect-square touch-manipulation select-none items-center justify-center rounded-xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05),0_10px_20px_-14px_rgba(15,23,42,0.35)] transition duration-200 focus:outline-none focus:ring-4 focus:ring-cyan-100 {isWinningCell(cellIndex) ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100' : 'border-slate-200'} {canUseCell(cellIndex) ? 'hover:-translate-y-1 hover:border-cyan-300 hover:shadow-[0_1px_2px_rgba(15,23,42,0.06),0_18px_30px_-16px_rgba(8,145,178,0.35)] active:translate-y-0 active:scale-[0.97]' : 'disabled:cursor-default disabled:opacity-90'}"
-                aria-label={`Feld ${cellIndex + 1}`}
-              >
-                {#if cell === 'X' || cell === 'O'}
-                  {#key cell}
-                    <img
-                      src={markImage(cellIndex, cell)}
-                      alt={cell === 'X' ? 'Kreuz' : 'Kreis'}
-                      class="h-[72%] w-[72%] animate-ttt-mark-in object-contain drop-shadow-sm"
-                      style={markStyle(cellIndex, cell)}
-                    />
-                  {/key}
-                {:else}
-                  <span class="h-10 w-10 rounded-xl border border-dashed border-slate-200 opacity-0 transition group-hover:opacity-100 sm:h-12 sm:w-12 lg:h-16 lg:w-16"></span>
-                {/if}
-              </button>
-            {/each}
-          </div>
-        </div>
+    <section class="ttt-table" aria-label="Spielfeld">
+      <div class="ttt-board">
+        {#each board as cell, cellIndex (cellIndex)}
+          <button
+            type="button"
+            on:click={() => makeMove(cellIndex)}
+            disabled={!canUseCell(cellIndex)}
+            class="ttt-cell"
+            class:is-open={canUseCell(cellIndex)}
+            class:is-win={isWinningCell(cellIndex)}
+            aria-label={`Feld ${cellIndex + 1}: ${cell === 'X' ? 'Kreuz' : cell === 'O' ? 'Kreis' : 'leer'}${isWinningCell(cellIndex) ? ', Gewinnreihe' : ''}`}
+          >
+            {#if cell === 'X' || cell === 'O'}
+              {#key cell}
+                <img
+                  src={markImage(cellIndex, cell)}
+                  alt=""
+                  aria-hidden="true"
+                  class="ttt-mark animate-ttt-mark-in"
+                  style={markStyle(cellIndex, cell)}
+                />
+              {/key}
+            {/if}
+          </button>
+        {/each}
       </div>
-    </div>
+    </section>
+
+    <ul class="ttt-marks" aria-label="Zeichen">
+      {#each seats as player (player.id)}
+        <li>
+          <img src={markImage(0, player.mark)} alt="" aria-hidden="true" class="ttt-seat-mark" />
+          <span class="ttt-mark-name">{player.id === currentPlayerId ? 'Du' : player.name}</span>
+          <span class="sr-only">{player.mark === 'X' ? 'spielt Kreuz' : 'spielt Kreis'}</span>
+        </li>
+      {/each}
+    </ul>
   </div>
 {/if}
 
+<style>
+  /* Rahmen nach DESIGN.md – dieselben g-* Regeln wie in Skyjo und Schiffe versenken. */
+  .ttt {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 30rem;
+    margin: 12px auto 0;
+    color: var(--text);
+  }
 
+  .g-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+  }
 
+  .g-status-text {
+    margin: 0;
+    min-width: 0;
+    font-size: 1rem;
+    line-height: 1.35;
+    font-weight: 600;
+    color: var(--text);
+    text-wrap: balance;
+  }
 
+  .g-status :global(.ui-chip) {
+    flex-shrink: 0;
+  }
 
+  /* ---------- Tisch ---------- */
+  .ttt-table {
+    background: var(--surface);
+    border-radius: var(--radius-card);
+    padding: 12px;
+  }
+
+  .ttt-board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    /* Brett bleibt auf kurzen Handys ganz sichtbar. */
+    width: min(100%, calc(100dvh - 19rem));
+    min-width: min(100%, 15rem);
+    margin: 0 auto;
+    aspect-ratio: 1;
+  }
+
+  .ttt-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-inner);
+    background: var(--raised);
+    box-shadow: inset 0 0 0 1px var(--border);
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+  }
+
+  .ttt-cell.is-open {
+    cursor: pointer;
+  }
+
+  .ttt-cell.is-open:active {
+    transform: scale(0.97);
+  }
+
+  .ttt-cell:focus-visible {
+    outline: 2px solid var(--accent-main);
+    outline-offset: 2px;
+  }
+
+  .ttt-cell.is-win {
+    background: color-mix(in srgb, var(--positive) 14%, var(--raised));
+    box-shadow: inset 0 0 0 2px var(--positive);
+  }
+
+  .ttt-mark {
+    width: 72%;
+    height: 72%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  /* ---------- Wer spielt welches Zeichen (Spielerleiste steht in der Shell) ---------- */
+  .ttt-marks {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .ttt-marks li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .ttt-mark-name {
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ttt-seat-mark {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .ttt-cell.is-open:hover {
+      background: var(--surface-2);
+    }
+  }
+
+  @media (min-width: 640px) {
+    .ttt { gap: 16px; margin-top: 16px; }
+    .g-status-text { font-size: 1.0625rem; }
+    .ttt-table { padding: 20px; }
+    .ttt-board { gap: 12px; }
+  }
+
+  @media (min-width: 1024px) {
+    .ttt { max-width: 34rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ttt-cell { transition: none; }
+  }
+</style>

@@ -15,7 +15,7 @@
 export const nochMalGame = {
   id: 'noch-mal',
   name: 'Noch mal',
-  description: 'Wuerfelspiel mit privaten Spielblaettern, gemeinsamen Wuerfeln und gleichzeitigen Zuegen.',
+  description: 'Würfelspiel mit eigenem Spielblatt, gemeinsamen Würfeln und gleichzeitigen Zügen.',
   minPlayers: 1,
   maxPlayers: 6
 };

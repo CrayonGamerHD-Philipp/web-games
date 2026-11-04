@@ -2,9 +2,10 @@
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Check, Copy, Crown, Gamepad2, LoaderCircle, Lock, LockOpen, Palette, Play, QrCode, SquareX, TriangleAlert, UserMinus, UserRound, X } from '@lucide/svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { ArrowLeft, Check, Crown, LoaderCircle, Lock, LockOpen, Palette, QrCode, UserMinus, X } from '@lucide/svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import QRCode from 'qrcode';
+  import { initials, playerHex } from '$lib/player-colors.js';
 
   /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player */
   /** @typedef {{ id: string, name: string, description?: string, previewImage?: string, minPlayers: number, maxPlayers: number }} GameInfo */
@@ -26,8 +27,12 @@
   let isColorMenuOpen = false;
   let hostError = '';
   let hostActionKey = '';
-  /** @type {{ message: string, run: () => void } | null} */
+  /** @type {{ message: string, confirmLabel: string, run: () => void } | null} */
   let pendingConfirmation = null;
+  let copyError = '';
+  let liveMessage = '';
+  /** @type {HTMLElement | null} */
+  let returnFocusEl = null;
   let playerId = '';
   let token = '';
   let selectedGameId = '';
@@ -55,9 +60,45 @@
   $: activeGame = party?.activeGame ?? null;
   $: selectedGame = party?.availableGames.find((game) => game.id === selectedGameId);
   $: selectedGameImage = gameImage(activeGame?.gameId ?? selectedGameId);
-  $: canStartSelectedGame = Boolean(party && selectedGame && party.players.length >= selectedGame.minPlayers);
+  $: playerCount = party?.players.length ?? 0;
+  $: selectedGameBlocker = selectedGame ? missingPlayersText(selectedGame, playerCount) : 'Wähle ein Spiel aus.';
+  $: canStartSelectedGame = Boolean(party && selectedGame && !selectedGameBlocker);
   $: occupiedColors = new Set(party?.players.filter((player) => player.id !== playerId).map((player) => player.color) ?? []);
-  $: currentColorOption = playerColorOptions.find((option) => option.id === currentPlayer?.color);
+  $: statusLine = !party
+    ? ''
+    : activeGame
+      ? `${activeGame.name} läuft gerade`
+      : !currentPlayer
+        ? 'Du bist noch nicht dabei'
+        : isCurrentHost
+          ? 'Wähle ein Spiel'
+          : 'Warte auf den Host';
+  $: showStartBar = Boolean(party && !activeGame && isCurrentHost);
+
+  /**
+   * Grund, warum ein Spiel noch nicht startbar ist (leer = startbar).
+   * @param {GameInfo} game
+   * @param {number} count
+   */
+  function missingPlayersText(game, count) {
+    if (count >= game.minPlayers) return '';
+    const missing = game.minPlayers - count;
+    return `Noch ${missing} Spieler nötig (ab ${game.minPlayers})`;
+  }
+
+  /**
+   * Hinweis, wenn mehr Leute da sind, als mitspielen können.
+   * @param {GameInfo} game
+   * @param {number} count
+   */
+  function overflowText(game, count) {
+    return count > game.maxPlayers ? `Nur die ersten ${game.maxPlayers} spielen mit` : '';
+  }
+
+  /** @param {GameInfo} game */
+  function playerRange(game) {
+    return game.minPlayers === game.maxPlayers ? `${game.minPlayers} Spieler` : `${game.minPlayers}–${game.maxPlayers} Spieler`;
+  }
 
   /** @param {string | undefined} gameId */
   function gameImage(gameId) {
@@ -67,12 +108,17 @@
 
   function connectEvents() {
     events?.close();
-    events = new EventSource(`/api/parties/${code}/events`);
+    events = new EventSource(`/api/parties/${code}/events?token=${encodeURIComponent(token)}`);
 
     events.addEventListener('party', (event) => {
       const data = JSON.parse(event.data);
-      party = data.party;
-      selectedGameId ||= party?.availableGames[0]?.id ?? '';
+      /** @type {Party} */
+      const next = data.party;
+      party = next;
+      if (!selectedGameId && next) {
+        const firstPlayable = next.availableGames.find((game) => !missingPlayersText(game, next.players.length));
+        selectedGameId = (firstPlayable ?? next.availableGames[0])?.id ?? '';
+      }
       error = '';
       isLoading = false;
     });
@@ -85,11 +131,61 @@
     });
   }
 
+  /**
+   * Copies text, falling back to execCommand where the async clipboard API is
+   * unavailable (e.g. plain HTTP on a LAN).
+   * @param {string} text
+   */
+  async function writeClipboard(text) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fall through to the legacy fallback
+    }
+
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.setAttribute('aria-hidden', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    try {
+      textarea.select();
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      textarea.remove();
+      previousFocus?.focus();
+    }
+  }
+
+  /** @param {string} message */
+  function announce(message) {
+    liveMessage = '';
+    void tick().then(() => {
+      liveMessage = message;
+    });
+  }
+
   async function copyCode() {
     if (!browser) return;
+    copyError = '';
 
-    await navigator.clipboard.writeText(code);
+    if (!(await writeClipboard(code))) {
+      copyError = 'Kopieren nicht möglich. Bitte markiere den Code und kopiere ihn manuell.';
+      return;
+    }
     copied = true;
+    announce('Code kopiert');
     setTimeout(() => {
       copied = false;
     }, 1600);
@@ -97,12 +193,78 @@
 
   async function copyPartyLink() {
     if (!browser) return;
+    copyError = '';
 
-    await navigator.clipboard.writeText(joinUrl || `${window.location.origin}/party/beitreten?code=${code}`);
+    if (!(await writeClipboard(joinUrl || `${window.location.origin}/party/beitreten?code=${code}`))) {
+      copyError = 'Kopieren nicht möglich. Bitte teile den Link manuell oder nutze den QR-Code.';
+      return;
+    }
     copiedLink = true;
+    announce('Link kopiert');
     setTimeout(() => {
       copiedLink = false;
     }, 1600);
+  }
+
+  function rememberFocus() {
+    returnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+
+  function restoreFocus() {
+    const element = returnFocusEl;
+    returnFocusEl = null;
+    void tick().then(() => {
+      if (element?.isConnected) element.focus();
+    });
+  }
+
+  /** @param {HTMLElement} node */
+  function initialFocus(node) {
+    node.focus();
+  }
+
+  function openColorMenu() {
+    rememberFocus();
+    colorError = '';
+    isColorMenuOpen = true;
+  }
+
+  function closeColorMenu() {
+    if (!isColorMenuOpen) return;
+    isColorMenuOpen = false;
+    restoreFocus();
+  }
+
+  /** @param {{ message: string, confirmLabel: string, run: () => void }} confirmation */
+  function requestConfirmation(confirmation) {
+    if (!pendingConfirmation && !isColorMenuOpen) rememberFocus();
+    pendingConfirmation = confirmation;
+  }
+
+  function cancelConfirmation() {
+    pendingConfirmation = null;
+    restoreFocus();
+  }
+
+  /** @param {KeyboardEvent} event */
+  function handleWindowKeydown(event) {
+    if (event.key !== 'Escape') return;
+    if (pendingConfirmation) {
+      event.preventDefault();
+      cancelConfirmation();
+    } else if (isColorMenuOpen) {
+      event.preventDefault();
+      closeColorMenu();
+    }
+  }
+
+  function requestCloseActiveGame() {
+    if (!isCurrentHost || isGameActionLoading) return;
+    requestConfirmation({
+      message: `${activeGame?.name ?? 'Das laufende Spiel'} wirklich abbrechen? Der aktuelle Spielstand geht verloren.`,
+      confirmLabel: 'Spiel abbrechen',
+      run: closeActiveGame
+    });
   }
 
   async function createQrCode() {
@@ -137,7 +299,7 @@
         return;
       }
       party = data.party;
-      isColorMenuOpen = false;
+      closeColorMenu();
     } catch {
       colorError = 'Die Farbe konnte nicht geändert werden.';
     } finally {
@@ -145,20 +307,16 @@
     }
   }
 
-  /** @param {string} color */
-  function playerColor(color) {
-    return playerColorOptions.find((option) => option.id === color)?.hex ?? '#64748b';
-  }
-
   /**
    * @param {'set-locked' | 'transfer-host' | 'remove-player'} action
    * @param {Record<string, unknown>} payload
    * @param {string} [confirmation]
+   * @param {string} [confirmLabel]
    */
-  async function performHostAction(action, payload = {}, confirmation = '') {
+  async function performHostAction(action, payload = {}, confirmation = '', confirmLabel = 'Bestätigen') {
     if (!isCurrentHost || hostActionKey) return;
     if (confirmation) {
-      pendingConfirmation = { message: confirmation, run: () => performHostAction(action, payload) };
+      requestConfirmation({ message: confirmation, confirmLabel, run: () => performHostAction(action, payload) });
       return;
     }
 
@@ -186,6 +344,7 @@
   function confirmPendingAction() {
     const run = pendingConfirmation?.run;
     pendingConfirmation = null;
+    restoreFocus();
     run?.();
   }
 
@@ -255,378 +414,519 @@
   <title>Party {code} | Web Games</title>
 </svelte:head>
 
-<main class="min-h-screen bg-slate-50 text-slate-950">
-  <section class="mx-auto w-full max-w-[92rem] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:px-10">
-    <a href="/" class="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950">
-      <ArrowLeft size={18} />
+<svelte:window on:keydown={handleWindowKeydown} />
+
+<p class="sr-only" aria-live="polite" aria-atomic="true">{liveMessage}</p>
+
+<main class="lobby min-h-dvh">
+  <div class="ui-page {showStartBar ? 'pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-24' : ''}">
+    <a href="/" class="lobby-back">
+      <ArrowLeft size={18} aria-hidden="true" />
       Startseite
     </a>
 
     {#if isLoading}
-      <div class="flex min-h-[70vh] items-center justify-center text-slate-500">
-        <LoaderCircle class="animate-spin" size={28} />
+      <div role="status" class="flex min-h-[60vh] items-center justify-center" style="color: var(--muted)">
+        <LoaderCircle class="animate-spin" size={28} aria-hidden="true" />
+        <span class="sr-only">Lädt…</span>
       </div>
     {:else if error}
-      <div class="mt-8 rounded-2xl border border-red-200 bg-white p-6 shadow-sm sm:p-8">
-        <p class="text-sm font-semibold uppercase tracking-[0.18em] text-red-600">Fehler</p>
-        <h1 class="mt-3 text-3xl font-semibold text-slate-950">Party nicht erreichbar</h1>
-        <p class="mt-3 text-base leading-7 text-slate-600">{error}</p>
-        <a
-          href="/party/beitreten"
-          class="mt-6 inline-flex min-h-12 items-center justify-center rounded-md bg-slate-950 px-5 py-3 font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200"
-        >
-          Anderen Code eingeben
-        </a>
+      <div class="mt-10 max-w-xl">
+        <h1 class="ui-title">Party nicht erreichbar</h1>
+        <p class="ui-lead" role="alert">{error}</p>
+        <a href="/party/beitreten" class="ui-btn ui-btn--primary ui-btn--lg mt-6">Anderen Code eingeben</a>
       </div>
     {:else if party}
-      <div class="mt-4 grid gap-4 sm:mt-8 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <div class="space-y-4 sm:space-y-6">
-          <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
-            <img src="/images/decor/lobby.png" alt="" aria-hidden="true" class="pointer-events-none absolute right-3 top-3 h-16 w-16 animate-decor-float object-contain opacity-80 sm:right-4 sm:top-4 sm:h-24 sm:w-24 sm:opacity-90" />
-            <p class="relative z-10 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">Party-Raum</p>
-            <div class="relative z-10 mt-2 flex flex-col gap-4 pr-12 sm:mt-4 sm:pr-20 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h1 class="text-2xl font-semibold text-slate-950 sm:text-4xl">Code {party.code}</h1>
-                <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 sm:mt-3 sm:text-base sm:leading-7">
-                  Teile den Code oder Einladungslink mit deinen Mitspielern.
-                </p>
-              </div>
-              <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row">
-                <button
-                  type="button"
-                  on:click={copyCode}
-                  class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-2 text-sm font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 sm:w-auto sm:px-4 sm:text-base"
-                >
-                  {#if copied}
-                    <Check size={19} />
-                    Kopiert
-                  {:else}
-                    <Copy size={19} />
-                    <span class="sm:hidden">Code</span><span class="hidden sm:inline">Code kopieren</span>
-                  {/if}
-                </button>
-                <button
-                  type="button"
-                  on:click={copyPartyLink}
-                  class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-2 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:w-auto sm:px-4 sm:text-base"
-                >
-                  {#if copiedLink}
-                    <Check size={19} />
-                    Link kopiert
-                  {:else}
-                    <Copy size={19} />
-                    <span class="sm:hidden">Link</span><span class="hidden sm:inline">Link kopieren</span>
-                  {/if}
-                </button>
-              </div>
-            </div>
+      <header class="mt-6 sm:mt-10">
+        <h1 class="ui-title">Party <span class="ui-num">{party.code}</span></h1>
+        <p class="ui-lead" aria-live="polite">
+          {party.players.length} Spieler dabei · {statusLine}
+        </p>
+      </header>
 
-            <div class="relative z-10 mt-4 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:mt-6 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4 sm:p-4">
-              <div class="grid h-[5.5rem] w-[5.5rem] place-items-center overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm sm:h-32 sm:w-32 sm:p-2">
+      <div class="mt-6 grid gap-4 sm:mt-8 lg:grid-cols-12 lg:gap-6">
+        <!-- Einladen + Spieler: auf dem Handy zuerst, auf dem Desktop rechte Spalte -->
+        <div class="flex flex-col gap-4 lg:col-span-5 lg:col-start-8 lg:row-start-1 lg:gap-6">
+          <section class="ui-panel" aria-labelledby="invite-title">
+            <div class="flex items-start gap-4">
+              <div class="lobby-qr">
                 {#if qrCodeDataUrl}
-                  <img src={qrCodeDataUrl} alt={`QR-Code zum Beitritt in Party ${party.code}`} class="h-full w-full" />
+                  <img src={qrCodeDataUrl} width="320" height="320" alt={`QR-Code zum Beitritt in Party ${party.code}`} class="h-full w-full" />
                 {:else}
-                  <QrCode size={42} class="text-slate-400" />
+                  <QrCode size={36} aria-hidden="true" style="color: var(--muted)" />
                 {/if}
               </div>
-              <div>
-                <div class="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={18} /> Per QR-Code beitreten</div>
-                <p class="mt-1 text-xs leading-5 text-slate-600 sm:mt-2 sm:text-sm sm:leading-6">Scannen und direkt der Party beitreten.</p>
-                <p class="mt-2 hidden break-all text-xs text-slate-400 sm:block">{joinUrl}</p>
+              <div class="min-w-0 flex-1">
+                <h2 id="invite-title" class="ui-section-title">Freunde einladen</h2>
+                <p class="mt-1 text-sm leading-5 ui-muted">QR-Code scannen oder den Code eingeben.</p>
+                <p class="lobby-code ui-num" aria-label={`Party-Code ${party.code.split('').join(' ')}`}>{party.code}</p>
               </div>
             </div>
-
-            {#if currentPlayer}
-              <div class="mt-6 flex flex-col gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-900 sm:flex-row sm:items-center sm:justify-between">
-                <div class="flex min-w-0 items-center gap-3">
-                  <span class="h-9 w-9 shrink-0 rounded-full border-2 border-white shadow-sm" style={`background: ${playerColor(currentPlayer.color)}`}></span>
-                  <div class="min-w-0">
-                    <p class="truncate">Du bist als <span class="font-semibold">{currentPlayer.name}</span> in dieser Party.</p>
-                    <p class="mt-0.5 text-xs text-cyan-700">Spielerfarbe: {currentColorOption?.name ?? 'Standard'}</p>
-                  </div>
-                </div>
-                <button type="button" on:click={() => { colorError = ''; isColorMenuOpen = true; }} class="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-cyan-300 bg-white px-3 py-2 text-xs font-semibold text-cyan-800 shadow-sm transition hover:border-cyan-500 hover:text-cyan-900 focus:outline-none focus:ring-4 focus:ring-cyan-100">
-                  <Palette size={16} /> Farbe ändern
-                </button>
-              </div>
-            {:else}
-              <div class="mt-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                Dieses Geraet ist noch nicht als Spieler verbunden.
-                <a class="font-semibold underline underline-offset-2" href={`/party/beitreten?code=${code}`}>Jetzt beitreten</a>
-              </div>
-            {/if}
-          </div>
-
-          <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <div class="flex items-start gap-3">
-              <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
-                <Gamepad2 size={23} />
-              </span>
-              <div>
-                <p class="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">Spiel</p>
-                <h2 class="mt-2 text-2xl font-semibold text-slate-950">
-                  {activeGame ? activeGame.name : 'Spiel auswaehlen'}
-                </h2>
-              </div>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" on:click={copyCode} class="ui-btn !px-3">
+                {#if copied}<Check size={18} aria-hidden="true" class="shrink-0" /> Kopiert{:else}Code kopieren{/if}
+              </button>
+              <button type="button" on:click={copyPartyLink} class="ui-btn !px-3">
+                {#if copiedLink}<Check size={18} aria-hidden="true" class="shrink-0" /> Kopiert{:else}Link kopieren{/if}
+              </button>
             </div>
-
-            {#if activeGame}
-              <div class="game-image-frame mt-6 aspect-[21/9] rounded-xl border border-slate-200">
-                <img src={selectedGameImage} alt="Vorschau des laufenden Spiels" class="h-full w-full object-cover object-center" />
-              </div>
+            {#if copyError}
+              <p role="alert" class="ui-alert mt-3">{copyError}</p>
             {/if}
+          </section>
 
-            {#if gameError}
-              <p class="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gameError}</p>
-            {/if}
-
-            {#if activeGame}
-              <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
-                <span class="font-semibold">{activeGame.name}</span> laeuft gerade.
+          <section class="ui-panel" aria-labelledby="players-title">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <h2 id="players-title" class="ui-section-title">Spieler <span class="ui-num ui-muted">{party.players.length}</span></h2>
+                <p class="mt-0.5 text-sm ui-muted">{party.locked ? 'Gesperrt – niemand kann neu beitreten' : 'Offen für neue Spieler'}</p>
               </div>
-              <div class="mt-5 flex flex-col gap-2 sm:flex-row">
-                <a
-                  href={`/party/${party.code}/game`}
-                  class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 sm:w-auto"
-                >
-                  <Gamepad2 size={20} />
-                  Zum Spiel
-                </a>
-                {#if isCurrentHost}
-                  <button
-                    type="button"
-                    on:click={closeActiveGame}
-                    disabled={isGameActionLoading}
-                    class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-5 py-3 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    {#if isGameActionLoading}<LoaderCircle class="animate-spin" size={20} />{:else}<SquareX size={20} />{/if}
-                    Spiel abbrechen
-                  </button>
-                {/if}
-              </div>
-            {:else if isCurrentHost}
-              <div class="mt-6">
-                <div class="flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <h3 class="text-lg font-semibold text-slate-950">Verfügbare Spiele</h3>
-                    <p class="mt-1 text-sm text-slate-500">Wähle eine Karte aus und starte die Runde.</p>
-                  </div>
-                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{party.players.length} Spieler in der Lobby</span>
-                </div>
-
-                <div class="mt-4 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                  {#each party.availableGames as game (game.id)}
-                    {@const selected = selectedGameId === game.id}
-                    {@const enoughPlayers = party.players.length >= game.minPlayers}
-                    <button
-                      type="button"
-                      on:click={() => (selectedGameId = game.id)}
-                      aria-pressed={selected}
-                      class="group overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-emerald-100 {selected ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-emerald-300'}"
-                    >
-                      <span class="game-image-frame relative block aspect-[16/9] border-b border-slate-200">
-                        <img src={game.previewImage ?? '/images/party-hero.png'} alt={`Vorschau von ${game.name}`} class="h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.03]" />
-                        {#if selected}
-                          <span class="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow"><Check size={14} /> Ausgewählt</span>
-                        {/if}
-                      </span>
-                      <span class="block p-4">
-                        <span class="flex items-start justify-between gap-3">
-                          <span class="text-lg font-semibold text-slate-950">{game.name}</span>
-                          <span class="shrink-0 rounded-md px-2 py-1 text-xs font-semibold {enoughPlayers ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}">{game.minPlayers}–{game.maxPlayers}</span>
-                        </span>
-                        <span class="mt-2 block min-h-10 text-sm leading-5 text-slate-600">{game.description ?? 'Gemeinsam in der Party spielen.'}</span>
-                        <span class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold {enoughPlayers ? 'text-emerald-700' : 'text-amber-700'}"><UserRound size={14} /> {enoughPlayers ? 'Spielbereit' : `Noch ${game.minPlayers - party.players.length} Spieler benötigt`}</span>
-                      </span>
-                    </button>
-                  {/each}
-                </div>
-
-                <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  {#if selectedGameId === 'skyjo'}
-                    <label class="mb-4 block rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
-                      <span class="flex items-start gap-3">
-                        <input type="checkbox" bind:checked={skyjoPlayToHundred} class="mt-1 h-4 w-4 shrink-0 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500" />
-                        <span class="min-w-0"><span class="block font-semibold">Skyjo bis 100 Gesamtpunkte</span><span class="mt-1 block leading-5 text-cyan-800">Rundenpunkte werden addiert. Der niedrigste Gesamtstand gewinnt.</span></span>
-                      </span>
-                    </label>
-                  {/if}
-                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p class="font-semibold text-slate-950">{selectedGame?.name ?? 'Kein Spiel ausgewählt'}</p>
-                      <p class="mt-1 text-sm text-slate-500">{canStartSelectedGame ? 'Alle Voraussetzungen sind erfüllt.' : `Mindestens ${selectedGame?.minPlayers ?? 2} Spieler erforderlich.`}</p>
-                    </div>
-                    <button
-                      type="button"
-                      on:click={startSelectedGame}
-                      disabled={!canStartSelectedGame || isGameActionLoading}
-                      class="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-emerald-300"
-                    >
-                      {#if isGameActionLoading}<LoaderCircle class="animate-spin" size={20} /> Startet{:else}<Play size={20} /> {selectedGame?.name ?? 'Spiel'} starten{/if}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {#if !canStartSelectedGame}
-                <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Fuer {selectedGame?.name ?? 'dieses Spiel'} muessen mindestens {selectedGame?.minPlayers ?? 2} Spieler in der Party sein.
-                </p>
-              {/if}
-            {:else}
-              <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-                Warte darauf, dass der Host ein Spiel startet.
-              </div>
-            {/if}
-          </div>
-        </div>
-
-        <aside class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:sticky lg:top-8 lg:self-start">
-          <div class="flex items-center justify-between gap-4">
-            <div>
-              <h2 class="text-xl font-semibold text-slate-950">Spieler</h2>
-              <p class="mt-1 flex items-center gap-1.5 text-xs font-medium {party.locked ? 'text-amber-700' : 'text-emerald-700'}">
-                {#if party.locked}<Lock size={13} /> Lobby gesperrt{:else}<LockOpen size={13} /> Lobby offen{/if}
-              </p>
-            </div>
-            <span class="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700">{party.players.length}</span>
-          </div>
-
-          {#if isCurrentHost}
-            <section class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-semibold text-slate-900">Hostverwaltung</p>
-                  <p class="mt-0.5 text-xs text-slate-500">{party.locked ? 'Neue Spieler können nicht beitreten.' : 'Neue Spieler können beitreten.'}</p>
-                </div>
+              {#if isCurrentHost}
                 <button
                   type="button"
                   on:click={() => performHostAction('set-locked', { locked: !party?.locked })}
                   disabled={Boolean(hostActionKey)}
                   title={party.locked ? 'Lobby für neue Spieler öffnen' : 'Lobby für neue Spieler sperren'}
                   aria-label={party.locked ? 'Lobby öffnen' : 'Lobby sperren'}
-                  class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60 {party.locked ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:ring-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 focus:ring-amber-100'}"
+                  class="ui-btn shrink-0 !px-4"
                 >
-                  {#if hostActionKey === 'set-locked:'}<LoaderCircle class="animate-spin" size={18} />{:else if party.locked}<LockOpen size={18} />{:else}<Lock size={18} />{/if}
+                  {#if hostActionKey === 'set-locked:'}<LoaderCircle class="animate-spin" size={17} aria-hidden="true" />{:else if party.locked}<LockOpen size={17} aria-hidden="true" />{:else}<Lock size={17} aria-hidden="true" />{/if}
+                  {party.locked ? 'Öffnen' : 'Sperren'}
                 </button>
-              </div>
-              {#if hostError}<p class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{hostError}</p>{/if}
-            </section>
-          {/if}
+              {/if}
+            </div>
 
-          <ul class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
-            {#each party.players as player (player.id)}
-              <li class="relative flex items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 {player.id === playerId ? 'ring-2 ring-cyan-200' : ''}">
-                <span class="absolute inset-y-0 left-0 w-1.5" style={`background: ${playerColor(player.color)}`}></span>
-                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white" style={`background: ${playerColor(player.color)}`}>
-                  <UserRound size={19} />
+            {#if hostError}<p role="alert" class="ui-alert mt-3">{hostError}</p>{/if}
+
+            <ul class="mt-3 flex flex-col">
+              {#each party.players as player (player.id)}
+                {@const isMe = player.id === playerId}
+                <li class="lobby-player">
+                  <span class="ui-avatar lobby-avatar" style="--player: {playerHex(player.color)}" aria-hidden="true">{initials(player.name)}</span>
+                  <span class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="truncate font-medium">{player.name}</span>
+                    {#if player.isHost}<span class="lobby-chip"><Crown size={12} aria-hidden="true" /> Host</span>{/if}
+                    {#if isMe}<span class="lobby-chip">Du</span>{/if}
+                    {#if player.score}<span class="text-sm ui-muted ui-num">{player.score} Pkt.</span>{/if}
+                  </span>
+                  <span class="flex shrink-0">
+                    {#if isMe}
+                      <button type="button" on:click={openColorMenu} aria-haspopup="dialog" title="Spielerfarbe ändern" aria-label="Spielerfarbe ändern" class="ui-btn ui-btn--ghost ui-btn--icon lobby-icon-btn">
+                        <Palette size={18} aria-hidden="true" />
+                      </button>
+                    {:else if isCurrentHost}
+                      <button
+                        type="button"
+                        on:click={() => performHostAction('transfer-host', { targetPlayerId: player.id }, `Host-Rolle wirklich an ${player.name} übertragen?`, 'Host übertragen')}
+                        disabled={Boolean(hostActionKey)}
+                        aria-haspopup="dialog"
+                        title={`${player.name} zum Host machen`}
+                        aria-label={`${player.name} zum Host machen`}
+                        class="ui-btn ui-btn--ghost ui-btn--icon lobby-icon-btn"
+                      >
+                        {#if hostActionKey === `transfer-host:${player.id}`}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{:else}<Crown size={18} aria-hidden="true" />{/if}
+                      </button>
+                      <button
+                        type="button"
+                        on:click={() => performHostAction('remove-player', { targetPlayerId: player.id }, `${player.name} wirklich aus der Party entfernen?`, 'Entfernen')}
+                        disabled={Boolean(hostActionKey) || Boolean(activeGame)}
+                        aria-haspopup="dialog"
+                        title={activeGame ? 'Während eines laufenden Spiels nicht möglich' : `${player.name} entfernen`}
+                        aria-label={`${player.name} aus der Party entfernen`}
+                        class="ui-btn ui-btn--ghost ui-btn--icon lobby-icon-btn"
+                      >
+                        {#if hostActionKey === `remove-player:${player.id}`}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{:else}<UserMinus size={18} aria-hidden="true" />{/if}
+                      </button>
+                    {/if}
+                  </span>
+                </li>
+              {/each}
+            </ul>
+
+            {#if !currentPlayer}
+              <p class="mt-3 text-sm">
+                Dieses Gerät ist noch nicht als Spieler verbunden.
+                <a class="font-semibold underline underline-offset-2" style="color: var(--accent-text)" href={`/party/beitreten?code=${code}`}>Jetzt beitreten</a>
+              </p>
+            {/if}
+          </section>
+        </div>
+
+        <!-- Spiel: auf dem Desktop linke, breite Spalte -->
+        <section class="ui-panel lg:col-span-7 lg:col-start-1 lg:row-start-1 lg:self-start" aria-labelledby="game-title">
+          {#if activeGame}
+            <h2 id="game-title" class="ui-section-title">Laufendes Spiel</h2>
+            <div class="mt-3 flex items-center gap-4">
+              <div class="lobby-thumb">
+                <img src={selectedGameImage} width="1536" height="1024" alt="" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-lg font-semibold">{activeGame.name}</p>
+                <p class="text-sm ui-muted">läuft gerade</p>
+              </div>
+            </div>
+            {#if gameError}<p role="alert" class="ui-alert mt-4">{gameError}</p>{/if}
+            <div class="mt-5 flex flex-col gap-2 sm:flex-row">
+              <a href={`/party/${party.code}/game`} class="ui-btn ui-btn--primary ui-btn--lg">Zum Spiel</a>
+              {#if isCurrentHost}
+                <button type="button" on:click={requestCloseActiveGame} disabled={isGameActionLoading} aria-haspopup="dialog" class="ui-btn ui-btn--danger ui-btn--lg">
+                  {#if isGameActionLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{/if}
+                  Spiel abbrechen
+                </button>
+              {/if}
+            </div>
+          {:else if isCurrentHost}
+            <h2 id="game-title" class="ui-section-title">Spiel wählen</h2>
+            <ul class="mt-3 flex flex-col gap-2">
+              {#each party.availableGames as game (game.id)}
+                {@const selected = selectedGameId === game.id}
+                {@const blocker = missingPlayersText(game, party.players.length)}
+                {@const overflow = overflowText(game, party.players.length)}
+                <li>
+                  <button
+                    type="button"
+                    on:click={() => (selectedGameId = game.id)}
+                    aria-pressed={selected}
+                    disabled={Boolean(blocker)}
+                    class="lobby-game {selected && !blocker ? 'is-selected' : ''}"
+                  >
+                    <span class="lobby-thumb">
+                      <img src={game.previewImage ?? '/images/party-hero.png'} width="1536" height="1024" alt="" loading="lazy" />
+                    </span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block font-semibold leading-tight">{game.name}</span>
+                      <span class="lobby-desc">{game.description ?? 'Gemeinsam in der Party spielen.'}</span>
+                      <span class="mt-1 block text-sm font-medium" style="color: {blocker ? 'var(--warning)' : 'var(--muted)'}">
+                        {playerRange(game)}{#if blocker}{` · ${blocker}`}{:else if overflow}{` · ${overflow}`}{/if}
+                      </span>
+                    </span>
+                    <span class="lobby-radio" aria-hidden="true">{#if selected && !blocker}<Check size={14} strokeWidth={3} />{/if}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+
+            {#if selectedGameId === 'skyjo'}
+              <label class="lobby-option mt-3">
+                <input type="checkbox" bind:checked={skyjoPlayToHundred} />
+                <span class="min-w-0">
+                  <span class="block font-semibold">Bis 100 Punkte spielen</span>
+                  <span class="mt-0.5 block text-sm leading-5 ui-muted">Rundenpunkte werden addiert. Der niedrigste Gesamtstand gewinnt.</span>
                 </span>
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate font-semibold text-slate-950">{player.name}</span>
-                  <span class="block text-xs text-slate-500">{player.isHost ? 'Host' : 'Beigetreten'}</span>
-                </span>
-                {#if isCurrentHost && player.id !== playerId}
-                  <div class="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      on:click={() => performHostAction('transfer-host', { targetPlayerId: player.id }, `Host-Rolle wirklich an ${player.name} übertragen?`)}
-                      disabled={Boolean(hostActionKey)}
-                      title={`${player.name} zum Host machen`}
-                      aria-label={`${player.name} zum Host machen`}
-                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {#if hostActionKey === `transfer-host:${player.id}`}<LoaderCircle class="animate-spin" size={16} />{:else}<Crown size={16} />{/if}
-                    </button>
-                    <button
-                      type="button"
-                      on:click={() => performHostAction('remove-player', { targetPlayerId: player.id }, `${player.name} wirklich aus der Party entfernen?`)}
-                      disabled={Boolean(hostActionKey) || Boolean(activeGame)}
-                      title={activeGame ? 'Während eines laufenden Spiels nicht möglich' : `${player.name} entfernen`}
-                      aria-label={`${player.name} aus der Party entfernen`}
-                      class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {#if hostActionKey === `remove-player:${player.id}`}<LoaderCircle class="animate-spin" size={16} />{:else}<UserMinus size={16} />{/if}
-                    </button>
-                  </div>
-                {/if}
-                <span class="rounded-md bg-white px-2.5 py-1 text-sm font-semibold text-slate-800 ring-1 ring-slate-200">
-                  {player.score}
-                </span>
-              </li>
-            {/each}
-          </ul>
-        </aside>
+              </label>
+            {/if}
+
+            {#if gameError}<p role="alert" class="ui-alert mt-4">{gameError}</p>{/if}
+
+            <!-- Hauptaktion: auf dem Handy als feste Leiste unten, ab lg im Panel -->
+            <div class="lobby-startbar">
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-semibold">{selectedGame?.name ?? 'Kein Spiel gewählt'}</p>
+                <p class="truncate text-sm ui-muted">
+                  {selectedGameBlocker || `${party.players.length} Spieler${selectedGameId === 'skyjo' && skyjoPlayToHundred ? ' · bis 100 Punkte' : ''}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                on:click={startSelectedGame}
+                disabled={!canStartSelectedGame || isGameActionLoading}
+                class="ui-btn ui-btn--primary ui-btn--lg shrink-0"
+              >
+                {#if isGameActionLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" /> Startet…{:else}Spiel starten{/if}
+              </button>
+            </div>
+          {:else}
+            <h2 id="game-title" class="ui-section-title">Spiel</h2>
+            <div class="lobby-waiting mt-3" role="status">
+              <span class="lobby-pulse" aria-hidden="true"></span>
+              <p>
+                <span class="block font-medium">Der Host wählt gerade ein Spiel.</span>
+                <span class="mt-0.5 block text-sm ui-muted">Sobald es losgeht, erscheint hier „Zum Spiel“.</span>
+              </p>
+            </div>
+            {#if gameError}<p role="alert" class="ui-alert mt-4">{gameError}</p>{/if}
+          {/if}
+        </section>
       </div>
     {/if}
-  </section>
+  </div>
 </main>
 
 {#if isColorMenuOpen && currentPlayer}
-  <button type="button" class="fixed inset-0 z-[89] bg-slate-950/40 backdrop-blur-sm" on:click={() => (isColorMenuOpen = false)} aria-label="Farbmenü schließen"></button>
-  <div class="fixed inset-x-2 bottom-2 z-[90] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl animate-modal-in sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,30rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="color-menu-title">
-    <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
-      <div class="flex items-center gap-3">
-        <span class="grid h-10 w-10 place-items-center rounded-xl bg-cyan-600 text-white"><Palette size={20} /></span>
-        <div><h2 id="color-menu-title" class="font-semibold text-slate-950">Spielerfarbe wählen</h2><p class="mt-0.5 text-xs text-slate-500">Belegte Farben können nicht gewählt werden.</p></div>
+  <div class="ui-dialog-backdrop">
+    <button type="button" tabindex="-1" class="absolute inset-0 cursor-default" on:click={closeColorMenu} aria-label="Farbmenü schließen"></button>
+    <div class="ui-dialog relative animate-modal-in outline-none" role="dialog" aria-modal="true" aria-labelledby="color-menu-title" aria-describedby="color-menu-hint" tabindex="-1" use:initialFocus>
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="color-menu-title" class="text-lg font-semibold">Spielerfarbe wählen</h2>
+          <p id="color-menu-hint" class="mt-0.5 text-sm ui-muted">Belegte Farben sind durchgestrichen.</p>
+        </div>
+        <button type="button" on:click={closeColorMenu} class="ui-btn ui-btn--ghost ui-btn--icon -mr-2 -mt-2 shrink-0" aria-label="Schließen"><X size={20} aria-hidden="true" /></button>
       </div>
-      <button type="button" on:click={() => (isColorMenuOpen = false)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Schließen"><X size={19} /></button>
-    </div>
 
-    <div class="max-h-[calc(100dvh-6rem)] overscroll-contain overflow-y-auto p-3 sm:max-h-[calc(min(88vh,42rem)-5rem)] sm:p-5">
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
         {#each playerColorOptions as option (option.id)}
           {@const occupied = occupiedColors.has(option.id)}
+          {@const current = currentPlayer.color === option.id}
           <button
             type="button"
             on:click={() => changeColor(option.id)}
             disabled={occupied || isColorLoading}
             aria-label={occupied ? `${option.name} ist bereits vergeben` : `${option.name} wählen`}
-            aria-pressed={currentPlayer.color === option.id}
-            class="relative flex min-h-16 items-center gap-2 overflow-hidden rounded-xl border px-3 py-2 text-left transition focus:outline-none focus:ring-4 focus:ring-cyan-100 {occupied ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md'} {currentPlayer.color === option.id ? 'border-cyan-400 bg-cyan-50 ring-2 ring-cyan-200' : ''}"
+            aria-pressed={current}
+            class="lobby-swatch {current ? 'is-current' : ''}"
           >
-            <span class="relative h-8 w-8 shrink-0 rounded-full border-2 border-white shadow-sm" style={`background: ${option.hex}`}>
-              {#if currentPlayer.color === option.id}<Check class="absolute inset-0 m-auto text-white drop-shadow" size={16} strokeWidth={3} />{/if}
-              {#if occupied}<span class="absolute left-1/2 top-1/2 h-0.5 w-10 -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-slate-700"></span>{/if}
+            <span class="lobby-swatch-dot" style="background: {option.hex}">
+              {#if current}<Check size={16} strokeWidth={3} aria-hidden="true" />{/if}
             </span>
-            <span class="min-w-0"><span class="block truncate text-xs font-semibold {occupied ? 'line-through' : ''}">{option.name}</span><span class="block text-[0.65rem] {occupied ? 'font-bold uppercase tracking-wide' : 'text-slate-500'}">{occupied ? 'Vergeben' : currentPlayer.color === option.id ? 'Ausgewählt' : 'Frei'}</span></span>
+            <span class="min-w-0 text-left">
+              <span class="block truncate text-sm font-medium {occupied ? 'line-through' : ''}">{option.name}</span>
+              <span class="block text-xs ui-muted">{occupied ? 'Vergeben' : current ? 'Deine Farbe' : 'Frei'}</span>
+            </span>
           </button>
         {/each}
       </div>
-      {#if colorError}<p class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{colorError}</p>{/if}
-      {#if isColorLoading}<p class="mt-3 flex items-center justify-center gap-2 text-sm text-slate-500"><LoaderCircle class="animate-spin" size={16} /> Farbe wird gespeichert …</p>{/if}
+      {#if colorError}<p role="alert" class="ui-alert mt-3">{colorError}</p>{/if}
+      {#if isColorLoading}<p role="status" class="mt-3 flex items-center justify-center gap-2 text-sm ui-muted"><LoaderCircle class="animate-spin" size={16} aria-hidden="true" /> Farbe wird gespeichert…</p>{/if}
     </div>
   </div>
 {/if}
 
 {#if pendingConfirmation}
-  <button type="button" class="fixed inset-0 z-[93] bg-slate-950/40 backdrop-blur-sm" on:click={() => (pendingConfirmation = null)} aria-label="Bestätigung schließen"></button>
-  <div class="fixed inset-x-2 bottom-2 z-[94] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl animate-modal-in sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[min(88vh,42rem)] sm:w-[min(92vw,26rem)] sm:-translate-x-1/2 sm:-translate-y-1/2" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
-    <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
-      <div class="flex items-center gap-3">
-        <span class="grid h-10 w-10 place-items-center rounded-xl bg-red-600 text-white"><TriangleAlert size={20} /></span>
-        <div><h2 id="confirm-dialog-title" class="font-semibold text-slate-950">Aktion bestätigen</h2></div>
-      </div>
-      <button type="button" on:click={() => (pendingConfirmation = null)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Schließen"><X size={19} /></button>
-    </div>
-
-    <div class="p-5">
-      <p class="text-sm leading-6 text-slate-700">{pendingConfirmation.message}</p>
-      <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          on:click={() => (pendingConfirmation = null)}
-          class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-        >
-          Abbrechen
-        </button>
-        <button
-          type="button"
-          on:click={confirmPendingAction}
-          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
-        >
-          Bestätigen
-        </button>
+  <div class="ui-dialog-backdrop" style="z-index: 94">
+    <button type="button" tabindex="-1" class="absolute inset-0 cursor-default" on:click={cancelConfirmation} aria-label="Bestätigung schließen"></button>
+    <div class="ui-dialog relative animate-modal-in" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
+      <h2 id="confirm-dialog-title" class="text-lg font-semibold">Bist du sicher?</h2>
+      <p id="confirm-dialog-message" class="mt-2 leading-6">{pendingConfirmation.message}</p>
+      <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button type="button" on:click={cancelConfirmation} use:initialFocus class="ui-btn">Abbrechen</button>
+        <button type="button" on:click={confirmPendingAction} class="ui-btn ui-btn--danger">{pendingConfirmation.confirmLabel}</button>
       </div>
     </div>
   </div>
 {/if}
+
+<style>
+  .lobby {
+    background: var(--ground);
+    color: var(--text);
+  }
+
+  .lobby-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .lobby-back:focus-visible { outline: 2px solid var(--accent-main); outline-offset: 2px; border-radius: 6px; }
+
+  /* Einladen */
+  .lobby-qr {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 104px;
+    height: 104px;
+    padding: 4px;
+    border-radius: var(--radius-inner);
+    background: #fff;
+    overflow: hidden;
+  }
+  .lobby-code {
+    margin: 8px 0 0;
+    font-size: 1.75rem;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    user-select: all;
+  }
+
+  /* Spieler */
+  .lobby-player {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 6px 0;
+  }
+  .lobby-player + .lobby-player { border-top: 1px solid var(--border); }
+  .lobby-avatar { width: 40px; height: 40px; font-size: 0.875rem; }
+  .lobby-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .lobby-icon-btn { color: var(--muted); }
+
+  /* Spielauswahl */
+  .lobby-game {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 10px 14px 10px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-inner);
+    background: var(--raised);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 150ms ease, transform 120ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lobby-game:active:not(:disabled) { transform: scale(0.99); }
+  .lobby-game:focus-visible { outline: 2px solid var(--accent-main); outline-offset: 2px; }
+  .lobby-game.is-selected { border-color: var(--accent-main); box-shadow: inset 0 0 0 1px var(--accent-main); }
+  .lobby-game:disabled { cursor: not-allowed; background: transparent; }
+  .lobby-game:disabled .lobby-thumb { opacity: 0.55; }
+
+  .lobby-thumb {
+    display: block;
+    flex-shrink: 0;
+    width: 84px;
+    aspect-ratio: 4 / 3;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .lobby-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  @media (min-width: 640px) {
+    .lobby-thumb { width: 120px; }
+  }
+
+  .lobby-desc {
+    display: -webkit-box;
+    margin-top: 2px;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: var(--muted);
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .lobby-radio {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1.5px solid var(--control);
+    color: #fff;
+  }
+  .lobby-game.is-selected .lobby-radio { background: var(--accent-main); border-color: var(--accent-main); }
+  .lobby-game:disabled .lobby-radio { opacity: 0.4; }
+
+  .lobby-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-inner);
+    background: var(--raised);
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .lobby-option input { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; accent-color: var(--accent-main); }
+
+  /* Startleiste: Handy fest unten, ab lg im Panel */
+  .lobby-startbar {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: var(--ground);
+    border-top: 1px solid var(--border);
+  }
+  @media (min-width: 1024px) {
+    /* Im Panel, klebt aber am unteren Rand, solange die Spielliste länger als der Bildschirm ist. */
+    .lobby-startbar {
+      position: sticky;
+      margin: 20px calc(var(--pad) * -1) calc(var(--pad) * -1);
+      padding: 16px var(--pad) var(--pad);
+      background: var(--surface);
+      border-radius: 0 0 var(--radius-card) var(--radius-card);
+    }
+  }
+
+  /* Warten (Nicht-Host) */
+  .lobby-waiting {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--radius-inner);
+    background: var(--raised);
+    border: 1px solid var(--border);
+  }
+  .lobby-pulse {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    margin-top: 7px;
+    border-radius: 999px;
+    background: var(--accent-main);
+    animation: lobby-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes lobby-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Farbwahl */
+  .lobby-swatch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 56px;
+    padding: 8px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-inner);
+    background: var(--raised);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 150ms ease;
+  }
+  .lobby-swatch:focus-visible { outline: 2px solid var(--accent-main); outline-offset: 2px; }
+  .lobby-swatch.is-current { border-color: var(--accent-main); }
+  .lobby-swatch:disabled { cursor: not-allowed; opacity: 0.45; }
+  .lobby-swatch-dot {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    color: #fff;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .lobby-back:hover { color: var(--text); }
+    .lobby-game:hover:not(:disabled):not(.is-selected) { border-color: var(--control); }
+    .lobby-swatch:hover:not(:disabled):not(.is-current) { border-color: var(--control); }
+    .lobby-icon-btn:hover:not(:disabled) { color: var(--text); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lobby-pulse { animation: none; }
+    .lobby-game, .lobby-swatch { transition: none; }
+  }
+</style>

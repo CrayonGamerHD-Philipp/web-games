@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { ArrowLeft, LoaderCircle, LogIn } from '@lucide/svelte';
+  import { ArrowLeft, LoaderCircle } from '@lucide/svelte';
 
   let code = '';
   let name = '';
@@ -11,16 +11,17 @@
 
   onMount(() => {
     name ||= localStorage.getItem('web-games:player-name') ?? '';
+    code ||= $page.url.searchParams.get('code') ?? '';
   });
-
-  $: if ($page.url.searchParams.get('code') && !code) {
-    code = $page.url.searchParams.get('code') ?? '';
-  }
 
   $: cleanCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 
   async function joinParty() {
     error = '';
+    if (cleanCode.length !== 6) {
+      error = 'Bitte gib einen gültigen Party-Code mit 6 Zeichen ein.';
+      return;
+    }
     isSubmitting = true;
 
     try {
@@ -52,81 +53,81 @@
   <title>Party beitreten | Web Games</title>
 </svelte:head>
 
-<main class="min-h-screen bg-slate-50 text-slate-950">
-  <section class="mx-auto grid min-h-screen w-full max-w-5xl items-center gap-8 px-6 py-10 sm:px-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
-    <div class="w-full max-w-2xl lg:max-w-none">
-      <a href="/" class="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950">
-        <ArrowLeft size={18} />
-        Zurueck
-      </a>
+<main class="ui-page">
+  <div class="max-w-md">
+    <a href="/" class="ui-btn ui-btn--ghost -ml-3 px-3">
+      <ArrowLeft size={18} aria-hidden="true" />
+      Zurück
+    </a>
 
-      <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div class="flex h-12 w-12 items-center justify-center rounded-md bg-emerald-600 text-white">
-          <LogIn size={26} strokeWidth={2.2} />
-        </div>
-        <h1 class="mt-6 text-3xl font-semibold text-slate-950">Party beitreten</h1>
-        <p class="mt-3 text-base leading-7 text-slate-600">
-          Gib den Party-Code und deinen Namen ein, um von diesem Geraet aus mitzuspielen.
-        </p>
+    <header class="mt-4 sm:mt-6">
+      <h1 class="ui-title">Wie lautet der Party-Code?</h1>
+      <p class="ui-lead">Den Code mit 6 Zeichen siehst du in der Party bei der Person, die sie gestartet hat.</p>
+    </header>
 
-        <form class="mt-8 space-y-5" on:submit|preventDefault={joinParty}>
-          <label class="block">
-            <span class="text-sm font-medium text-slate-700">Party-Code</span>
-            <input
-              bind:value={code}
-              maxlength="6"
-              inputmode="text"
-              autocomplete="off"
-              placeholder="ABC123"
-              class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-base font-semibold uppercase tracking-[0.14em] text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-            />
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-slate-700">Dein Name</span>
-            <input
-              bind:value={name}
-              maxlength="32"
-              autocomplete="name"
-              placeholder="z. B. Sam"
-              class="mt-2 w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-base text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-            />
-          </label>
-
-          {#if error}
-            <p class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
-          {/if}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-emerald-300 sm:w-auto"
-          >
-            {#if isSubmitting}
-              <LoaderCircle class="animate-spin" size={20} />
-              Beitritt laeuft
-            {:else}
-              <LogIn size={20} />
-              Party beitreten
-            {/if}
-          </button>
-        </form>
+    <form class="ui-panel mt-6 space-y-5 sm:mt-8" on:submit|preventDefault={joinParty}>
+      <div>
+        <label for="party-code" class="ui-label">Party-Code</label>
+        <input
+          id="party-code"
+          bind:value={code}
+          name="code"
+          maxlength="6"
+          required
+          pattern={'[A-Za-z0-9]{6}'}
+          title="6 Zeichen, nur Buchstaben und Ziffern"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="ABC123"
+          class="ui-input code-input"
+        />
       </div>
-    </div>
 
-    <div class="relative mx-auto w-full max-w-md lg:mx-0">
-      <div class="absolute -inset-3 rounded-[1.5rem] bg-cyan-100/50 blur-xl"></div>
-      <img
-        src="/images/party-hero.png"
-        alt="Heller Spieltisch mit Karten und Spielfiguren"
-        class="relative aspect-[4/5] max-h-[32rem] w-full rounded-2xl border border-white object-cover object-[center_48%] shadow-lg shadow-slate-200/80"
-      />
-    </div>
-  </section>
+      <div>
+        <label for="party-name" class="ui-label">Dein Name</label>
+        <input
+          id="party-name"
+          bind:value={name}
+          maxlength="32"
+          name="name"
+          autocomplete="name"
+          required
+          placeholder="z. B. Sam"
+          class="ui-input"
+        />
+      </div>
+
+      {#if error}
+        <p role="alert" class="ui-alert">{error}</p>
+      {/if}
+
+      <button type="submit" disabled={isSubmitting} class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block">
+        {#if isSubmitting}
+          <LoaderCircle class="animate-spin" size={20} aria-hidden="true" />
+          Beitritt läuft…
+        {:else}
+          Party beitreten
+        {/if}
+      </button>
+    </form>
+  </div>
 </main>
 
-
-
-
-
-
+<style>
+  .code-input {
+    min-height: 64px;
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .code-input::placeholder {
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    opacity: 0.45;
+  }
+</style>

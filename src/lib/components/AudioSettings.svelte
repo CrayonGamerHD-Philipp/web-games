@@ -1,8 +1,8 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { page } from '$app/stores';
-  import { Check, LoaderCircle, Monitor, Moon, Music, Palette, Play, Settings, Shuffle, Sun, User, Volume2, X } from '@lucide/svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { Check, LoaderCircle, Monitor, Moon, Play, Settings, Sun, X } from '@lucide/svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
 
   type MusicTrack = { id: string; name: string; src: string };
   type StoredAudioSettings = { playerName?: string; effectsVolume?: number; musicVolume?: number; musicEnabled?: boolean; selectedTrackId?: string };
@@ -18,11 +18,12 @@
     { id: 'system', name: 'System', icon: Monitor }
   ];
   const accentOptions: { id: AccentColor; name: string; swatch: string }[] = [
-    { id: 'cyan', name: 'Ozean', swatch: '#0891b2' },
-    { id: 'violet', name: 'Violett', swatch: '#7c3aed' },
-    { id: 'rose', name: 'Rosé', swatch: '#e11d48' },
-    { id: 'emerald', name: 'Wald', swatch: '#059669' },
-    { id: 'orange', name: 'Orange', swatch: '#ea580c' }
+    // Werte = --accent-main aus app.css (:root bzw. html[data-accent=…]).
+    { id: 'cyan', name: 'Petrol', swatch: '#1b6e66' },
+    { id: 'violet', name: 'Violett', swatch: '#6d28d9' },
+    { id: 'rose', name: 'Rosé', swatch: '#be123c' },
+    { id: 'emerald', name: 'Wald', swatch: '#047857' },
+    { id: 'orange', name: 'Orange', swatch: '#c2410c' }
   ];
   const tracks: MusicTrack[] = [
     { id: 'random', name: 'Zufall', src: '' },
@@ -60,6 +61,48 @@
   let resumeMusicAfterPreview = false;
   let loadedPartyNameKey = '';
   let colorSchemeQuery: MediaQueryList | null = null;
+  let gearButton: HTMLButtonElement | null = null;
+  let closeButton: HTMLButtonElement | null = null;
+  let panel: HTMLElement | null = null;
+
+  async function openPanel() {
+    isOpen = true;
+    await tick();
+    closeButton?.focus();
+  }
+
+  function closePanel() {
+    if (!isOpen) return;
+    isOpen = false;
+    gearButton?.focus();
+  }
+
+  function togglePanel() {
+    if (isOpen) closePanel();
+    else void openPanel();
+  }
+
+  function handlePanelKeydown(event: KeyboardEvent) {
+    if (!isOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closePanel();
+      return;
+    }
+    if (event.key !== 'Tab' || !panel) return;
+    const focusable = [...panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')];
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !panel.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   $: routeCode = extractPartyCode($page.url.pathname);
   $: currentPlayerId = browser && routeCode ? localStorage.getItem(`party-player:${routeCode}`) ?? '' : '';
@@ -362,67 +405,60 @@
   });
 </script>
 
-<div class="fixed right-3 top-3 z-[80] sm:right-5 sm:top-5">
+<svelte:window on:keydown={handlePanelKeydown} />
+
+<div class="settings-anchor">
   <button
+    bind:this={gearButton}
     type="button"
-    on:click={() => (isOpen = !isOpen)}
-    class="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/80 bg-white text-slate-700 shadow-xl shadow-slate-900/15 transition hover:-translate-y-0.5 hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-    aria-label="Einstellungen öffnen"
+    on:click={togglePanel}
+    class="ui-btn ui-btn--ghost ui-btn--icon settings-gear"
+    aria-label={isOpen ? 'Einstellungen schließen' : 'Einstellungen öffnen'}
     aria-expanded={isOpen}
+    aria-controls="settings-panel"
   >
-    <Settings size={22} />
+    <Settings size={22} aria-hidden="true" />
   </button>
 </div>
 
 {#if isOpen}
-  <button type="button" class="fixed inset-0 z-[79] bg-slate-950/30 backdrop-blur-sm" on:click={() => (isOpen = false)} aria-label="Einstellungen schließen"></button>
-  <section class="fixed inset-x-2 bottom-2 z-[81] max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-950/25 animate-modal-in sm:bottom-auto sm:left-auto sm:right-5 sm:top-20 sm:max-h-[calc(100vh-5rem)] sm:w-[min(94vw,29rem)]">
-    <div class="settings-header border-b border-slate-100 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 px-4 py-3 sm:px-5 sm:py-4">
-      <div class="flex items-start justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="grid h-11 w-11 place-items-center rounded-xl bg-cyan-600 text-white shadow-lg shadow-cyan-700/20">
-            <Settings size={21} />
-          </div>
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Einstellungen</p>
-            <h2 class="mt-0.5 text-lg font-semibold text-slate-950 sm:text-xl">Design, Audio & Profil</h2>
-          </div>
-        </div>
-        <button type="button" on:click={() => (isOpen = false)} class="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-cyan-100" aria-label="Einstellungen schließen">
-          <X size={19} />
+  <div class="ui-dialog-backdrop">
+    <button type="button" tabindex="-1" class="absolute inset-0 cursor-default" on:click={closePanel} aria-label="Einstellungen schließen"></button>
+    <div
+      bind:this={panel}
+      id="settings-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-panel-title"
+      class="ui-dialog settings-dialog animate-modal-in"
+    >
+      <div class="settings-top">
+        <h2 id="settings-panel-title" class="settings-title">Einstellungen</h2>
+        <button bind:this={closeButton} type="button" on:click={closePanel} class="ui-btn ui-btn--ghost ui-btn--icon settings-close" aria-label="Einstellungen schließen">
+          <X size={20} aria-hidden="true" />
         </button>
       </div>
-    </div>
 
-    <div class="max-h-[calc(100dvh-6rem)] space-y-4 overscroll-contain overflow-y-auto p-3 sm:max-h-[calc(100vh-10rem)] sm:p-5">
-      <section class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <Palette size={17} /> Darstellung
-        </div>
+      <section class="settings-section" aria-labelledby="settings-look">
+        <h3 id="settings-look" class="ui-section-title">Darstellung</h3>
 
-        <div>
-          <p class="text-sm font-medium text-slate-700">Farbschema</p>
-          <div class="mt-2 grid grid-cols-3 gap-2">
+        <div class="settings-field">
+          <p class="settings-label" id="settings-theme-label">Farbschema</p>
+          <div class="segmented" role="group" aria-labelledby="settings-theme-label">
             {#each themeOptions as option (option.id)}
-              <button
-                type="button"
-                on:click={() => chooseTheme(option.id)}
-                aria-pressed={theme === option.id}
-                class="flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-cyan-100 {theme === option.id ? 'border-cyan-400 bg-cyan-50 text-cyan-900 ring-1 ring-cyan-200' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-cyan-300 hover:bg-white'}"
-              >
-                <svelte:component this={option.icon} size={20} />
+              <button type="button" on:click={() => chooseTheme(option.id)} aria-pressed={theme === option.id} class="segment" class:is-active={theme === option.id}>
+                <svelte:component this={option.icon} size={16} aria-hidden="true" />
                 {option.name}
               </button>
             {/each}
           </div>
         </div>
 
-        <div class="mt-5">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-sm font-medium text-slate-700">Akzentfarbe</p>
-            <span class="text-xs text-slate-500">{accentOptions.find((option) => option.id === accentColor)?.name}</span>
-          </div>
-          <div class="mt-2 grid grid-cols-5 gap-2">
+        <div class="settings-field">
+          <p class="settings-label" id="settings-accent-label">
+            Akzentfarbe <span class="settings-value">{accentOptions.find((option) => option.id === accentColor)?.name}</span>
+          </p>
+          <div class="swatches" role="group" aria-labelledby="settings-accent-label">
             {#each accentOptions as option (option.id)}
               <button
                 type="button"
@@ -430,110 +466,140 @@
                 aria-label={`${option.name} als Akzentfarbe verwenden`}
                 aria-pressed={accentColor === option.id}
                 title={option.name}
-                class="group grid aspect-square place-items-center rounded-xl border bg-slate-50 transition hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-cyan-100 {accentColor === option.id ? 'border-slate-500 ring-2 ring-slate-300' : 'border-slate-200'}"
+                class="swatch"
+                class:is-active={accentColor === option.id}
               >
-                <span class="grid h-8 w-8 place-items-center rounded-full shadow-sm transition group-hover:scale-105" style={`background: ${option.swatch}`}>
-                  {#if accentColor === option.id}<Check size={16} class="text-white" strokeWidth={3} />{/if}
+                <span class="swatch-dot" style="background: {option.swatch}">
+                  {#if accentColor === option.id}<Check size={16} strokeWidth={3} aria-hidden="true" />{/if}
                 </span>
               </button>
             {/each}
           </div>
-          <p class="mt-2 text-xs leading-5 text-slate-500">Gilt sofort für Schaltflächen, Markierungen und Fokusrahmen in der gesamten App.</p>
         </div>
       </section>
 
-      <section class="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <User size={17} /> Profil
-        </div>
-        <label class="block">
-          <span class="text-sm font-medium text-slate-700">Spielername</span>
-          <input bind:value={playerName} maxlength="32" class="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100" placeholder="Dein Name" />
+      <section class="settings-section" aria-labelledby="settings-sound">
+        <h3 id="settings-sound" class="ui-section-title">Ton</h3>
+
+        <label class="settings-field">
+          <span class="settings-label">Effekte <span class="settings-value ui-num">{Math.round(effectsVolume * 100)} %</span></span>
+          <input type="range" min="0" max="1" step="0.01" bind:value={effectsVolume} on:change={persistSettings} class="settings-range" />
         </label>
 
-        <div class="mt-3 flex flex-wrap items-center gap-3">
-          <button type="button" on:click={renamePlayer} disabled={isRenaming || !playerName.trim()} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300">
+        <label class="settings-field">
+          <span class="settings-label">Musik <span class="settings-value ui-num">{Math.round(musicVolume * 100)} %</span></span>
+          <input type="range" min="0" max="1" step="0.01" bind:value={musicVolume} on:change={() => { persistSettings(); setAudioVolume(activeAudio, musicVolume); }} class="settings-range" />
+        </label>
+
+        <label class="settings-toggle">
+          <span>
+            <span class="block font-semibold">Musik abspielen</span>
+            <span class="settings-hint">Startet nach der ersten Eingabe im Browser.</span>
+          </span>
+          <input type="checkbox" role="switch" bind:checked={musicEnabled} on:change={() => { persistSettings(); applyMusic(); }} class="switch" />
+        </label>
+
+        <div class="settings-field">
+          <label class="settings-label" for="settings-track">Musikstück</label>
+          <div class="flex gap-2">
+            <select id="settings-track" bind:value={selectedTrackId} on:change={() => { persistSettings(); applyMusic(); }} class="ui-input settings-select">
+              {#each tracks as track (track.id)}
+                <option value={track.id}>{track.name}</option>
+              {/each}
+            </select>
+            <button
+              type="button"
+              on:click={() => previewTrack(selectedTrack)}
+              disabled={!selectedTrack.src}
+              class="ui-btn ui-btn--icon settings-preview"
+              aria-label={selectedTrack.src ? `${selectedTrack.name} 5 Sekunden anhören` : 'Für Zufall gibt es keine Hörprobe'}
+              title="5 Sekunden anhören"
+            >
+              <Play size={18} aria-hidden="true" />
+            </button>
+          </div>
+          <p class="settings-hint">Die Hörprobe stoppt nach 5 Sekunden.</p>
+        </div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="settings-profile">
+        <h3 id="settings-profile" class="ui-section-title">Profil</h3>
+        <div class="settings-field">
+          <label class="settings-label" for="settings-player-name">Spielername</label>
+          <input id="settings-player-name" bind:value={playerName} name="playerName" autocomplete="nickname" maxlength="32" class="ui-input" placeholder="Dein Name" />
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="button" on:click={renamePlayer} disabled={isRenaming || !playerName.trim()} class="ui-btn ui-btn--primary">
             {#if isRenaming}
-              <LoaderCircle class="animate-spin" size={17} />
-              Speichert
+              <LoaderCircle class="animate-spin" size={17} aria-hidden="true" />
+              Speichert…
             {:else if saved || renameStatus}
-              <Check size={17} />
+              <Check size={17} aria-hidden="true" />
               Gespeichert
             {:else}
               Speichern
             {/if}
           </button>
-          {#if routeCode && !currentPlayerId}<span class="text-xs text-slate-500">Kein lokaler Spieler für diese Lobby gefunden.</span>{/if}
-          {#if renameError}<p class="basis-full text-sm text-red-600">{renameError}</p>{/if}
-        </div>
-      </section>
-
-      <section class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <Volume2 size={17} /> Lautstärke
-        </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="rounded-lg bg-slate-50 p-3">
-            <span class="flex items-center justify-between gap-2 text-sm font-medium text-slate-700"><span>Effekte</span><span class="tabular-nums text-slate-500">{Math.round(effectsVolume * 100)}%</span></span>
-            <input type="range" min="0" max="1" step="0.01" bind:value={effectsVolume} on:change={persistSettings} class="mt-3 w-full accent-cyan-600" />
-          </label>
-          <label class="rounded-lg bg-slate-50 p-3">
-            <span class="flex items-center justify-between gap-2 text-sm font-medium text-slate-700"><span>Musik</span><span class="tabular-nums text-slate-500">{Math.round(musicVolume * 100)}%</span></span>
-            <input type="range" min="0" max="1" step="0.01" bind:value={musicVolume} on:change={() => { persistSettings(); setAudioVolume(activeAudio, musicVolume); }} class="mt-3 w-full accent-cyan-600" />
-          </label>
-        </div>
-      </section>
-
-      <section class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <Music size={17} /> Musik-Loop
-        </div>
-        <label class="flex items-start gap-3 rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm">
-          <input type="checkbox" bind:checked={musicEnabled} on:change={() => { persistSettings(); applyMusic(); }} class="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" />
-          <span><span class="block font-semibold text-slate-800">Musik aktiv</span><span class="text-slate-500">Startet nach der ersten Eingabe im Browser.</span></span>
-        </label>
-
-        <div class="mt-4 space-y-2">
-          <div class="flex items-center justify-between gap-3">
-            <h3 class="text-sm font-semibold text-slate-800">Loop auswählen</h3>
-            <span class="text-xs font-medium text-slate-500">Probe stoppt nach 5 Sekunden</span>
-          </div>
-          <div class="space-y-2">
-            {#each tracks as track (track.id)}
-              <div class:border-cyan-300={selectedTrackId === track.id} class:bg-cyan-50={selectedTrackId === track.id} class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 transition">
-                <button
-                  type="button"
-                  on:click={() => { selectedTrackId = track.id; persistSettings(); applyMusic(); }}
-                  class="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-                  aria-pressed={selectedTrackId === track.id}
-                >
-                  <span class="flex min-w-0 items-center gap-2">
-                    {#if track.id === 'random'}
-                      <Shuffle size={16} class="shrink-0 text-cyan-700" />
-                    {:else}
-                      <Music size={16} class="shrink-0 text-cyan-700" />
-                    {/if}
-                    <span class="truncate">{track.name}</span>
-                  </span>
-                  {#if selectedTrackId === track.id}
-                    <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-cyan-600 px-2 py-1 text-xs font-semibold text-white"><Check size={13} /> Aktiv</span>
-                  {/if}
-                </button>
-                {#if track.src}
-                  <button
-                    type="button"
-                    on:click={() => previewTrack(track)}
-                    class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-800 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-                    aria-label={`${track.name} 5 Sekunden abspielen`}
-                  >
-                    <Play size={16} />
-                  </button>
-                {/if}
-              </div>
-            {/each}
-          </div>
+          {#if routeCode && !currentPlayerId}<span class="settings-hint">Kein lokaler Spieler für diese Lobby gefunden.</span>{/if}
+          <span class="sr-only" aria-live="polite">{saved || renameStatus ? 'Gespeichert' : ''}</span>
+          {#if renameError}<p class="ui-alert basis-full" role="alert">{renameError}</p>{/if}
         </div>
       </section>
     </div>
-  </section>
+  </div>
 {/if}
+
+<style>
+  /* Oben rechts, auf Höhe der Kopfzeile der Spielseite (12px mobil, 20px ab 640px). */
+  .settings-anchor {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    z-index: 80;
+  }
+  @media (min-width: 640px) {
+    .settings-anchor { top: max(20px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); }
+  }
+  .settings-gear { background: var(--ground); color: var(--text); }
+
+  .settings-dialog { position: relative; display: flex; flex-direction: column; gap: 32px; color: var(--text); }
+  .settings-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -8px -10px -12px 0; }
+  .settings-title { margin: 0; font-size: 1.25rem; font-weight: 600; }
+
+  .settings-section { display: flex; flex-direction: column; gap: 16px; }
+  .settings-section > :global(.ui-section-title) { font-size: 1rem; }
+  .settings-field { display: flex; flex-direction: column; gap: 8px; }
+  .settings-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; font-size: 0.875rem; font-weight: 500; }
+  .settings-value { font-weight: 500; color: var(--muted); }
+  .settings-hint { margin: 0; font-size: 0.8125rem; line-height: 1.4; color: var(--muted); }
+
+  .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: var(--radius-control); background: var(--surface); }
+  .segment { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background-color 150ms ease, color 150ms ease; }
+  .segment.is-active { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+  .segment:focus-visible, .swatch:focus-visible, .switch:focus-visible, .settings-range:focus-visible { outline: 2px solid var(--accent-main); outline-offset: 2px; }
+
+  .swatches { display: flex; gap: 6px; }
+  .swatch { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; cursor: pointer; }
+  .swatch-dot { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; color: #fff; transition: transform 150ms ease; }
+  .swatch.is-active .swatch-dot { box-shadow: 0 0 0 2px var(--raised), 0 0 0 4px var(--text); }
+  .swatch:active .swatch-dot { transform: scale(0.92); }
+
+  .settings-range { width: 100%; min-height: 28px; accent-color: var(--accent-main); }
+
+  .settings-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 0.9375rem; cursor: pointer; }
+  .switch { appearance: none; position: relative; flex-shrink: 0; width: 48px; height: 28px; margin: 0; border-radius: 999px; background: var(--control); cursor: pointer; transition: background-color 150ms ease; }
+  .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 999px; background: #fff; transition: transform 150ms ease; }
+  .switch:checked { background: var(--accent-main); }
+  .switch:checked::after { transform: translateX(20px); }
+
+  .settings-select { min-height: var(--control-height); appearance: auto; }
+  .settings-preview { flex-shrink: 0; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .segment:not(.is-active):hover { color: var(--text); }
+    .settings-gear:hover { background: var(--surface); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .switch, .switch::after, .swatch-dot { transition: none; }
+  }
+</style>

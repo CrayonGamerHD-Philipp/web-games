@@ -1,4 +1,4 @@
-﻿<script>
+<script>
   import SkyjoBoard from '$lib/components/SkyjoBoard.svelte';
 
   /** @typedef {import('../types').SkyjoSession} SkyjoSession */
@@ -14,18 +14,22 @@
   export let onMove = () => {};
   /** @type {number} */
   export let renderNonce = 0;
+  /** Party-Spieler ({ id, name, color, … }) für Avatare in Spielerfarbe. */
+  /** @type {{ id: string, name?: string, color?: string }[]} */
+  export let players = [];
 
-  $: skyjoVersion = game ? `${game.id}:${JSON.stringify(game.state)}:${JSON.stringify(game.players)}:${renderNonce}` : '';
+  // Kept for the shared game-component API; the board reacts to `game` directly.
+  $: void renderNonce;
 </script>
 
 {#if !game}
-  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-    Skyjo wird ueber eine Party gestartet, damit Spieler, Reihenfolge und Punkte synchron bleiben.
-  </div>
+  <p class="ui-panel ui-muted">
+    Skyjo wird über eine Party gestartet, damit Spieler, Reihenfolge und Punkte synchron bleiben.
+  </p>
 {:else}
   <div class="mt-3">
-    {#key skyjoVersion}
-      <SkyjoBoard game={game} {currentPlayerId} {isLoading} {onMove} />
+    {#key game.id}
+      <SkyjoBoard {game} {currentPlayerId} {isLoading} {onMove} {players} />
     {/key}
   </div>
 {/if}

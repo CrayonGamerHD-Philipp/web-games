@@ -1,8 +1,44 @@
+import { createKunterbuntSession, kunterbuntGame, makeKunterbuntMove, redactKunterbuntSession } from '../../../games/kunterbunt/server.js';
 import { createNochMalSession, makeNochMalMove, nochMalGame } from '../../../games/noch-mal/server.js';
+import { createSchiffeVersenkenSession, makeSchiffeVersenkenMove, redactSchiffeVersenkenSession, schiffeVersenkenGame } from '../../../games/schiffe-versenken/server.js';
 import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/skyjo/server.js';
 import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
 const gameHandlers = [
+  {
+    definition: schiffeVersenkenGame,
+    createSession: createSchiffeVersenkenSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeSchiffeVersenkenMove(/** @type {Exclude<ReturnType<typeof createSchiffeVersenkenSession>, { error: string }>} */ (session), playerId, move),
+    /**
+     * @param {unknown} session
+     * @param {string | null} viewerId
+     */
+    redact: (session, viewerId) =>
+      redactSchiffeVersenkenSession(/** @type {Exclude<ReturnType<typeof createSchiffeVersenkenSession>, { error: string }>} */ (session), viewerId)
+  },
+  {
+    definition: kunterbuntGame,
+    createSession: createKunterbuntSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeKunterbuntMove(/** @type {Exclude<ReturnType<typeof createKunterbuntSession>, { error: string }>} */ (session), playerId, move),
+    /**
+     * @param {unknown} session
+     * @param {string | null} viewerId
+     */
+    redact: (session, viewerId) =>
+      redactKunterbuntSession(/** @type {Exclude<ReturnType<typeof createKunterbuntSession>, { error: string }>} */ (session), viewerId)
+  },
   {
     definition: nochMalGame,
     createSession: createNochMalSession,
@@ -92,4 +128,17 @@ export function applyGameMove(gameId, session, playerId, move) {
 
   const applyMove = /** @type {(session: unknown, playerId: string, move: { cellIndex?: unknown, type?: unknown, cardIndex?: unknown, source?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }) => { session?: unknown, error?: string }} */ (handler.applyMove);
   return applyMove(session, playerId, move);
+}
+
+/**
+ * Removes information the viewer must not see (other players' hands, ship positions, …).
+ * Games opt in by providing `redact(session, viewerId)` on their handler; the session is
+ * already a deep clone, so handlers may mutate it.
+ * @param {unknown} gameId
+ * @param {unknown} session
+ * @param {string | null} viewerId
+ */
+export function redactGameSession(gameId, session, viewerId) {
+  const handler = /** @type {{ redact?: (session: unknown, viewerId: string | null) => unknown } | null} */ (getGameHandler(gameId));
+  return handler?.redact ? handler.redact(session, viewerId) : session;
 }

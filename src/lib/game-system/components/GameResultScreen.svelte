@@ -1,8 +1,9 @@
 <script>
-  import { Gamepad2, LoaderCircle, RotateCcw, Trophy } from '@lucide/svelte';
+  import { LoaderCircle } from '@lucide/svelte';
   import PlayingCard from '../../components/PlayingCard.svelte';
+  import { initials, playerHex } from '../../player-colors.js';
 
-  /** @typedef {{ id: string, name: string, score?: number, isHost?: boolean }} ScorePlayer */
+  /** @typedef {{ id: string, name: string, score?: number, isHost?: boolean, color?: string }} ScorePlayer */
   /** @typedef {{ status: 'won' | 'lost' | 'draw' | 'cancelled', winnerId?: string, winnerName?: string, title?: string, message?: string, score?: number, metadata?: Record<string, unknown> }} GameResult */
   /** @typedef {{ rematch: string[], newGame: string[] }} EndRequests */
   /** @typedef {{ playerId: string, score: number }} RoundScore */
@@ -33,6 +34,8 @@
   export let onRequestRematch = () => {};
   /** @type {() => void} */
   export let onRequestNewGame = () => {};
+  /** Überschriftsebene: h1 auf der Seite, h2 im Skyjo-Modal. @type {'h1' | 'h2'} */
+  export let headingLevel = 'h1';
 
   /**
    * @param {Record<string, unknown> | undefined} metadata
@@ -53,14 +56,13 @@
     if (!Array.isArray(value)) return [];
     return /** @type {SkyjoBoard[]} */ (value).filter((board) => Array.isArray(board.cards));
   }
+
   $: winner = players.find((player) => player.id === result.winnerId);
   $: currentPlayerWon = result.winnerId === currentPlayerId;
   $: currentPlayerLost = Boolean(result.winnerId && result.winnerId !== currentPlayerId);
   $: isDraw = result.status === 'draw';
   $: alreadyRequestedRematch = requests.rematch.includes(currentPlayerId);
   $: alreadyRequestedNewGame = requests.newGame.includes(currentPlayerId);
-  $: endDecorImage = isDraw ? '/images/decor/lobby.png' : currentPlayerWon ? '/images/decor/winner.png' : currentPlayerLost ? '/images/decor/loser.png' : winner ? '/images/decor/winner.png' : '/images/decor/lobby.png';
-  $: endDecorLabel = isDraw ? 'Unentschieden' : currentPlayerWon ? 'Gewonnen' : currentPlayerLost ? 'Verloren' : 'Spiel beendet';
   $: sortedPlayers = [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name));
   $: scoreRows = roundScores.length
     ? [...roundScores]
@@ -72,11 +74,11 @@
     : [];
   $: skyjoMatch = getSkyjoMatch(result.metadata);
   $: skyjoBoards = getSkyjoBoards(result.metadata);
+  $: isSkyjoRoundBreak = Boolean(skyjoMatch?.enabled && !skyjoMatch?.matchFinished);
   $: skyjoHistoryPlayers = skyjoMatch?.totalScores
     ? skyjoMatch.totalScores.map((score) => players.find((player) => player.id === score.playerId) ?? { id: score.playerId, name: 'Spieler' })
     : [];
   $: skyjoRoundHistory = skyjoMatch?.roundHistory ?? [];
-  $: skyjoHistoryGridStyle = `grid-template-columns: 4.5rem repeat(${Math.max(skyjoHistoryPlayers.length, 1)}, minmax(4.5rem, 1fr));`;
   $: skyjoRows = skyjoMatch?.totalScores
     ? [...skyjoMatch.totalScores]
         .map((totalScore) => ({
@@ -87,182 +89,192 @@
         }))
         .sort((a, b) => a.total - b.total || a.lastRound - b.lastRound || (a.player?.name ?? '').localeCompare(b.player?.name ?? ''))
     : [];
+  $: headline = createHeadline(result, winner, isDraw, isSkyjoRoundBreak, skyjoMatch);
+  $: lead = winner && !skyjoMatch?.enabled && winner.id === currentPlayerId
+    ? 'Du bekommst einen Siegpunkt.'
+    : result.message ?? (isDraw ? 'Niemand bekommt einen Siegpunkt.' : 'Das Spiel wurde beendet.');
+  $: heroPlayer = isSkyjoRoundBreak || isDraw ? null : winner ?? null;
+  $: primaryLabel = isSkyjoRoundBreak ? 'Nächste Runde starten' : 'Revanche starten';
+  $: requestSummary = [
+    requests.rematch.length ? `${requests.rematch.length} ${requests.rematch.length === 1 ? 'möchte' : 'möchten'} eine Revanche` : '',
+    requests.newGame.length ? `${requests.newGame.length} ${requests.newGame.length === 1 ? 'möchte' : 'möchten'} ein neues Spiel` : ''
+  ].filter(Boolean).join(' · ');
+
+  /**
+   * @param {GameResult} res
+   * @param {ScorePlayer | undefined} winningPlayer
+   * @param {boolean} draw
+   * @param {boolean} roundBreak
+   * @param {SkyjoMatch | null} match
+   */
+  function createHeadline(res, winningPlayer, draw, roundBreak, match) {
+    if (roundBreak) return `Runde ${match?.round ?? 1} beendet`;
+    if (draw) return 'Unentschieden';
+    if (winningPlayer) return winningPlayer.id === currentPlayerId ? 'Du gewinnst' : `${winningPlayer.name} gewinnt`;
+    if (res.winnerName) return res.winnerName.includes(',') ? `${res.winnerName} gewinnen` : `${res.winnerName} gewinnt`;
+    return 'Runde beendet';
+  }
+
+  /** @param {string} playerId */
+  function playerColor(playerId) {
+    return playerHex(players.find((player) => player.id === playerId)?.color);
+  }
 
   /**
    * @param {SkyjoRoundHistoryEntry} round
    * @param {string} playerId
    */
   function scoreForRound(round, playerId) {
-    return round.scores.find((score) => score.playerId === playerId)?.score ?? '-';
+    return round.scores.find((score) => score.playerId === playerId)?.score ?? '–';
   }
 </script>
 
-<div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm animate-ui-pop-in sm:p-8">
-  <span class="pointer-events-none absolute right-8 top-8 h-2 w-2 rounded-full bg-cyan-300 animate-decor-spark"></span>
-  <span class="pointer-events-none absolute right-20 top-20 h-2.5 w-2.5 rounded-full bg-amber-300 animate-decor-spark [animation-delay:320ms]"></span>
-  <span class="pointer-events-none absolute right-32 top-10 h-1.5 w-1.5 rounded-full bg-emerald-300 animate-decor-spark [animation-delay:640ms]"></span>
-
-  <div class="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-    <div>
-      <p class="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">{result.title ?? 'Spiel beendet'}</p>
-      <h2 class="mt-3 text-3xl font-semibold text-slate-950">
-        {#if isDraw}
-          Unentschieden
-        {:else if winner}
-          {winner.name} gewinnt
-        {:else}
-          Runde beendet
-        {/if}
-      </h2>
-      <p class="mt-3 max-w-xl text-base leading-7 text-slate-600">
-        {result.message ?? (isDraw ? 'Niemand bekommt einen Siegpunkt.' : winner ? `${winner.name} bekommt einen Siegpunkt.` : 'Das Spiel wurde beendet.')}
-      </p>
-    </div>
-
-    <div class="relative mx-auto h-28 w-28 shrink-0 sm:h-32 sm:w-32 lg:mx-0">
-      <img src={endDecorImage} alt={endDecorLabel} class="h-full w-full animate-decor-pop object-contain" />
-    </div>
-
-    {#if winner}
-      <div class="flex min-w-40 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
-        <Trophy size={22} />
-        <div>
-          <p class="text-xs font-medium uppercase tracking-[0.16em]">Gewinner</p>
-          <p class="font-semibold">{winner.name}</p>
-        </div>
-      </div>
+<section class="result animate-ui-pop-in" class:result--wide={skyjoRows.length || skyjoBoards.length}>
+  <div class="result-head">
+    {#if heroPlayer}
+      <span class="ui-avatar result-hero" style="--player: {playerColor(heroPlayer.id)}" aria-hidden="true">{initials(heroPlayer.name)}</span>
     {/if}
+    <svelte:element this={headingLevel} id="result-title" class="ui-title">{headline}</svelte:element>
+    <p class="ui-lead">{lead}</p>
   </div>
 
   {#if skyjoRows.length}
-  <div class="relative z-10 mt-7 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-800">Skyjo Gesamtstand</h3>
-        <p class="mt-1 text-sm text-cyan-900">
-          Ziel: {skyjoMatch?.targetScore ?? 100} Punkte. Niedrigster Gesamtstand gewinnt, sobald mindestens ein Spieler das Ziel erreicht.
-        </p>
+    <div class="result-block">
+      <div class="result-block-head">
+        <h3 class="ui-section-title">Gesamtstand</h3>
+        <p class="ui-muted text-sm">Ziel {skyjoMatch?.targetScore ?? 100} Punkte · niedrigster Stand gewinnt</p>
       </div>
-      <span class="rounded-md bg-white px-3 py-1 text-sm font-semibold text-cyan-900 ring-1 ring-cyan-200">
-        {skyjoMatch?.matchFinished ? 'Match beendet' : 'Naechste Runde'}
-      </span>
+      <ol class="rank-list">
+        <li class="rank-row rank-row--head" aria-hidden="true">
+          <span></span><span>Spieler</span><span class="rank-num">Runde</span><span class="rank-num">Gesamt</span>
+        </li>
+        {#each skyjoRows as row, index (row.playerId)}
+          <li class="rank-row rank-row--4">
+            <span class="rank-pos ui-num">{index + 1}</span>
+            <span class="rank-who">
+              <span class="ui-avatar rank-avatar" style="--player: {playerColor(row.playerId)}" aria-hidden="true">{initials(row.player?.name)}</span>
+              <span class="rank-name">{row.player?.name ?? 'Spieler'}</span>
+              {#if row.playerId === currentPlayerId}<span class="rank-you">du</span>{/if}
+            </span>
+            <span class="rank-num ui-num ui-muted"><span class="sr-only">Runde: </span>{row.lastRound}</span>
+            <span class="rank-num rank-score ui-num"><span class="sr-only">Gesamt: </span>{row.total}</span>
+          </li>
+        {/each}
+      </ol>
     </div>
-
-    <div class="mt-4 overflow-hidden rounded-xl border border-cyan-200 bg-white">
-      <div class="grid grid-cols-[3rem_minmax(0,1fr)_5rem_5rem] bg-cyan-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-950">
-        <span>Rang</span>
-        <span>Spieler</span>
-        <span class="text-right">Runde</span>
-        <span class="text-right">Total</span>
-      </div>
-      {#each skyjoRows as row, index (row.playerId)}
-        <div class="grid grid-cols-[3rem_minmax(0,1fr)_5rem_5rem] items-center border-t border-cyan-100 px-3 py-2 text-sm">
-          <span class="font-semibold text-cyan-900">{index + 1}</span>
-          <span class="truncate font-semibold text-slate-950">{row.player?.name ?? 'Spieler'}</span>
-          <span class="text-right text-slate-600">{row.lastRound}</span>
-          <span class="text-right font-bold text-slate-950">{row.total}</span>
-        </div>
-      {/each}
-    </div>
-    {#if skyjoRoundHistory.length && skyjoHistoryPlayers.length}
-      <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-200 bg-white">
-        <div class="min-w-[32rem]">
-          <div class="grid bg-cyan-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-950" style={skyjoHistoryGridStyle}>
-            <span>Runde</span>
-            {#each skyjoHistoryPlayers as player (player.id)}
-              <span class="truncate text-right">{player.name}</span>
-            {/each}
-          </div>
-          {#each skyjoRoundHistory as round (round.round)}
-            <div class="grid items-center border-t border-cyan-100 px-3 py-2 text-sm" style={skyjoHistoryGridStyle}>
-              <span class="font-semibold text-cyan-900">{round.round}</span>
-              {#each skyjoHistoryPlayers as player (player.id)}
-                <span class="text-right font-semibold text-slate-800">{scoreForRound(round, player.id)}</span>
-              {/each}
-            </div>
+  {:else}
+    {#if scoreRows.length}
+      <div class="result-block">
+        <h3 class="ui-section-title">Rundenpunkte</h3>
+        <ol class="rank-list">
+          {#each scoreRows as row, index (row.playerId)}
+            <li class="rank-row">
+              <span class="rank-pos ui-num">{index + 1}</span>
+              <span class="rank-who">
+                <span class="ui-avatar rank-avatar" style="--player: {playerColor(row.playerId)}" aria-hidden="true">{initials(row.player?.name)}</span>
+                <span class="rank-name">{row.player?.name ?? 'Spieler'}</span>
+                {#if row.playerId === currentPlayerId}<span class="rank-you">du</span>{/if}
+              </span>
+              <span class="rank-num rank-score ui-num">{row.score}</span>
+            </li>
           {/each}
-        </div>
+        </ol>
       </div>
     {/if}
-  </div>
-{/if}
-<div class="relative z-10 mt-7 grid gap-6 lg:grid-cols-[1fr_1fr]">
-    <div>
-      {#if scoreRows.length}
-        <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Rundenpunkte</h3>
-        <div class="mt-3 space-y-2">
-          {#each scoreRows as row, index (row.playerId)}
-            <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div class="min-w-0">
-                <p class="truncate font-semibold text-slate-950">{index + 1}. {row.player?.name ?? 'Spieler'}</p>
-                <p class="text-xs text-slate-500">{row.playerId === currentPlayerId ? 'Du' : 'Runde'}</p>
-              </div>
-              <span class="rounded-md bg-white px-3 py-1 text-sm font-semibold text-slate-800 ring-1 ring-slate-200">{row.score}</span>
-            </div>
-          {/each}
-        </div>
-        <h3 class="mt-6 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Gesamtsiege</h3>
-      {:else}
-        <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Punkte</h3>
-      {/if}
 
-      <div class="mt-3 space-y-2">
+    <div class="result-block">
+      <h3 class="ui-section-title">{scoreRows.length ? 'Siege in dieser Party' : 'Siege'}</h3>
+      <ol class="rank-list">
         {#each sortedPlayers as player, index (player.id)}
-          <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div class="min-w-0">
-              <p class="truncate font-semibold text-slate-950">{index + 1}. {player.name}</p>
-              <p class="text-xs text-slate-500">{player.id === currentPlayerId ? 'Du' : player.isHost ? 'Host' : 'Spieler'}</p>
-            </div>
-            <span class="rounded-md bg-white px-3 py-1 text-sm font-semibold text-slate-800 ring-1 ring-slate-200">{player.score ?? 0}</span>
-          </div>
+          <li class="rank-row">
+            <span class="rank-pos ui-num">{index + 1}</span>
+            <span class="rank-who">
+              <span class="ui-avatar rank-avatar" style="--player: {playerHex(player.color)}" aria-hidden="true">{initials(player.name)}</span>
+              <span class="rank-name">{player.name}</span>
+              {#if player.id === currentPlayerId}<span class="rank-you">du</span>{:else if player.isHost}<span class="rank-you">Host</span>{/if}
+            </span>
+            <span class="rank-num rank-score ui-num">{player.score ?? 0}</span>
+          </li>
         {/each}
-      </div>
+      </ol>
     </div>
+  {/if}
 
-    <div>
-      <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Aktionen</h3>
-      <div class="mt-3 space-y-2 text-sm text-slate-600">
-        <p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">Revanche: <span class="font-semibold text-slate-950">{requests.rematch.length}</span></p>
-        <p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">Neues Spiel: <span class="font-semibold text-slate-950">{requests.newGame.length}</span></p>
-      </div>
-
-      <div class="mt-5 flex flex-col gap-3">
-        {#if currentPlayerLost || isDraw}
-          <button type="button" on:click={onRequestRematch} disabled={isLoading || alreadyRequestedRematch} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-cyan-300 hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60">
-            {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<RotateCcw size={18} />{/if}
-            {alreadyRequestedRematch ? 'Revanche angefragt' : 'Revanche fordern'}
-          </button>
-        {/if}
-
-        {#if currentPlayerWon || isDraw}
-          <button type="button" on:click={onRequestNewGame} disabled={isLoading || alreadyRequestedNewGame} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:border-emerald-300 hover:text-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60">
-            {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<Gamepad2 size={18} />{/if}
-            {alreadyRequestedNewGame ? 'Neues Spiel angefragt' : 'Neues Spiel anfordern'}
-          </button>
-        {/if}
-      </div>
-    </div>
+  <div class="result-next">
+  <div class="result-actions">
+    {#if isHost}
+      <button type="button" on:click={onPlayAgain} disabled={isLoading} class="ui-btn ui-btn--primary ui-btn--lg">
+        {#if isLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{/if}
+        {primaryLabel}
+      </button>
+      <button type="button" on:click={onBackToGames} disabled={isLoading} class="ui-btn ui-btn--lg">Zur Spielauswahl</button>
+    {:else}
+      {#if currentPlayerLost || isDraw}
+        <button type="button" on:click={onRequestRematch} disabled={isLoading || alreadyRequestedRematch} class="ui-btn ui-btn--lg">
+          {#if isLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{/if}
+          {alreadyRequestedRematch ? 'Revanche angefragt' : 'Revanche fordern'}
+        </button>
+      {/if}
+      {#if currentPlayerWon || isDraw}
+        <button type="button" on:click={onRequestNewGame} disabled={isLoading || alreadyRequestedNewGame} class="ui-btn ui-btn--lg">
+          {#if isLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{/if}
+          {alreadyRequestedNewGame ? 'Neues Spiel angefragt' : 'Neues Spiel vorschlagen'}
+        </button>
+      {/if}
+    {/if}
   </div>
 
+  <p class="result-wait" aria-live="polite">
+    {#if !isHost}
+      <LoaderCircle class="animate-spin" size={16} aria-hidden="true" />
+      Warte auf den Host{requestSummary ? ` · ${requestSummary}` : '.'}
+    {:else if requestSummary}
+      {requestSummary}.
+    {/if}
+  </p>
+  </div>
+
+  {#if skyjoRoundHistory.length && skyjoHistoryPlayers.length}
+    <div class="result-block">
+      <h3 class="ui-section-title">Runden im Überblick</h3>
+      <div class="history-scroll">
+        <table class="history">
+          <thead>
+            <tr>
+              <th scope="col">Runde</th>
+              {#each skyjoHistoryPlayers as player (player.id)}
+                <th scope="col" class="history-num">{player.name}</th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each skyjoRoundHistory as round (round.round)}
+              <tr>
+                <th scope="row" class="ui-num">{round.round}</th>
+                {#each skyjoHistoryPlayers as player (player.id)}
+                  <td class="history-num ui-num">{scoreForRound(round, player.id)}</td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {/if}
 
   {#if skyjoBoards.length}
-    <div class="relative z-10 mt-7 rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h3 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">Aufgedeckte Karten</h3>
-          <p class="mt-1 text-sm text-slate-500">Alle Spielerfelder am Ende dieser Runde.</p>
-        </div>
-        <span class="text-sm font-semibold text-slate-700">{skyjoBoards.length} Spieler</span>
+    <div class="result-block">
+      <div class="result-block-head">
+        <h3 class="ui-section-title">Aufgedeckte Karten</h3>
+        <p class="ui-muted text-sm">Alle Felder am Ende der Runde</p>
       </div>
-
-      <div class="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
+      <div class="boards">
         {#each skyjoBoards as board (board.playerId)}
-          <section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h4 class="truncate text-sm font-semibold text-slate-950">{board.playerName}</h4>
-              <span class="rounded-md bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-                {roundScores.find((score) => score.playerId === board.playerId)?.score ?? 0}
-              </span>
+          <section class="ui-card board">
+            <div class="board-head">
+              <span class="ui-avatar rank-avatar" style="--player: {playerColor(board.playerId)}" aria-hidden="true">{initials(board.playerName)}</span>
+              <h4 class="rank-name">{board.playerName}</h4>
+              <span class="rank-score ui-num">{roundScores.find((score) => score.playerId === board.playerId)?.score ?? 0}</span>
             </div>
             <div class="grid grid-cols-4 gap-1.5">
               {#each board.cards as card, cardIndex (cardIndex)}
@@ -282,20 +294,47 @@
       </div>
     </div>
   {/if}
-  {#if isHost}
-    <div class="relative z-10 mt-7 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
-      <p class="text-sm font-semibold text-cyan-950">Host-Entscheidung</p>
-      <div class="mt-3 flex flex-col gap-3 sm:flex-row">
-        <button type="button" on:click={onPlayAgain} disabled={isLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-cyan-300">
-          {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<RotateCcw size={18} />{/if}
-          {skyjoMatch?.enabled && !skyjoMatch?.matchFinished ? 'Naechste Runde starten' : 'Erneut spielen'}
-        </button>
-        <button type="button" on:click={onBackToGames} disabled={isLoading} class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-emerald-300">
-          {#if isLoading}<LoaderCircle class="animate-spin" size={18} />{:else}<Gamepad2 size={18} />{/if}
-          Zur Spielauswahl
-        </button>
-      </div>
-    </div>
-  {/if}
-</div>
+</section>
 
+<style>
+  .result { display: flex; flex-direction: column; gap: 28px; max-width: 640px; margin-inline: auto; padding: 16px 0 32px; color: var(--text); }
+  .result--wide { max-width: none; padding: 0; }
+  @media (min-width: 768px) { .result { padding-top: 40px; } .result--wide { padding-top: 0; } }
+
+  .result-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .result-hero { width: 56px; height: 56px; margin-bottom: 12px; font-size: 1.125rem; }
+
+  .result-block { display: flex; flex-direction: column; gap: 10px; }
+  .result-block-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+
+  .rank-list { margin: 0; padding: 6px; list-style: none; border-radius: var(--radius-card); background: var(--surface); }
+  .rank-row { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; }
+  .rank-row--4, .rank-row--head { grid-template-columns: 1.75rem minmax(0, 1fr) 4rem 4rem; }
+  .rank-row--head { min-height: 32px; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
+  .rank-pos { font-size: 0.9375rem; font-weight: 600; color: var(--muted); }
+  .rank-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .rank-avatar { width: 30px; height: 30px; font-size: 0.75rem; }
+  .rank-name { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9375rem; font-weight: 600; }
+  .rank-you { flex-shrink: 0; font-size: 0.8125rem; color: var(--muted); }
+  .rank-num { text-align: right; }
+  .rank-score { font-size: 1.0625rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .result-actions { display: flex; flex-direction: column; gap: 10px; }
+  .result-actions:empty { display: none; }
+  @media (min-width: 640px) { .result-actions { flex-direction: row; flex-wrap: wrap; } }
+
+  .result-next { display: flex; flex-direction: column; gap: 12px; }
+  .result-wait { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.9375rem; color: var(--muted); }
+
+  .history-scroll { overflow-x: auto; border-radius: var(--radius-inner); background: var(--surface); }
+  .history { width: 100%; min-width: 28rem; border-collapse: collapse; font-size: 0.9375rem; }
+  .history th, .history td { padding: 10px 14px; text-align: left; white-space: nowrap; }
+  .history thead th { font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
+  .history tbody tr { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+  .history tbody th { font-weight: 600; color: var(--muted); }
+  .history-num { text-align: right !important; font-variant-numeric: tabular-nums; }
+
+  .boards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
+  .board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .board-head .rank-name { flex: 1; font-size: 0.875rem; }
+</style>

@@ -13,7 +13,7 @@
 export const skyjoGame = {
   id: 'skyjo',
   name: 'Skyjo',
-  description: 'Kartenspielrunde mit niedrigen Punkten, Ablage und finalen Zuegen.',
+  description: 'Kartenspiel: Sammle möglichst wenige Punkte, tausche und decke Karten auf.',
   previewImage: '/images/skyjo-scene.png',
   minPlayers: 2,
   maxPlayers: 8

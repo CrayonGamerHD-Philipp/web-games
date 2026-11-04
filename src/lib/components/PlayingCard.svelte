@@ -3,126 +3,395 @@
 
   /** @type {number | null} */
   export let value = null;
+  /** Card shows its back. */
   /** @type {boolean} */
   export let hidden = false;
+  /** Slot is empty (cleared column/row). */
   /** @type {boolean} */
   export let removed = false;
+  /** Card is picked up / active. */
   /** @type {boolean} */
   export let selected = false;
+  /** Card cannot be activated. */
   /** @type {boolean} */
   export let disabled = false;
   /** @type {boolean} */
   export let draggable = false;
+  /** Card is a valid target for the current action. */
   /** @type {boolean} */
   export let dropTarget = false;
   /** @type {string} */
   export let label = 'Karte';
-  /** @type {'sm' | 'md'} */
+  /** Kept for API compatibility; the card always fills its parent's width. */
+  /** @type {'xs' | 'sm' | 'md'} */
   export let size = 'md';
   /** @type {number} */
   export let revealDelayMs = 0;
+  /** Optional small badge (e.g. deck count). */
+  /** @type {string | number | null} */
+  export let badge = null;
 
   const dispatch = createEventDispatcher();
-  let lastTouchActivation = 0;
 
-  $: tone = value === null ? 'neutral' : value < 0 ? 'low' : value === 0 ? 'zero' : value >= 10 ? 'high' : 'mid';
-  $: valueClass = tone === 'low'
-    ? 'text-cyan-700 bg-cyan-50 ring-cyan-100'
-    : tone === 'zero'
-      ? 'text-slate-700 bg-slate-50 ring-slate-100'
-      : tone === 'high'
-        ? 'text-rose-700 bg-rose-50 ring-rose-100'
-        : tone === 'mid'
-          ? 'text-emerald-700 bg-emerald-50 ring-emerald-100'
-          : 'text-slate-400 bg-slate-50 ring-slate-100';
-  $: accentClass = tone === 'low'
-    ? 'from-cyan-500 to-cyan-300'
-    : tone === 'zero'
-      ? 'from-slate-400 to-slate-200'
-      : tone === 'high'
-        ? 'from-rose-500 to-amber-300'
-        : tone === 'mid'
-          ? 'from-emerald-500 to-cyan-300'
-          : 'from-slate-300 to-slate-200';
-  $: valueSize = size === 'sm' ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl';
-  $: cornerSize = size === 'sm' ? 'text-[0.58rem] sm:text-xs' : 'text-xs sm:text-sm';
-  // A single playing card keeps a proportionally smaller radius than the app's
-  // page-level rounded-2xl panels; sm cards (used everywhere in-game) get a
-  // slightly tighter radius than the larger md variant.
-  $: radiusClass = size === 'sm' ? 'rounded-lg' : 'rounded-xl';
-  $: innerRadiusClass = size === 'sm' ? 'rounded-[0.5rem]' : 'rounded-[0.65rem]';
-
-  /** @param {Event} event */
-  function activate(event) {
-    if (disabled) return;
-    dispatch('activate', event);
-  }
-
-  /** @param {PointerEvent} event */
-  function handlePointerUp(event) {
-    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
-    event.preventDefault();
-    lastTouchActivation = Date.now();
-    activate(event);
-  }
+  $: tone = value === null
+    ? 'none'
+    : value < 0
+      ? 'neg'
+      : value === 0
+        ? 'zero'
+        : value <= 4
+          ? 'low'
+          : value <= 8
+            ? 'mid'
+            : 'high';
+  $: ambiguous = value === 6 || value === 9;
+  $: accessibleLabel = removed
+    ? `${label}: abgeräumt`
+    : hidden
+      ? `${label}: verdeckt`
+      : value === null
+        ? label
+        : `${label}: ${value}`;
 
   /** @param {MouseEvent} event */
   function handleClick(event) {
-    if (Date.now() - lastTouchActivation < 650) return;
-    activate(event);
+    if (disabled || removed) return;
+    dispatch('activate', event);
   }
 </script>
 
 <button
   type="button"
-  {disabled}
-  {draggable}
-  aria-label={label}
-  class="group relative aspect-[2.5/3.5] w-full min-w-0 touch-manipulation select-none {radiusClass} transition duration-200 [perspective:900px] [-webkit-tap-highlight-color:transparent] disabled:cursor-default {selected ? 'scale-[1.03]' : ''} {removed ? 'opacity-35' : ''} {dropTarget ? 'ring-4 ring-cyan-100' : ''}"
-  on:pointerup={handlePointerUp}
+  class="pc pc--{size}"
+  class:is-hidden={hidden}
+  class:is-removed={removed}
+  class:is-selected={selected}
+  class:is-target={dropTarget && !removed}
+  class:is-disabled={disabled}
+  aria-disabled={disabled || removed}
+  aria-pressed={selected ? 'true' : undefined}
+  tabindex={disabled || removed ? -1 : 0}
+  draggable={draggable && !disabled && !removed}
+  aria-label={accessibleLabel}
+  style={`--pc-delay: ${revealDelayMs}ms`}
   on:click={handleClick}
   on:dragstart
   on:dragover
+  on:dragenter
+  on:dragleave
   on:drop
   on:dragend
 >
-  <span
-    class="absolute inset-0 {radiusClass} transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] [transform-style:preserve-3d] {hidden ? '[transform:rotateY(180deg)]' : ''} {selected ? 'ring-4 ring-cyan-100' : ''}"
-    style={`transition-delay: ${revealDelayMs}ms;`}
-  >
-    <span
-      class="playing-card-front absolute inset-0 overflow-hidden {radiusClass} border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05),0_8px_16px_-10px_rgba(15,23,42,0.2)] ring-1 ring-inset ring-slate-900/5 transition-[transform,box-shadow] duration-200 [backface-visibility:hidden] {disabled || removed ? '' : 'group-hover:-translate-y-0.5 group-hover:shadow-[0_2px_4px_rgba(15,23,42,0.06),0_16px_26px_-12px_rgba(15,23,42,0.3)]'}"
-    >
-      <span class="absolute left-0 top-0 h-full w-1 bg-gradient-to-b sm:w-1.5 {accentClass}"></span>
-
-      {#if removed}
-        <span class="absolute inset-0 flex items-center justify-center bg-slate-50">
-          <span class="h-7 w-7 rounded-md border border-dashed border-slate-300 sm:h-9 sm:w-9"></span>
+  {#if removed}
+    <span class="pc-empty" aria-hidden="true"></span>
+  {:else}
+    <span class="pc-lift">
+      <span class="pc-inner">
+        <span class="pc-face pc-front" data-tone={tone} aria-hidden="true">
+          {#if value !== null}
+            <span class="pc-corner pc-corner--tl" class:is-ambiguous={ambiguous}>{value}</span>
+            <span class="pc-oval">
+              <span class="pc-num" class:is-ambiguous={ambiguous}>{value}</span>
+            </span>
+            <span class="pc-corner pc-corner--br" class:is-ambiguous={ambiguous}>{value}</span>
+          {/if}
         </span>
-      {:else}
-        <span class="absolute right-1.5 top-1.5 hidden rounded-md px-1.5 py-0.5 font-semibold leading-none ring-1 sm:block {cornerSize} {valueClass}">{value}</span>
-        <span class="absolute bottom-1.5 left-2 hidden rounded-md px-1.5 py-0.5 font-semibold leading-none ring-1 sm:block {cornerSize} {valueClass}">{value}</span>
-
-        <span class="absolute inset-0 flex items-center justify-center px-1.5">
-          <span class="min-w-9 rounded-lg px-2 py-1 text-center font-semibold leading-none shadow-sm ring-1 sm:min-w-12 sm:px-3 sm:py-1.5 {valueSize} {valueClass}">{value}</span>
-        </span>
-      {/if}
-    </span>
-
-    <span
-      class="absolute inset-0 overflow-hidden {radiusClass} border border-cyan-300 bg-cyan-600 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_8px_16px_-10px_rgba(15,23,42,0.2)] transition-[transform,box-shadow] duration-200 [backface-visibility:hidden] [transform:rotateY(180deg)] {disabled || removed ? '' : 'group-hover:-translate-y-0.5 group-hover:shadow-[0_2px_4px_rgba(15,23,42,0.06),0_16px_26px_-12px_rgba(15,23,42,0.3)]'}"
-    >
-      <span class="absolute inset-0 bg-[radial-gradient(circle_at_28%_18%,rgba(255,255,255,0.4),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.16),transparent_55%),linear-gradient(320deg,rgba(0,0,0,0.14),transparent_58%)]"></span>
-      <span class="absolute inset-1.5 {innerRadiusClass} border border-white/35 sm:inset-2"></span>
-      <span class="absolute inset-2.5 rounded-md border border-white/15 sm:inset-3"></span>
-      <span class="absolute inset-0 flex items-center justify-center">
-        <span class="grid h-8 w-8 rotate-45 grid-cols-2 gap-1 opacity-90 drop-shadow-sm sm:h-10 sm:w-10">
-          <span class="rounded-sm bg-white/85"></span>
-          <span class="rounded-sm bg-white/30"></span>
-          <span class="rounded-sm bg-white/30"></span>
-          <span class="rounded-sm bg-white/85"></span>
+        <span class="pc-face pc-back" aria-hidden="true">
+          <span class="pc-back-frame"></span>
+          <span class="pc-back-mark"></span>
         </span>
       </span>
     </span>
-  </span>
+  {/if}
+  {#if badge !== null && badge !== undefined}
+    <span class="pc-badge" aria-hidden="true">{badge}</span>
+  {/if}
 </button>
+
+<style>
+  .pc {
+    --pc-radius: clamp(5px, 9cqw, 12px);
+    --pc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --pc-ring: var(--accent-main, #1b6e66);
+
+    position: relative;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 5 / 7;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    border-radius: 10px;
+    border-radius: var(--pc-radius);
+    container-type: inline-size;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+    outline: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pc.is-disabled,
+  .pc.is-removed {
+    cursor: default;
+  }
+
+  /* Lift layer: hover / selection movement lives here, never on the faces,
+     so it cannot clobber the flip rotation. */
+  .pc-lift {
+    position: absolute;
+    inset: 0;
+    display: block;
+    border-radius: inherit;
+    transition: transform 180ms var(--pc-ease);
+    perspective: 900px;
+  }
+
+  .pc-inner {
+    position: absolute;
+    inset: 0;
+    display: block;
+    border-radius: inherit;
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+    transform: rotateY(0deg);
+    transition: transform 520ms var(--pc-ease);
+    transition-delay: var(--pc-delay, 0ms);
+  }
+
+  .pc.is-hidden .pc-inner {
+    transform: rotateY(180deg);
+  }
+
+  .pc-face {
+    position: absolute;
+    inset: 0;
+    display: block;
+    overflow: hidden;
+    border-radius: inherit;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    /* Ruhend nur eine feine Kante, kein Schatten (DESIGN.md). */
+    box-shadow: 0 0 0 1px rgb(15 23 42 / 0.16);
+    transition: box-shadow 180ms ease;
+  }
+
+  /* ---------- Front ---------- */
+  .pc-front {
+    transform: rotateY(0deg) translateZ(0.5px);
+    background: #f4f1ea;
+    color: #fff;
+  }
+
+  .pc-front[data-tone='neg'] { --tone: #2f3fb3; --tone-ink: #1e2a80; }
+  .pc-front[data-tone='zero'] { --tone: #2aa7d9; --tone-ink: #0d6f97; }
+  .pc-front[data-tone='low'] { --tone: #2f9e57; --tone-ink: #1d6b3a; }
+  .pc-front[data-tone='mid'] { --tone: #f0c331; --tone-ink: #7a5a00; }
+  .pc-front[data-tone='high'] { --tone: #dc4646; --tone-ink: #9c1f24; }
+  .pc-front[data-tone='none'] { --tone: #e2ddd2; --tone-ink: #8a8478; }
+
+  .pc-front:not([data-tone='none']) {
+    background: var(--tone);
+  }
+
+  /* Inset paper frame so every colour still reads as a card. */
+  .pc-front::before {
+    content: '';
+    position: absolute;
+    inset: 5cqw;
+    border-radius: calc(var(--pc-radius) * 0.7);
+    border: max(1px, 1.6cqw) solid rgb(255 255 255 / 0.45);
+    pointer-events: none;
+  }
+
+  .pc-front[data-tone='mid'] {
+    color: #3f2f00;
+  }
+
+  .pc-oval {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 64%;
+    height: 52%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fffdf8;
+    box-shadow: inset 0 0 0 max(1px, 1.4cqw) rgb(0 0 0 / 0.08);
+  }
+
+  .pc-num {
+    font-size: 1.6rem;
+    font-size: 40cqw;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--tone-ink);
+  }
+
+  .pc-corner {
+    position: absolute;
+    font-size: 0.7rem;
+    font-size: 15cqw;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .pc-corner--tl {
+    left: 10cqw;
+    top: 9cqw;
+  }
+
+  .pc-corner--br {
+    right: 10cqw;
+    bottom: 9cqw;
+    transform: rotate(180deg);
+  }
+
+  .is-ambiguous {
+    text-decoration: underline;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.08em;
+  }
+
+  /* ---------- Back ---------- */
+  .pc-back {
+    transform: rotateY(180deg) translateZ(0.5px);
+    background-color: #17233b;
+    background-image:
+      repeating-linear-gradient(45deg, rgb(255 255 255 / 0.07) 0 2px, transparent 2px 9px),
+      repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.07) 0 2px, transparent 2px 9px);
+  }
+
+  .pc-back-frame {
+    position: absolute;
+    inset: 6cqw;
+    border-radius: calc(var(--pc-radius) * 0.7);
+    border: max(1px, 1.6cqw) solid var(--pc-ring);
+    opacity: 0.85;
+  }
+
+  .pc-back-mark {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 30cqw;
+    height: 30cqw;
+    border-radius: 18%;
+    background: var(--pc-ring);
+    transform: translate(-50%, -50%) rotate(45deg);
+    box-shadow: 0 0 0 max(2px, 3cqw) #17233b, 0 0 0 max(3px, 4.6cqw) rgb(255 255 255 / 0.35);
+  }
+
+  /* ---------- Empty slot ---------- */
+  .pc-empty {
+    position: absolute;
+    inset: 0;
+    display: block;
+    border-radius: inherit;
+    border: 2px dashed var(--control, #d9d9d6);
+    background: transparent;
+  }
+
+  /* ---------- Badge ---------- */
+  .pc-badge {
+    position: absolute;
+    right: -6px;
+    top: -6px;
+    z-index: 2;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--text, #1f201d);
+    color: var(--ground, #fff);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--surface, #f6f6f4);
+  }
+
+  /* ---------- States ---------- */
+  .pc.is-selected .pc-lift {
+    transform: translateY(-7%);
+  }
+
+  .pc.is-selected .pc-face {
+    box-shadow:
+      0 0 0 3px var(--pc-ring),
+      0 10px 20px -8px rgb(15 23 42 / 0.45);
+  }
+
+  .pc.is-target .pc-lift::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: calc(var(--pc-radius) + 4px);
+    border: 2px dashed var(--pc-ring);
+    pointer-events: none;
+    animation: pc-target 1.4s ease-in-out infinite;
+  }
+
+  .pc:focus-visible .pc-face,
+  .pc:focus-visible .pc-empty {
+    box-shadow: 0 0 0 2px var(--ground, #fff), 0 0 0 4px var(--pc-ring);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .pc:not(.is-disabled):not(.is-removed):hover .pc-lift {
+      transform: translateY(-4%);
+    }
+
+    .pc.is-selected:not(.is-disabled):hover .pc-lift {
+      transform: translateY(-8%);
+    }
+
+    .pc:not(.is-disabled):not(.is-removed):hover .pc-face {
+      box-shadow:
+        0 0 0 1px rgb(15 23 42 / 0.18),
+        0 10px 18px -8px rgb(15 23 42 / 0.45);
+    }
+
+    .pc.is-selected:not(.is-disabled):hover .pc-face {
+      box-shadow:
+        0 0 0 3px var(--pc-ring),
+        0 12px 22px -8px rgb(15 23 42 / 0.5);
+    }
+  }
+
+  .pc:not(.is-disabled):not(.is-removed):active .pc-lift {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 80ms;
+  }
+
+  @keyframes pc-target {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+
+  /* Tiny cards (opponent boards): drop the corner indices. */
+  @container (max-width: 46px) {
+    .pc-corner { display: none; }
+    .pc-oval { width: 78%; height: 58%; }
+    .pc-num { font-size: 46cqw; }
+    .pc-front::before { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pc-inner { transition-duration: 1ms; transition-delay: 0ms; }
+    .pc-lift { transition: none; }
+    .pc.is-target .pc-lift::after { animation: none; }
+  }
+</style>
