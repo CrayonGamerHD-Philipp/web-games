@@ -555,7 +555,9 @@ export function restartGame(code, token) {
     return { party: publicParty(party, viewerIdFor(party, token)) };
   }
 
-  return startGame(code, getHost(party)?.token, gameId);
+  // Bei Revanchen kann ein Spiel den Startspieler wechseln (z. B. Vier in einer Reihe).
+  const previousStarterId = /** @type {any} */ (party.activeGame?.state)?.startPlayerId;
+  return startGame(code, getHost(party)?.token, gameId, previousStarterId ? { previousStarterId } : {});
 }
 
 /**

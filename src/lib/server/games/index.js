@@ -1,3 +1,7 @@
+import { createSudokuDuellSession, makeSudokuDuellMove, redactSudokuDuellSession, sudokuDuellGame } from '../../../games/sudoku-duell/server.js';
+import { abNachHauseGame, createAbNachHauseSession, makeAbNachHauseMove } from '../../../games/ab-nach-hause/server.js';
+import { createVierInEinerReiheSession, makeVierInEinerReiheMove, vierInEinerReiheGame } from '../../../games/vier-in-einer-reihe/server.js';
+import { createWuerfelblockSession, makeWuerfelblockMove, wuerfelblockGame } from '../../../games/wuerfelblock/server.js';
 import { createKunterbuntSession, kunterbuntGame, makeKunterbuntMove, redactKunterbuntSession } from '../../../games/kunterbunt/server.js';
 import { createNochMalSession, makeNochMalMove, nochMalGame } from '../../../games/noch-mal/server.js';
 import { createSchiffeVersenkenSession, makeSchiffeVersenkenMove, redactSchiffeVersenkenSession, schiffeVersenkenGame } from '../../../games/schiffe-versenken/server.js';
@@ -5,6 +9,56 @@ import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/sky
 import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
 const gameHandlers = [
+  {
+    definition: sudokuDuellGame,
+    createSession: createSudokuDuellSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeSudokuDuellMove(/** @type {Exclude<ReturnType<typeof createSudokuDuellSession>, { error: string }>} */ (session), playerId, move),
+    /**
+     * @param {unknown} session
+     * @param {string | null} viewerId
+     */
+    redact: (session, viewerId) =>
+      redactSudokuDuellSession(/** @type {Exclude<ReturnType<typeof createSudokuDuellSession>, { error: string }>} */ (session), viewerId)
+  },
+  {
+    definition: vierInEinerReiheGame,
+    createSession: createVierInEinerReiheSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeVierInEinerReiheMove(/** @type {Exclude<ReturnType<typeof createVierInEinerReiheSession>, { error: string }>} */ (session), playerId, move)
+  },
+  {
+    definition: wuerfelblockGame,
+    createSession: createWuerfelblockSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeWuerfelblockMove(/** @type {Exclude<ReturnType<typeof createWuerfelblockSession>, { error: string }>} */ (session), playerId, move)
+  },
+  {
+    definition: abNachHauseGame,
+    createSession: createAbNachHauseSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeAbNachHauseMove(/** @type {Exclude<ReturnType<typeof createAbNachHauseSession>, { error: string }>} */ (session), playerId, move)
+  },
   {
     definition: schiffeVersenkenGame,
     createSession: createSchiffeVersenkenSession,
@@ -110,7 +164,8 @@ export function createGameSession(gameId, players, options = {}) {
     return { error: 'Dieses Spiel ist nicht verfuegbar.' };
   }
 
-  return handler.createSession(players, options);
+  const createSession = /** @type {(players: { id: string, name: string }[], options: Record<string, unknown>) => any} */ (handler.createSession);
+  return createSession(players, options);
 }
 
 /**
