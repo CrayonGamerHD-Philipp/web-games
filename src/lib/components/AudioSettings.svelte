@@ -550,9 +550,9 @@
 {/if}
 
 <style>
-  /* Oben rechts, auf Höhe der Kopfzeile der Spielseite (12px mobil, 20px ab 640px). */
+  /* Oben rechts auf Höhe der Kopfzeile; scrollt mit der Seite, damit es nie Inhalte überdeckt. */
   .settings-anchor {
-    position: fixed;
+    position: absolute;
     top: max(12px, env(safe-area-inset-top));
     right: max(12px, env(safe-area-inset-right));
     z-index: 80;

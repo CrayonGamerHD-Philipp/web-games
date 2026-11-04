@@ -17,6 +17,19 @@
   let jokerColor: NochMalColor = 'lime';
   let jokerNumber = 1;
   let lastRollId = '';
+  // Der Zug wird lokal zusammengestellt (sofortiges Feedback) und erst beim Bestätigen gesendet.
+  let draft: string[] = [];
+  let draftKey = '';
+  let ownSection: HTMLElement | null = null;
+
+  // Auf dem Handy liegt das Blatt unter der Würfelablage: nach der Würfelwahl sanft dorthin scrollen.
+  function revealBoard() {
+    if (!ownSection || typeof window === 'undefined') return;
+    const top = ownSection.getBoundingClientRect().top;
+    if (top < window.innerHeight * 0.45) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: window.scrollY + top - 72, behavior: reduce ? 'auto' : 'smooth' });
+  }
   let lastFinishedGameId = '';
   let claimsInitializedForGameId = '';
   let knownClaimKeys = new Set<string>();
@@ -84,7 +97,7 @@
     peach: 'text-orange-700'
   };
 
-  $: nochMalVersion = game ? `${game.id}:${JSON.stringify(game.state)}:${JSON.stringify(game.players)}:${renderNonce}` : '';
+  $: void renderNonce;
   $: me = game?.players.find((player) => player.id === currentPlayerId) ?? null;
   $: opponents = game?.players.filter((player) => player.id !== currentPlayerId) ?? [];
   $: roll = game?.state.roll ?? null;
@@ -95,22 +108,38 @@
     numberDieIndex = null;
     jokerColor = 'lime';
     jokerNumber = 1;
+    draft = [];
   }
+  // Vom Server festgelegte Würfel (Startspieler im Vorteil) übernehmen.
+  $: diceLocked = Boolean(me && me.selectedColorDieIndex !== null && me.selectedNumberDieIndex !== null && !me.confirmed);
+  $: if (diceLocked && me) {
+    colorDieIndex = me.selectedColorDieIndex;
+    numberDieIndex = me.selectedNumberDieIndex;
+  }
+  $: if (me?.confirmed && draft.length) draft = [];
   $: if (game?.status === 'finished' && game.id !== lastFinishedGameId) {
     lastFinishedGameId = game.id;
     playSound(game.state.winnerId === currentPlayerId ? 'win' : 'lose');
   }
   $: selectedColorFace = roll && colorDieIndex !== null ? roll.colorDice[colorDieIndex] : null;
   $: selectedNumberFace = roll && numberDieIndex !== null ? roll.numberDice[numberDieIndex] : null;
-  $: selectedColor = me?.selectedColor ?? (selectedColorFace === 'joker' ? jokerColor : selectedColorFace);
-  $: selectedNumber = me?.selectedNumber ?? (selectedNumberFace === 'joker' ? jokerNumber : selectedNumberFace);
-  $: checkedSet = new Set(me ? [...me.checkedCells, ...me.pendingCells] : []);
-  $: pendingSet = new Set(me?.pendingCells ?? []);
+  $: selectedColor = (diceLocked ? me?.selectedColor : null) ?? (selectedColorFace === 'joker' ? jokerColor : selectedColorFace);
+  $: selectedNumber = (diceLocked ? me?.selectedNumber : null) ?? (selectedNumberFace === 'joker' ? jokerNumber : selectedNumberFace);
+  // Wechselt Farbe oder Zahl, passt die alte Auswahl nicht mehr: verwerfen.
+  $: {
+    const key = `${selectedColor ?? ''}:${selectedNumber ?? ''}`;
+    if (key !== draftKey) {
+      draftKey = key;
+      draft = [];
+    }
+  }
+  $: checkedSet = new Set(me ? [...me.checkedCells, ...draft] : []);
+  $: pendingSet = new Set(draft);
   $: localCompletedColumnScore = me ? bottomScore.reduce((sum, value, column) => sum + (rows.every((_, row) => me.checkedCells.includes(`${row}-${column}`)) ? value : 0), 0) : 0;
   $: completedColumnScore = me?.score.columnPoints ?? localCompletedColumnScore;
   $: starPenalty = me ? cells.filter((cell) => cell.hasStar && !me.checkedCells.includes(cell.id)).length * -2 : 0;
   $: colorBonus = me?.score.colorPoints ?? 0;
-  $: currentJokerCost = (selectedColorFace === 'joker' && !me?.selectedColor ? 1 : 0) + (selectedNumberFace === 'joker' && !me?.selectedNumber ? 1 : 0);
+  $: currentJokerCost = (selectedColorFace === 'joker' ? 1 : 0) + (selectedNumberFace === 'joker' ? 1 : 0);
   $: remainingJokers = Math.max(0, jokerCount - (me?.usedJokers ?? 0) - currentJokerCost);
   $: jokerPenalty = me?.score.jokerPenalty ?? (jokerCount - (me?.usedJokers ?? 0));
   $: totalScore = me?.score.total ?? completedColumnScore + colorBonus + starPenalty + jokerPenalty;
@@ -123,11 +152,13 @@
   $: isPassiveWaiting = Boolean(isAdvantageRound && !isActivePlayer && !activeSelectionDone && !activePlayerSkipped);
   $: canChooseDiceThisRound = Boolean(me && !me.confirmed && (!isAdvantageRound || isActivePlayer || activeSelectionDone || activePlayerSkipped));
   $: hasLocalDiceSelection = Boolean(me && roll && canChooseDiceThisRound && colorDieIndex !== null && numberDieIndex !== null && selectedColor && selectedNumber !== null && isColorDieAvailable(colorDieIndex) && isNumberDieAvailable(numberDieIndex));
-  $: hasActiveDiceSelection = Boolean(me && !me.confirmed && ((me.selectedColor && me.selectedNumber) || hasLocalDiceSelection));
-  $: canSelectDice = Boolean(hasLocalDiceSelection && !me?.selectedColor && !me?.selectedNumber);
-  $: canConfirm = Boolean(me && !me.confirmed && me.selectedColor && me.selectedNumber && me.pendingCells.length === me.selectedNumber && isConnectedGroup(me.pendingCells) && hasValidAnchor(me, me.pendingCells));
+  $: hasActiveDiceSelection = Boolean(me && !me.confirmed && (diceLocked || hasLocalDiceSelection));
+  // Nur der Startspieler in Vorteilsrunden muss seine Würfel vorab festlegen, damit die anderen weiterspielen können.
+  $: mustLockDice = Boolean(isAdvantageRound && isActivePlayer && !activeSelectionDone);
+  $: canSelectDice = Boolean(mustLockDice && hasLocalDiceSelection && !diceLocked);
+  $: canConfirm = Boolean(me && !me.confirmed && hasActiveDiceSelection && !mustLockDice && selectedColor && selectedNumber && draft.length === Number(selectedNumber) && isConnectedGroup(draft) && hasValidAnchor(me, draft));
   $: isMyMove = Boolean(me && !me.confirmed && game?.status !== 'finished' && game?.state.phase !== 'finished' && !isPassiveWaiting);
-  $: actionText = getActionText();
+  $: actionText = getActionText(game, me, isPassiveWaiting, activePlayerSkipped, mustLockDice, hasActiveDiceSelection, selectedColor, selectedNumber, draft);
   $: if (game) detectNewAchievements(game);
 
   function claimKey(kind: 'column' | 'color', value: string | number, tier: 'first' | 'normal', playerId: string) {
@@ -315,20 +346,29 @@
     };
   }
 
-  function getActionText() {
+  function getActionText(
+    game: NochMalSession | null,
+    me: NochMalPlayer | null,
+    isPassiveWaiting: boolean,
+    activePlayerSkipped: boolean,
+    mustLockDice: boolean,
+    hasDice: boolean,
+    color: NochMalColor | null | undefined,
+    number: number | null | undefined,
+    draft: string[]
+  ) {
     if (!game) return 'Noch mal wird über eine Party gestartet.';
     if (!me) return 'Du schaust diese Runde zu.';
     if (game.status === 'finished' || game.state.phase === 'finished') return 'Die Partie ist beendet.';
     if (me.confirmed) return 'Zug bestätigt. Warte auf die anderen Spieler.';
     if (isPassiveWaiting) return `Warte auf die Auswahl von ${activePlayer?.name ?? 'dem Startspieler'}.`;
-    if (activePlayerSkipped && !isActivePlayer && !me.confirmed && !me.selectedColor) return `${activePlayer?.name ?? 'Der Startspieler'} passt. Wähle aus allen Würfeln.`;
-    if (isAdvantageRound && isActivePlayer && !activeSelectionDone && !me.selectedColor) return 'Du bist Startspieler: Wähle zuerst einen Farb- und einen Zahlenwürfel.';
-    if (!me.selectedColor || !me.selectedNumber) return 'Wähle einen Farbwürfel und einen Zahlenwürfel.';
-    if (me.pendingCells.length === 0) return `Markiere genau ${me.selectedNumber} zusammenhängende ${colorNames[me.selectedColor]}-Felder.`;
-    if (!isConnectedGroup(me.pendingCells)) return 'Die Auswahl muss orthogonal zusammenhängen.';
-    if (!hasValidAnchor(me, me.pendingCells)) return me.checkedCells.length === 0 ? 'Der erste Zug muss die H-Spalte berühren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschließen oder die H-Spalte berühren.';
-    if (me.pendingCells.length !== me.selectedNumber) return `Noch ${me.selectedNumber - me.pendingCells.length} Feld(er) auswählen.`;
-    return 'Auswahl gültig. Bestätige deinen Zug.';
+    if (activePlayerSkipped && !hasDice) return `${game.players.find((p) => p.id === game.state.activePlayerId)?.name ?? 'Der Startspieler'} passt. Wähle aus allen Würfeln.`;
+    if (!hasDice || !color || !number) return mustLockDice ? 'Du bist Startspieler: Wähle einen Farb- und einen Zahlenwürfel.' : 'Wähle einen Farbwürfel und einen Zahlenwürfel.';
+    if (mustLockDice) return 'Lege deine Würfel fest, damit die anderen weiterspielen können.';
+    const first = me.checkedCells.length === 0;
+    if (draft.length === 0) return first ? `Kreuze ${number} ${colorNames[color]}-${number === 1 ? 'Feld' : 'Felder'} an – das erste in Spalte H.` : `Kreuze ${number} zusammenhängende ${colorNames[color]}-${number === 1 ? 'Feld' : 'Felder'} an.`;
+    if (draft.length < number) return `Noch ${number - draft.length} ${number - draft.length === 1 ? 'Feld' : 'Felder'} – die hellen Felder sind möglich.`;
+    return 'Passt! Bestätige deinen Zug.';
   }
 
   function getAudio(name: SoundName) {
@@ -389,6 +429,7 @@
     playSound('select');
     colorDieIndex = index;
     if (shouldAutoSelectDice(index, numberDieIndex)) setTimeout(selectDice, 0);
+    if (numberDieIndex !== null) void tick().then(revealBoard);
   }
 
   function chooseNumberDie(index: number) {
@@ -396,44 +437,50 @@
     playSound('select');
     numberDieIndex = index;
     if (shouldAutoSelectDice(colorDieIndex, index)) setTimeout(selectDice, 0);
+    if (colorDieIndex !== null) void tick().then(revealBoard);
   }
 
   function clearSelection() {
     playSound('select');
-    onMove({ type: 'clear-selection' });
+    draft = [];
   }
-
   function confirmTurn() {
-    if (!canConfirm) return;
+    if (!canConfirm || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return;
     playSound('confirm');
-    onMove({ type: 'confirm-turn' });
+    onMove({ type: 'submit-turn', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber), cellIds: draft });
   }
 
   function skipTurn() {
     playSound('notify');
+    draft = [];
     onMove({ type: 'skip-turn' });
   }
 
   function toggleCell(cellId: string) {
-    if (!me || me.confirmed || !hasActiveDiceSelection) return;
-    if (!me.selectedColor || !me.selectedNumber) {
-      if (!canSelectDice || colorDieIndex === null || numberDieIndex === null || !selectedColor || selectedNumber === null) return;
-      playSound('mark');
-      onMove({ type: 'select-dice-and-toggle-cell', colorDieIndex, numberDieIndex, color: selectedColor, number: Number(selectedNumber), cellId });
+    if (!me || me.confirmed || !hasActiveDiceSelection || mustLockDice) return;
+    if (draft.includes(cellId)) {
+      // Entfernen nur, wenn der Rest zusammenhängend bleibt; sonst alles ab diesem Feld verwerfen.
+      const rest = draft.filter((id) => id !== cellId);
+      draft = rest.length === 0 || isConnectedGroup(rest) ? rest : [];
+      playSound('select');
       return;
     }
-    playSound(pendingSet.has(cellId) ? 'select' : 'mark');
-    onMove({ type: 'toggle-cell', cellId });
+    if (!isCellSelectable({ id: cellId, color: cells.find((cell) => cell.id === cellId)?.color ?? 'lime' }, draft, selectedColor, selectedNumber)) return;
+    draft = [...draft, cellId];
+    playSound('mark');
   }
-
-  function isCellSelectable(cell: { id: string; color: NochMalColor }) {
-    if (!me || me.confirmed || !hasActiveDiceSelection) return false;
+  function isCellSelectable(
+    cell: { id: string; color: NochMalColor },
+    currentDraft: string[] = draft,
+    color: NochMalColor | null | undefined = selectedColor,
+    number: number | null | undefined = selectedNumber
+  ) {
+    if (!me || me.confirmed || !hasActiveDiceSelection || mustLockDice) return false;
     if (me.checkedCells.includes(cell.id)) return false;
-    if (selectedColor && cell.color !== selectedColor) return false;
-    if (pendingSet.has(cell.id)) return true;
-    if (selectedNumber === null || me.pendingCells.length >= Number(selectedNumber)) return false;
-
-    const candidate = [...me.pendingCells, cell.id];
+    if (color && cell.color !== color) return false;
+    if (currentDraft.includes(cell.id)) return true;
+    if (number === null || number === undefined || currentDraft.length >= Number(number)) return false;
+    const candidate = [...currentDraft, cell.id];
     return isConnectedGroup(candidate) && hasValidAnchor(me, candidate);
   }
 
@@ -538,7 +585,6 @@
       </p>
     </header>
 
-    {#key nochMalVersion}
     <div class="nm-layout">
       <!-- 2. Würfelablage: was kann ich jetzt tun? -->
       <aside class="nm-tray-col">
@@ -549,7 +595,7 @@
               {#each game.state.roll.colorDice as die, index (`color-${game.state.roll.id}-${index}`)}
                 {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeColorDieIndex}
                 {@const picked = colorDieIndex === index || me?.selectedColorDieIndex === index}
-                {@const off = isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || Boolean(me?.selectedColor)}
+                {@const off = isLoading || me?.confirmed || !canChooseDiceThisRound || !isColorDieAvailable(index) || diceLocked}
                 <button
                   type="button"
                   disabled={off}
@@ -577,7 +623,7 @@
               {#each game.state.roll.numberDice as die, index (`number-${game.state.roll.id}-${index}`)}
                 {@const removedByActive = isAdvantageRound && activeSelectionDone && !isActivePlayer && !activePlayerSkipped && index === game.state.activeNumberDieIndex}
                 {@const picked = numberDieIndex === index || me?.selectedNumberDieIndex === index}
-                {@const off = isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || Boolean(me?.selectedNumber)}
+                {@const off = isLoading || me?.confirmed || !canChooseDiceThisRound || !isNumberDieAvailable(index) || diceLocked}
                 <button
                   type="button"
                   disabled={off}
@@ -594,36 +640,53 @@
           </div>
 
           {#if selectedColorFace === 'joker' || selectedNumberFace === 'joker'}
-            <div class="grid grid-cols-2 gap-3">
+            <div class="nm-joker">
               {#if selectedColorFace === 'joker'}
-                <label class="block">
-                  <span class="ui-label">Jokerfarbe</span>
-                  <select bind:value={jokerColor} class="ui-input">
+                <div role="radiogroup" aria-label="Jokerfarbe" class="nm-joker-row">
+                  <span class="ui-label nm-joker-label">Jokerfarbe</span>
+                  <div class="nm-joker-options">
                     {#each colors as color (color)}
-                      <option value={color}>{colorNames[color]}</option>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={jokerColor === color}
+                        aria-label={colorNames[color]}
+                        disabled={diceLocked}
+                        on:click={() => { jokerColor = color; playSound('select'); }}
+                        class="nm-joker-swatch {colorClass[color]}"
+                        class:is-on={jokerColor === color}
+                      ></button>
                     {/each}
-                  </select>
-                </label>
+                  </div>
+                </div>
               {/if}
               {#if selectedNumberFace === 'joker'}
-                <label class="block">
-                  <span class="ui-label">Jokerzahl</span>
-                  <select bind:value={jokerNumber} class="ui-input">
+                <div role="radiogroup" aria-label="Jokerzahl" class="nm-joker-row">
+                  <span class="ui-label nm-joker-label">Jokerzahl</span>
+                  <div class="nm-joker-options">
                     {#each [1, 2, 3, 4, 5] as value (value)}
-                      <option value={value}>{value}</option>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={jokerNumber === value}
+                        disabled={diceLocked}
+                        on:click={() => { jokerNumber = value; playSound('select'); }}
+                        class="nm-joker-num ui-num"
+                        class:is-on={jokerNumber === value}
+                      >{value}</button>
                     {/each}
-                  </select>
-                </label>
+                  </div>
+                </div>
               {/if}
             </div>
             {#if currentJokerCost > 0}
               <p class="ui-muted text-sm">Kostet <span class="ui-num">{currentJokerCost}</span> Joker, danach <span class="ui-num">{remainingJokers}</span> übrig.</p>
             {/if}
-            {#if !me?.selectedColor}
-              <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="ui-btn ui-btn--block">
-                {#if isLoading}<LoaderCircle class="animate-spin" size={17} aria-hidden="true" />{/if} Auswahl übernehmen
-              </button>
-            {/if}
+          {/if}
+          {#if mustLockDice && !diceLocked && hasLocalDiceSelection}
+            <button type="button" disabled={!canSelectDice || isLoading} on:click={selectDice} class="ui-btn ui-btn--primary ui-btn--block">
+              {#if isLoading}<LoaderCircle class="animate-spin" size={17} aria-hidden="true" />{/if} Würfel festlegen
+            </button>
           {/if}
 
           <div class="nm-actions">
@@ -631,7 +694,7 @@
               {#if isLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{:else}<Check size={18} aria-hidden="true" />{/if} Zug bestätigen
             </button>
             <div class="grid grid-cols-2 gap-2">
-              <button type="button" disabled={!me || me.confirmed || isLoading} on:click={clearSelection} class="ui-btn">
+              <button type="button" disabled={!me || me.confirmed || draft.length === 0} on:click={clearSelection} class="ui-btn">
                 <RotateCcw size={16} aria-hidden="true" /> Leeren
               </button>
               <button type="button" disabled={!me || me.confirmed || isLoading} on:click={skipTurn} class="ui-btn">
@@ -645,12 +708,12 @@
       <div class="nm-main">
         <!-- 3. Eigenes Spielblatt, groß -->
         {#if me}
-          <section class="nm-own" aria-labelledby="nm-own-title">
+          <section class="nm-own" aria-labelledby="nm-own-title" bind:this={ownSection}>
             <div class="nm-own-head">
               <div class="flex min-w-0 items-center gap-3">
                 <h2 id="nm-own-title" class="ui-section-title nm-own-title">Dein Blatt</h2>
-                {#if me.selectedColor && me.selectedNumber}
-                  <span class="ui-chip ui-num">{colorNames[me.selectedColor]} × {me.selectedNumber} · {me.pendingCells.length}/{me.selectedNumber}</span>
+                {#if hasActiveDiceSelection && selectedColor && selectedNumber}
+                  <span class="ui-chip ui-num">{colorNames[selectedColor]} × {selectedNumber} · {draft.length}/{selectedNumber}</span>
                 {/if}
               </div>
               <dl class="nm-stats ui-num">
@@ -675,17 +738,17 @@
                     {#each cells as cell (cell.id)}
                       {@const checked = checkedSet.has(cell.id)}
                       {@const pending = pendingSet.has(cell.id)}
-                      {@const selectable = isCellSelectable(cell)}
+                      {@const selectable = isCellSelectable(cell, draft, selectedColor, selectedNumber)}
                       <button
                         type="button"
                         aria-label={`Feld ${letters[cell.column]}, Reihe ${cell.row + 1}, ${colorNames[cell.color]}${pending ? ', vorgemerkt' : ''}`}
                         aria-pressed={checked}
-                        disabled={isLoading || me.confirmed || (!selectable && !pending)}
+                        disabled={me.confirmed || (!selectable && !pending)}
                         on:click={() => toggleCell(cell.id)}
                         class="nm-cell {colorClass[cell.color]}"
                         class:nm-cell--selectable={selectable && !pending}
                         class:nm-cell--pending={pending}
-                        class:nm-cell--dim={!selectable && !checked && Boolean(me.selectedColor)}
+                        class:nm-cell--dim={!selectable && !checked && hasActiveDiceSelection && !mustLockDice}
                       >
                         {#if cell.hasStar}
                           <Star class="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow sm:h-8 sm:w-8 {checked ? 'opacity-25' : ''}" strokeWidth={2.4} />
@@ -814,21 +877,19 @@
         {/if}
       </div>
     </div>
-    {/key}
-
     {#if me && !me.confirmed && game.status !== 'finished'}
       <!-- Mobil/Tablet: Bestätigen bleibt unter dem Blatt erreichbar. Sticky (nicht fixed), damit die Leiste ihren Platz reserviert und nichts dauerhaft verdeckt. -->
       <div class="nm-bar">
         <div class="min-w-0 flex-1 text-sm leading-tight">
-          {#if me.selectedColor && me.selectedNumber}
-            <span class="block font-semibold" style="color: var(--text);">{colorNames[me.selectedColor]} × {me.selectedNumber}</span>
-            <span class="ui-muted ui-num whitespace-nowrap">{me.pendingCells.length}/{me.selectedNumber} markiert</span>
+          {#if hasActiveDiceSelection && selectedColor && selectedNumber}
+            <span class="block font-semibold" style="color: var(--text);">{colorNames[selectedColor]} × {selectedNumber}</span>
+            <span class="ui-muted ui-num whitespace-nowrap">{draft.length}/{selectedNumber} markiert</span>
           {:else}
             <span class="block font-semibold" style="color: var(--text);">Würfel wählen</span>
             <span class="ui-muted">Farbe und Zahl oben</span>
           {/if}
         </div>
-        <button type="button" disabled={isLoading || (!me.selectedColor && me.pendingCells.length === 0)} on:click={clearSelection} class="ui-btn ui-btn--icon nm-bar-clear" aria-label="Auswahl leeren">
+        <button type="button" disabled={draft.length === 0} on:click={clearSelection} class="ui-btn ui-btn--icon nm-bar-clear" aria-label="Auswahl leeren">
           <RotateCcw size={18} aria-hidden="true" />
         </button>
         <button type="button" disabled={!canConfirm || isLoading} on:click={confirmTurn} class="ui-btn ui-btn--primary shrink-0">
@@ -940,6 +1001,16 @@
   .nm-cell:disabled { cursor: not-allowed; }
   .nm-cell:focus-visible { z-index: 20; outline: 3px solid #1f201d; outline-offset: -3px; }
   .nm-cell--dim { opacity: 0.3; }
+  .nm-joker { display: grid; gap: 12px; }
+  .nm-joker-label { margin-bottom: 6px; }
+  .nm-joker-options { display: flex; flex-wrap: wrap; gap: 8px; }
+  .nm-joker-swatch, .nm-joker-num { width: 44px; height: 44px; border: 0; border-radius: 12px; cursor: pointer; transition: transform 120ms ease; }
+  .nm-joker-num { background: var(--raised); color: var(--text); font-size: 1.125rem; font-weight: 700; box-shadow: inset 0 0 0 1px var(--border); }
+  .nm-joker-swatch.is-on, .nm-joker-num.is-on { box-shadow: 0 0 0 3px var(--ground), 0 0 0 5px var(--accent-main); }
+  .nm-joker-swatch:active, .nm-joker-num:active { transform: scale(0.94); }
+  .nm-joker-swatch:focus-visible, .nm-joker-num:focus-visible { outline: 2px solid var(--accent-main); outline-offset: 3px; }
+  .nm-joker-swatch:disabled, .nm-joker-num:disabled { cursor: not-allowed; opacity: 0.6; }
+  .nm-cell--selectable { z-index: 5; box-shadow: inset 0 0 0 2.5px rgb(255 255 255 / 0.95), 0 0 0 1px rgb(31 32 29 / 0.35); }
   /* Vorgemerkt: dunkles Kreuz in weißem Rahmen – unterscheidet sich klar vom bestätigten weißen Kreuz. */
   .nm-cell--pending { z-index: 10; box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 5px #1f201d; }
 

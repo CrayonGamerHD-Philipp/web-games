@@ -9,7 +9,7 @@
  * @typedef {{ id: string, colorDice: NochMalColorDie[], numberDice: NochMalNumberDie[] }} NochMalDiceRoll
  * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], activePlayerId: string | null, activeColorDieIndex: number | null, activeNumberDieIndex: number | null, colorBonusClaims: Record<NochMalColor, NochMalBonusClaim>, columnBonusClaims: NochMalBonusClaim[], winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
  * @typedef {{ id: string, gameId: 'noch-mal', name: string, status: 'running' | 'finished', createdAt: string, players: NochMalPlayer[], state: NochMalState }} NochMalSession
- * @typedef {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }} NochMalMove
+ * @typedef {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown, cellIds?: unknown }} NochMalMove
  */
 
 export const nochMalGame = {
@@ -446,6 +446,68 @@ export function makeNochMalMove(session, playerId, move) {
       player.pendingCells = [cellId];
     }
 
+    return { session };
+  }
+
+  // Ganzer Zug in einem Schritt: Würfel + Felder werden lokal gewählt und hier atomar geprüft.
+  if (type === 'submit-turn') {
+    const colorDieIndex = Number(move.colorDieIndex);
+    const numberDieIndex = Number(move.numberDieIndex);
+    if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= session.state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungültig.' };
+    if (!Number.isInteger(numberDieIndex) || numberDieIndex < 0 || numberDieIndex >= session.state.roll.numberDice.length) return { error: 'Dieser Zahlenwürfel ist ungültig.' };
+
+    const lockedByMe = isAdvantageRound(session) && session.state.activePlayerId === playerId && hasActiveSelection(session);
+    if (lockedByMe) {
+      if (colorDieIndex !== session.state.activeColorDieIndex || numberDieIndex !== session.state.activeNumberDieIndex) {
+        return { error: 'Du hast deine Würfel bereits festgelegt.' };
+      }
+    } else {
+      const availabilityError = validateDiceAvailability(session, playerId, colorDieIndex, numberDieIndex);
+      if (availabilityError) return { error: availabilityError };
+    }
+
+    const colorFace = session.state.roll.colorDice[colorDieIndex];
+    const numberFace = session.state.roll.numberDice[numberDieIndex];
+    const lockedColor = lockedByMe && player.selectedColorDieIndex === colorDieIndex ? player.selectedColor : null;
+    const lockedNumber = lockedByMe && player.selectedNumberDieIndex === numberDieIndex ? player.selectedNumber : null;
+    const selectedColor = colorFace === 'joker' ? String(lockedColor ?? move.color ?? '') : colorFace;
+    const selectedNumber = numberFace === 'joker' ? Number(lockedNumber ?? move.number) : numberFace;
+    if (!colors.includes(/** @type {NochMalColor} */ (selectedColor))) return { error: 'Wähle eine gültige Jokerfarbe.' };
+    if (!Number.isInteger(selectedNumber) || selectedNumber < 1 || selectedNumber > 5) return { error: 'Wähle eine gültige Jokerzahl.' };
+
+    const jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
+    if (player.usedJokers + jokerCost > 8) return { error: 'Du hast nicht mehr genug Joker.' };
+
+    const rawCells = Array.isArray(move.cellIds) ? move.cellIds.map(String) : [];
+    const cellIds = [...new Set(rawCells)];
+    if (cellIds.length !== rawCells.length) return { error: 'Ein Feld wurde doppelt gewählt.' };
+
+    for (const cellId of cellIds) {
+      const cell = parseCellId(cellId);
+      if (!cell) return { error: 'Dieses Feld ist ungültig.' };
+      if (player.checkedCells.includes(cellId)) return { error: 'Dieses Feld ist bereits angekreuzt.' };
+      if (cell.color !== selectedColor) return { error: 'Dieses Feld hat nicht die gewählte Farbe.' };
+    }
+
+    const projected = { ...player, selectedColor: /** @type {NochMalColor} */ (selectedColor), selectedNumber: Number(selectedNumber), pendingCells: cellIds };
+    const moveError = validatePendingMove(projected);
+    if (moveError) return { error: moveError };
+
+    if (isAdvantageRound(session) && session.state.activePlayerId === playerId && !hasActiveSelection(session)) {
+      session.state.activeColorDieIndex = colorDieIndex;
+      session.state.activeNumberDieIndex = numberDieIndex;
+    }
+
+    player.selectedColor = /** @type {NochMalColor} */ (selectedColor);
+    player.selectedNumber = Number(selectedNumber);
+    player.selectedColorDieIndex = colorDieIndex;
+    player.selectedNumberDieIndex = numberDieIndex;
+    player.usedJokers += jokerCost;
+    player.checkedCells = [...player.checkedCells, ...cellIds];
+    player.pendingCells = [];
+    player.confirmed = true;
+    session.state.confirmedPlayerIds = [...new Set([...session.state.confirmedPlayerIds, player.id])];
+    maybeAdvanceRound(session);
     return { session };
   }
 

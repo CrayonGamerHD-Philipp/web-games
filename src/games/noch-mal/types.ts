@@ -1,4 +1,4 @@
-﻿export type NochMalColor = 'lime' | 'yellow' | 'blue' | 'pink' | 'peach';
+export type NochMalColor = 'lime' | 'yellow' | 'blue' | 'pink' | 'peach';
 export type NochMalColorDie = NochMalColor | 'joker';
 export type NochMalNumberDie = 1 | 2 | 3 | 4 | 5 | 'joker';
 export type NochMalPhase = 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished';
@@ -76,6 +76,7 @@ export type NochMalMove =
   | { type: 'select-dice-and-toggle-cell'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number; cellId: string }
   | { type: 'toggle-cell'; cellId: string }
   | { type: 'confirm-turn' }
+  | { type: 'submit-turn'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number; cellIds: string[] }
   | { type: 'clear-selection' }
   | { type: 'skip-turn' };
 
