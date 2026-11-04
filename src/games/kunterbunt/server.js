@@ -190,7 +190,7 @@ function setEvent(session, event) {
  * @returns {BuntSession | { error: string }}
  */
 export function createKunterbuntSession(players, options = {}) {
-  void options;
+  const handSize = [5, 7, 10].includes(Number(options.handSize)) ? Number(options.handSize) : HAND_SIZE;
   const selected = (Array.isArray(players) ? players : []).slice(0, kunterbuntGame.maxPlayers);
   if (selected.length < kunterbuntGame.minPlayers) {
     return { error: 'Kunterbunt braucht mindestens zwei Spieler.' };
@@ -200,7 +200,7 @@ export function createKunterbuntSession(players, options = {}) {
 
   /** @type {BuntPlayer[]} */
   const buntPlayers = selected.map((player) => ({ id: player.id, name: player.name, hand: [], handCount: 0 }));
-  for (let round = 0; round < HAND_SIZE; round += 1) {
+  for (let round = 0; round < handSize; round += 1) {
     for (const player of buntPlayers) {
       const card = deck.pop();
       if (card) player.hand.push(card);

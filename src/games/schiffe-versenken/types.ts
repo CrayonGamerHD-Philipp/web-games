@@ -54,6 +54,7 @@ export interface SchiffeState {
   isDraw: boolean;
   lastShot: SchiffeLastShot | null;
   shotCount: number;
+  extraShotOnHit?: boolean;
 }
 
 export interface SchiffeSession {

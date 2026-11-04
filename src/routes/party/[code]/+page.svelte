@@ -2,15 +2,28 @@
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Check, Crown, LoaderCircle, Lock, LockOpen, Palette, QrCode, UserMinus, X } from '@lucide/svelte';
+  import { ArrowLeft, Check, Crown, LoaderCircle, Lock, LockOpen, Pencil, QrCode, UserMinus, X } from '@lucide/svelte';
   import { onDestroy, onMount, tick } from 'svelte';
   import QRCode from 'qrcode';
-  import { initials, playerHex } from '$lib/player-colors.js';
+  import { playerHex } from '$lib/player-colors.js';
+  import { randomAvatar } from '$lib/party-features.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
+  import AvatarEditor from '$lib/components/AvatarEditor.svelte';
+  import GameSettingsForm from '$lib/components/GameSettingsForm.svelte';
+  import Leaderboard from '$lib/components/Leaderboard.svelte';
+  import ReactionBar from '$lib/components/ReactionBar.svelte';
+  import ReactionBubbles from '$lib/components/ReactionBubbles.svelte';
+  import ReactionAnnouncer from '$lib/components/ReactionAnnouncer.svelte';
+  import { loadStoredSettings, storeSettings, summarizeSettings } from '$lib/components/game-settings.js';
 
-  /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player */
-  /** @typedef {{ id: string, name: string, description?: string, previewImage?: string, minPlayers: number, maxPlayers: number }} GameInfo */
-  /** @typedef {{ id: string, gameId: string, name: string, status: string }} ActiveGame */
-  /** @typedef {{ code: string, createdAt: string, locked: boolean, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null }} Party */
+  /** @typedef {import('$lib/party-features.js').Avatar} Avatar */
+  /** @typedef {import('$lib/party-features.js').GameSetting} GameSetting */
+  /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string, avatar?: Avatar }} Player */
+  /** @typedef {{ id: string, name: string, description?: string, previewImage?: string, minPlayers: number, maxPlayers: number, settings?: GameSetting[] }} GameInfo */
+  /** @typedef {{ id: string, gameId: string, name: string, status: string, settings?: Record<string, string | number | boolean> }} ActiveGame */
+  /** @typedef {{ id: string, playerId: string, emoji: string, at: number }} Reaction */
+  /** @typedef {{ id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }} HistoryEntry */
+  /** @typedef {{ code: string, createdAt: string, locked: boolean, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null, reactions?: Reaction[], history?: HistoryEntry[] }} Party */
 
   /** @type {Party | null} */
   let party = null;
@@ -24,7 +37,11 @@
   let joinUrl = '';
   let colorError = '';
   let isColorLoading = false;
-  let isColorMenuOpen = false;
+  let isProfileOpen = false;
+  /** @type {Avatar | null} */
+  let avatarDraft = null;
+  let isAvatarSaving = false;
+  let avatarError = '';
   let hostError = '';
   let hostActionKey = '';
   /** @type {{ message: string, confirmLabel: string, run: () => void } | null} */
@@ -36,7 +53,9 @@
   let playerId = '';
   let token = '';
   let selectedGameId = '';
-  let skyjoPlayToHundred = false;
+  /** Einstellungen des Hosts für das gewählte Spiel (pro Spiel im localStorage gemerkt). @type {Record<string, string | number | boolean>} */
+  let settingsDraft = {};
+  let settingsDraftFor = '';
   /** @type {EventSource | null} */
   let events = null;
   const playerColorOptions = [
@@ -74,6 +93,23 @@
           ? 'Wähle ein Spiel'
           : 'Warte auf den Host';
   $: showStartBar = Boolean(party && !activeGame && isCurrentHost);
+  $: selectedSettingsSchema = selectedGame?.settings ?? [];
+  $: if (browser && selectedGame && settingsDraftFor !== selectedGame.id) {
+    settingsDraft = loadStoredSettings(selectedGame.id, selectedGame.settings);
+    settingsDraftFor = selectedGame.id;
+  }
+  $: draftSummary = summarizeSettings(selectedSettingsSchema, settingsDraft);
+  $: activeGameSettings = activeGame
+    ? summarizeSettings(party?.availableGames.find((game) => game.id === activeGame?.gameId)?.settings ?? [], activeGame.settings)
+    : [];
+  $: reactions = party?.reactions ?? [];
+  $: profileColors = playerColorOptions.map((option) => ({ id: option.id, hex: option.hex, taken: occupiedColors.has(option.id) }));
+
+  /** @param {CustomEvent<Record<string, string | number | boolean>>} event */
+  function handleSettingsChange(event) {
+    settingsDraft = event.detail;
+    if (selectedGameId) storeSettings(selectedGameId, settingsDraft);
+  }
 
   /**
    * Grund, warum ein Spiel noch nicht startbar ist (leer = startbar).
@@ -223,21 +259,54 @@
     node.focus();
   }
 
-  function openColorMenu() {
+  function openProfile() {
+    if (!currentPlayer) return;
     rememberFocus();
     colorError = '';
-    isColorMenuOpen = true;
+    avatarError = '';
+    avatarDraft = { ...(currentPlayer.avatar ?? randomAvatar()) };
+    isProfileOpen = true;
   }
 
-  function closeColorMenu() {
-    if (!isColorMenuOpen) return;
-    isColorMenuOpen = false;
+  function closeProfile() {
+    if (!isProfileOpen) return;
+    isProfileOpen = false;
     restoreFocus();
+  }
+
+  async function saveProfile() {
+    if (!avatarDraft || isAvatarSaving) return;
+    avatarError = '';
+    isAvatarSaving = true;
+    try {
+      const response = await fetch(`/api/parties/${code}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'set-avatar', token, avatar: avatarDraft })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        avatarError = data.message ?? 'Der Avatar konnte nicht gespeichert werden.';
+        return;
+      }
+      party = data.party;
+      announce('Profil gespeichert');
+      closeProfile();
+    } catch {
+      avatarError = 'Der Avatar konnte nicht gespeichert werden.';
+    } finally {
+      isAvatarSaving = false;
+    }
+  }
+
+  /** @param {CustomEvent<string>} event */
+  function handleProfileColor(event) {
+    void changeColor(event.detail);
   }
 
   /** @param {{ message: string, confirmLabel: string, run: () => void }} confirmation */
   function requestConfirmation(confirmation) {
-    if (!pendingConfirmation && !isColorMenuOpen) rememberFocus();
+    if (!pendingConfirmation && !isProfileOpen) rememberFocus();
     pendingConfirmation = confirmation;
   }
 
@@ -252,9 +321,9 @@
     if (pendingConfirmation) {
       event.preventDefault();
       cancelConfirmation();
-    } else if (isColorMenuOpen) {
+    } else if (isProfileOpen) {
       event.preventDefault();
-      closeColorMenu();
+      closeProfile();
     }
   }
 
@@ -299,7 +368,7 @@
         return;
       }
       party = data.party;
-      closeColorMenu();
+      announce('Farbe geändert');
     } catch {
       colorError = 'Die Farbe konnte nicht geändert werden.';
     } finally {
@@ -372,6 +441,11 @@
       isGameActionLoading = false;
     }
   }
+  /** Nur Einstellungen senden, die zum gestarteten Spiel gehören. @param {string} gameId */
+  function settingsFor(gameId) {
+    return settingsDraftFor === gameId ? settingsDraft : {};
+  }
+
   async function startSelectedGame() {
     gameError = '';
     isGameActionLoading = true;
@@ -380,7 +454,7 @@
       const response = await fetch(`/api/parties/${code}/game`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'start', token, gameId: selectedGameId, settings: selectedGameId === 'skyjo' ? { playToHundred: skyjoPlayToHundred } : {} })
+        body: JSON.stringify({ action: 'start', token, gameId: selectedGameId, settings: settingsFor(selectedGameId) })
       });
       const data = await response.json();
 
@@ -417,6 +491,7 @@
 <svelte:window on:keydown={handleWindowKeydown} />
 
 <p class="sr-only" aria-live="polite" aria-atomic="true">{liveMessage}</p>
+<ReactionAnnouncer {reactions} players={party?.players ?? []} currentPlayerId={playerId} />
 
 <main class="lobby min-h-dvh">
   <div class="ui-page {showStartBar ? 'pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-24' : ''}">
@@ -502,7 +577,10 @@
               {#each party.players as player (player.id)}
                 {@const isMe = player.id === playerId}
                 <li class="lobby-player">
-                  <span class="ui-avatar lobby-avatar" style="--player: {playerHex(player.color)}" aria-hidden="true">{initials(player.name)}</span>
+                  <span class="lobby-avatar">
+                    <PlayerAvatar avatar={player.avatar} name={player.name} color={playerHex(player.color)} size={40} />
+                    <ReactionBubbles {reactions} playerId={player.id} />
+                  </span>
                   <span class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                     <span class="truncate font-medium">{player.name}</span>
                     {#if player.isHost}<span class="lobby-chip"><Crown size={12} aria-hidden="true" /> Host</span>{/if}
@@ -511,8 +589,9 @@
                   </span>
                   <span class="flex shrink-0">
                     {#if isMe}
-                      <button type="button" on:click={openColorMenu} aria-haspopup="dialog" title="Spielerfarbe ändern" aria-label="Spielerfarbe ändern" class="ui-btn ui-btn--ghost ui-btn--icon lobby-icon-btn">
-                        <Palette size={18} aria-hidden="true" />
+                      <button type="button" on:click={openProfile} aria-haspopup="dialog" title="Avatar und Farbe ändern" class="ui-btn ui-btn--ghost lobby-edit-btn">
+                        <Pencil size={16} aria-hidden="true" />
+                        <span class="lobby-edit-label">Avatar bearbeiten</span>
                       </button>
                     {:else if isCurrentHost}
                       <button
@@ -543,6 +622,12 @@
               {/each}
             </ul>
 
+            {#if currentPlayer}
+              <div class="lobby-react">
+                <ReactionBar {code} {token} label="Reaktion an alle senden" />
+              </div>
+            {/if}
+
             {#if !currentPlayer}
               <p class="mt-3 text-sm">
                 Dieses Gerät ist noch nicht als Spieler verbunden.
@@ -552,8 +637,9 @@
           </section>
         </div>
 
-        <!-- Spiel: auf dem Desktop linke, breite Spalte -->
-        <section class="ui-panel lg:col-span-7 lg:col-start-1 lg:row-start-1 lg:self-start" aria-labelledby="game-title">
+        <!-- Spiel + Bestenliste: auf dem Desktop linke, breite Spalte -->
+        <div class="flex flex-col gap-4 lg:col-span-7 lg:col-start-1 lg:row-start-1 lg:gap-6">
+        <section class="ui-panel" aria-labelledby="game-title">
           {#if activeGame}
             <h2 id="game-title" class="ui-section-title">Laufendes Spiel</h2>
             <div class="mt-3 flex items-center gap-4">
@@ -565,6 +651,13 @@
                 <p class="text-sm ui-muted">läuft gerade</p>
               </div>
             </div>
+            {#if activeGameSettings.length}
+              <ul class="lobby-settings-summary" aria-label="Einstellungen">
+                {#each activeGameSettings as item (item.key)}
+                  <li>{item.text}</li>
+                {/each}
+              </ul>
+            {/if}
             {#if gameError}<p role="alert" class="ui-alert mt-4">{gameError}</p>{/if}
             <div class="mt-5 flex flex-col gap-2 sm:flex-row">
               <a href={`/party/${party.code}/game`} class="ui-btn ui-btn--primary ui-btn--lg">Zum Spiel</a>
@@ -602,19 +695,17 @@
                     </span>
                     <span class="lobby-radio" aria-hidden="true">{#if selected && !blocker}<Check size={14} strokeWidth={3} />{/if}</span>
                   </button>
+                  <!-- Einstellungen direkt unter dem gewählten Spiel, damit der Host nicht scrollen muss -->
+                  {#if selected && !blocker && selectedSettingsSchema.length}
+                    <div class="mt-2 mb-1 px-1">
+                      <h3 class="ui-section-title mb-2">Einstellungen für {game.name}</h3>
+                      <GameSettingsForm settings={selectedSettingsSchema} values={settingsDraft} idPrefix={`lobby-setting-${game.id}`} on:change={handleSettingsChange} />
+                    </div>
+                  {/if}
                 </li>
               {/each}
             </ul>
 
-            {#if selectedGameId === 'skyjo'}
-              <label class="lobby-option mt-3">
-                <input type="checkbox" bind:checked={skyjoPlayToHundred} />
-                <span class="min-w-0">
-                  <span class="block font-semibold">Bis 100 Punkte spielen</span>
-                  <span class="mt-0.5 block text-sm leading-5 ui-muted">Rundenpunkte werden addiert. Der niedrigste Gesamtstand gewinnt.</span>
-                </span>
-              </label>
-            {/if}
 
             {#if gameError}<p role="alert" class="ui-alert mt-4">{gameError}</p>{/if}
 
@@ -623,7 +714,7 @@
               <div class="min-w-0 flex-1">
                 <p class="truncate font-semibold">{selectedGame?.name ?? 'Kein Spiel gewählt'}</p>
                 <p class="truncate text-sm ui-muted">
-                  {selectedGameBlocker || `${party.players.length} Spieler${selectedGameId === 'skyjo' && skyjoPlayToHundred ? ' · bis 100 Punkte' : ''}`}
+                  {selectedGameBlocker || [`${party.players.length} Spieler`, ...draftSummary.map((item) => item.short)].join(' · ')}
                 </p>
               </div>
               <button
@@ -641,53 +732,54 @@
               <span class="lobby-pulse" aria-hidden="true"></span>
               <p>
                 <span class="block font-medium">Der Host wählt gerade ein Spiel.</span>
-                <span class="mt-0.5 block text-sm ui-muted">Sobald es losgeht, erscheint hier „Zum Spiel“.</span>
+                <span class="mt-0.5 block text-sm ui-muted">Sobald es losgeht, erscheinen hier das Spiel, seine Einstellungen und „Zum Spiel“.</span>
               </p>
             </div>
             {#if gameError}<p role="alert" class="ui-alert mt-4">{gameError}</p>{/if}
           {/if}
         </section>
+
+        <section class="ui-panel" aria-label="Bestenliste">
+          <Leaderboard history={party.history ?? []} players={party.players} currentPlayerId={playerId} idPrefix="lobby-leaderboard" />
+        </section>
+        </div>
       </div>
     {/if}
   </div>
 </main>
 
-{#if isColorMenuOpen && currentPlayer}
+{#if isProfileOpen && currentPlayer && avatarDraft}
   <div class="ui-dialog-backdrop">
-    <button type="button" tabindex="-1" class="absolute inset-0 cursor-default" on:click={closeColorMenu} aria-label="Farbmenü schließen"></button>
-    <div class="ui-dialog relative animate-modal-in outline-none" role="dialog" aria-modal="true" aria-labelledby="color-menu-title" aria-describedby="color-menu-hint" tabindex="-1" use:initialFocus>
+    <button type="button" tabindex="-1" class="absolute inset-0 cursor-default" on:click={closeProfile} aria-label="Profil schließen"></button>
+    <div class="ui-dialog lobby-profile relative animate-modal-in outline-none" role="dialog" aria-modal="true" aria-labelledby="profile-title" aria-describedby="profile-hint" tabindex="-1" use:initialFocus>
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 id="color-menu-title" class="text-lg font-semibold">Spielerfarbe wählen</h2>
-          <p id="color-menu-hint" class="mt-0.5 text-sm ui-muted">Belegte Farben sind durchgestrichen.</p>
+          <h2 id="profile-title" class="text-lg font-semibold">Profil</h2>
+          <p id="profile-hint" class="mt-0.5 text-sm ui-muted">Avatar und Spielerfarbe. Die Farbe gilt sofort, den Avatar speicherst du unten.</p>
         </div>
-        <button type="button" on:click={closeColorMenu} class="ui-btn ui-btn--ghost ui-btn--icon -mr-2 -mt-2 shrink-0" aria-label="Schließen"><X size={20} aria-hidden="true" /></button>
+        <button type="button" on:click={closeProfile} class="ui-btn ui-btn--ghost ui-btn--icon -mr-2 -mt-2 shrink-0" aria-label="Schließen"><X size={20} aria-hidden="true" /></button>
       </div>
 
-      <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {#each playerColorOptions as option (option.id)}
-          {@const occupied = occupiedColors.has(option.id)}
-          {@const current = currentPlayer.color === option.id}
-          <button
-            type="button"
-            on:click={() => changeColor(option.id)}
-            disabled={occupied || isColorLoading}
-            aria-label={occupied ? `${option.name} ist bereits vergeben` : `${option.name} wählen`}
-            aria-pressed={current}
-            class="lobby-swatch {current ? 'is-current' : ''}"
-          >
-            <span class="lobby-swatch-dot" style="background: {option.hex}">
-              {#if current}<Check size={16} strokeWidth={3} aria-hidden="true" />{/if}
-            </span>
-            <span class="min-w-0 text-left">
-              <span class="block truncate text-sm font-medium {occupied ? 'line-through' : ''}">{option.name}</span>
-              <span class="block text-xs ui-muted">{occupied ? 'Vergeben' : current ? 'Deine Farbe' : 'Frei'}</span>
-            </span>
-          </button>
-        {/each}
+      <div class="mt-4">
+        <AvatarEditor
+          bind:avatar={avatarDraft}
+          color={playerHex(currentPlayer.color)}
+          name={currentPlayer.name}
+          colors={profileColors}
+          on:color={handleProfileColor}
+        />
       </div>
+
       {#if colorError}<p role="alert" class="ui-alert mt-3">{colorError}</p>{/if}
+      {#if avatarError}<p role="alert" class="ui-alert mt-3">{avatarError}</p>{/if}
       {#if isColorLoading}<p role="status" class="mt-3 flex items-center justify-center gap-2 text-sm ui-muted"><LoaderCircle class="animate-spin" size={16} aria-hidden="true" /> Farbe wird gespeichert…</p>{/if}
+
+      <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button type="button" on:click={closeProfile} class="ui-btn">Abbrechen</button>
+        <button type="button" on:click={saveProfile} disabled={isAvatarSaving} class="ui-btn ui-btn--primary">
+          {#if isAvatarSaving}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" /> Speichert…{:else}Speichern{/if}
+        </button>
+      </div>
     </div>
   </div>
 {/if}
@@ -754,7 +846,16 @@
     padding: 6px 0;
   }
   .lobby-player + .lobby-player { border-top: 1px solid var(--border); }
-  .lobby-avatar { width: 40px; height: 40px; font-size: 0.875rem; }
+  .lobby-avatar { position: relative; display: inline-flex; flex-shrink: 0; }
+  .lobby-edit-btn { min-height: 40px; padding: 0 12px; gap: 6px; color: var(--muted); font-size: 0.875rem; }
+  @media (max-width: 420px) {
+    .lobby-edit-btn { width: var(--control-height); min-height: var(--control-height); padding: 0; }
+    .lobby-edit-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  }
+  .lobby-react { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .lobby-settings-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+  .lobby-settings-summary li { padding: 4px 12px; border-radius: 999px; background: var(--raised); border: 1px solid var(--border); font-size: 0.875rem; font-weight: 500; }
+  .lobby-profile { max-width: 520px; }
   .lobby-chip {
     display: inline-flex;
     align-items: center;
@@ -830,17 +931,6 @@
   .lobby-game.is-selected .lobby-radio { background: var(--accent-main); border-color: var(--accent-main); }
   .lobby-game:disabled .lobby-radio { opacity: 0.4; }
 
-  .lobby-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: var(--radius-inner);
-    background: var(--raised);
-    border: 1px solid var(--border);
-    cursor: pointer;
-  }
-  .lobby-option input { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; accent-color: var(--accent-main); }
 
   /* Startleiste: Handy fest unten, ab lg im Panel */
   .lobby-startbar {
@@ -891,42 +981,14 @@
     50% { opacity: 0.3; }
   }
 
-  /* Farbwahl */
-  .lobby-swatch {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 56px;
-    padding: 8px 12px;
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-inner);
-    background: var(--raised);
-    color: var(--text);
-    cursor: pointer;
-    transition: border-color 150ms ease;
-  }
-  .lobby-swatch:focus-visible { outline: 2px solid var(--accent-main); outline-offset: 2px; }
-  .lobby-swatch.is-current { border-color: var(--accent-main); }
-  .lobby-swatch:disabled { cursor: not-allowed; opacity: 0.45; }
-  .lobby-swatch-dot {
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    color: #fff;
-  }
-
   @media (hover: hover) and (pointer: fine) {
     .lobby-back:hover { color: var(--text); }
     .lobby-game:hover:not(:disabled):not(.is-selected) { border-color: var(--control); }
-    .lobby-swatch:hover:not(:disabled):not(.is-current) { border-color: var(--control); }
-    .lobby-icon-btn:hover:not(:disabled) { color: var(--text); }
+    .lobby-icon-btn:hover:not(:disabled), .lobby-edit-btn:hover:not(:disabled) { color: var(--text); }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .lobby-pulse { animation: none; }
-    .lobby-game, .lobby-swatch { transition: none; }
+    .lobby-game { transition: none; }
   }
 </style>

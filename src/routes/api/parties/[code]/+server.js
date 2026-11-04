@@ -1,5 +1,5 @@
-﻿import { json } from '@sveltejs/kit';
-import { changePlayerColor, getParty, joinParty, removePartyPlayer, renamePlayer, setPartyLocked, transferPartyHost } from '$lib/server/parties.js';
+import { json } from '@sveltejs/kit';
+import { changePlayerColor, getParty, joinParty, removePartyPlayer, renamePlayer, sendReaction, setPartyLocked, setPlayerAvatar, transferPartyHost } from '$lib/server/parties.js';
 
 export function GET({ params }) {
   const party = getParty(params.code);
@@ -25,8 +25,12 @@ export async function POST({ params, request }) {
     result = transferPartyHost(params.code, body.token, body.targetPlayerId);
   } else if (body.action === 'remove-player') {
     result = removePartyPlayer(params.code, body.token, body.targetPlayerId);
+  } else if (body.action === 'set-avatar') {
+    result = setPlayerAvatar(params.code, body.token, body.avatar);
+  } else if (body.action === 'react') {
+    result = sendReaction(params.code, body.token, body.emoji);
   } else if (!body.action || body.action === 'join') {
-    result = joinParty(params.code, body.name);
+    result = joinParty(params.code, body.name, body.avatar);
   } else {
     result = { status: 400, error: 'Diese Aktion ist nicht bekannt.' };
   }

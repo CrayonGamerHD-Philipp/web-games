@@ -1,7 +1,9 @@
 <script lang="ts">
   import { Check, LoaderCircle, RotateCcw, Star, X } from '@lucide/svelte';
   import { onDestroy, tick } from 'svelte';
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
+  import type { Avatar } from '$lib/party-features.js';
   import { bottomScore, cells, jokerCount, letters, rows, topScore } from '../data/board';
   import type { NochMalColor, NochMalColorDie, NochMalNumberDie, NochMalPlayer, NochMalSession } from '../types';
 
@@ -10,7 +12,7 @@
   export let isLoading = false;
   export let onMove: (move: Record<string, unknown>) => void = () => {};
   export let renderNonce = 0;
-  export let players: { id: string; name: string; color?: string }[] = [];
+  export let players: { id: string; name: string; color?: string; avatar?: Avatar | null }[] = [];
 
   let colorDieIndex: number | null = null;
   let numberDieIndex: number | null = null;
@@ -813,7 +815,7 @@
               {#each opponents as player (player.id)}
                 <li class="ui-card nm-opponent">
                   <div class="flex items-center gap-3">
-                    <span class="ui-avatar" style="--player: {playerHexById(players, player.id)}" aria-hidden="true">{initials(player.name)}</span>
+                    <PlayerAvatar avatar={players.find((p) => p.id === player.id)?.avatar ?? null} name={player.name} color={playerHexById(players, player.id)} size={36} />
                     <div class="min-w-0 flex-1">
                       <h3 class="truncate text-[0.9375rem] font-semibold" style="color: var(--text);">{player.name}</h3>
                       <p class="ui-muted ui-num text-sm">{player.score.total} Punkte</p>

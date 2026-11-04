@@ -1,6 +1,7 @@
 <script>
   import { onDestroy, tick } from 'svelte';
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
   /** @typedef {import('../types').SudokuSession} SudokuSession */
   /** @typedef {import('../types').SudokuPlayer} SudokuPlayer */
@@ -18,7 +19,7 @@
   /** @type {number} */
   export let renderNonce = 0;
   /** Party players (`{ id, name, color }`) for avatar colours. */
-  /** @type {{ id: string, name?: string, color?: string }[]} */
+  /** @type {{ id: string, name?: string, color?: string, avatar?: import('$lib/party-features.js').Avatar | null }[]} */
   export let players = [];
 
   // Kept for the shared game-component API; the board reacts to `game` directly.
@@ -455,7 +456,7 @@
           {#each opponents as player (player.id)}
             {@const hex = playerHexById(players, player.id)}
             <li class="sd-opp" class:is-winner={state.winnerId === player.id} class:is-out={player.gaveUp}>
-              <span class="ui-avatar sd-opp-avatar" style="--player: {hex}" aria-hidden="true">{initials(player.name)}</span>
+              <PlayerAvatar avatar={players.find((p) => p.id === player.id)?.avatar ?? null} name={player.name} color={hex} size={36} />
               <span class="sd-opp-meta">
                 <span class="sd-opp-line">
                   <span class="sd-opp-name">{player.name}</span>

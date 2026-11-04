@@ -1,6 +1,7 @@
 <script>
   import PlayingCard from './PlayingCard.svelte';
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
   /** @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoSlot */
   /** @typedef {{ id: string, value: number }} SkyjoCard */
@@ -15,7 +16,7 @@
   /** @type {(move: { type: string, source?: string, cardIndex?: number }) => void} */
   export let onMove = () => {};
   /** Party players ({ id, name, color }) for avatar colours. */
-  /** @type {{ id: string, name?: string, color?: string }[]} */
+  /** @type {{ id: string, name?: string, color?: string, avatar?: import('$lib/party-features.js').Avatar | null }[]} */
   export let players = [];
 
   let draggedDrawnCard = false;
@@ -283,7 +284,7 @@
       <section class="sk-mine" aria-label="Deine Karten">
         <div class="sk-mine-inner">
           <div class="g-me">
-            <span class="ui-avatar" style={`--player: ${playerHexById(players, me.id)}`} aria-hidden="true">{initials(me.name)}</span>
+            <PlayerAvatar avatar={players.find((p) => p.id === me?.id)?.avatar ?? null} name={me.name} color={playerHexById(players, me.id)} size={32} active={isMyTurn && !isFinished} />
             <h2 class="g-me-name">{me.name}</h2>
             <span class="g-me-stat" title="Summe der offenen Karten">
               <span class="ui-muted">Offen</span>
@@ -318,7 +319,7 @@
           {@const active = player.id === game.state.currentPlayerId && !isFinished}
           <li class="g-opp sk-opp" class:is-active={active}>
             <div class="g-opp-head">
-              <span class="ui-avatar" style={`--player: ${playerHexById(players, player.id)}`} aria-hidden="true">{initials(player.name)}</span>
+              <PlayerAvatar avatar={players.find((p) => p.id === player.id)?.avatar ?? null} name={player.name} color={playerHexById(players, player.id)} size={32} active={active} />
               <span class="g-opp-name">{player.name}</span>
               <span class="g-opp-stat ui-num" title="Summe der offenen Karten">{visibleScore(player)}</span>
             </div>

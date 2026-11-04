@@ -3,7 +3,8 @@
   import Die from './Die.svelte';
   import ScoreSheet from './ScoreSheet.svelte';
   import { CATEGORIES, CATEGORY_NAMES, DICE_COUNT, MAX_ROLLS, sheetTotals } from '../rules.js';
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
   /** @typedef {import('../types').BlockSession} BlockSession */
   /** @typedef {import('../types').BlockState} BlockState */
@@ -23,7 +24,7 @@
   /** @type {number} */
   export let renderNonce = 0;
   /** Party players (`{ id, name, color }`) for avatar colours. */
-  /** @type {{ id: string, name?: string, color?: string }[]} */
+  /** @type {{ id: string, name?: string, color?: string, avatar?: import('$lib/party-features.js').Avatar | null }[]} */
   export let players = [];
 
   $: void renderNonce;
@@ -332,7 +333,7 @@
                 aria-label={`${player.name}: ${player.total} Punkte, ${filled} von 13 Zeilen${active ? ', am Zug' : ''}. Block ansehen`}
                 on:click={() => openSheet(player.id)}
               >
-                <span class="ui-avatar" style="--player: {playerHexById(players, player.id)}" aria-hidden="true">{initials(player.name)}</span>
+                <PlayerAvatar avatar={players.find((p) => p.id === player.id)?.avatar ?? null} name={player.name} color={playerHexById(players, player.id)} size={36} active={active} />
                 <span class="wb-opp-meta" aria-hidden="true">
                   <span class="wb-opp-line">
                     <span class="wb-opp-name">{player.name}</span>
@@ -363,7 +364,7 @@
               {:else if isMyTurn}
                 Deine Würfel
               {:else if turnPlayer}
-                <span class="ui-avatar wb-tray-avatar" style="--player: {playerHexById(players, turnPlayer.id)}" aria-hidden="true">{initials(turnPlayer.name)}</span>
+                <PlayerAvatar avatar={players.find((p) => p.id === turnPlayer?.id)?.avatar ?? null} name={turnPlayer.name} color={playerHexById(players, turnPlayer.id)} size={24} />
                 {turnPlayer.name}
               {/if}
             </p>
@@ -448,7 +449,7 @@
         on:keydown={handleDialogKeydown}
       >
         <div class="wb-dialog-head">
-          <span class="ui-avatar" style="--player: {playerHexById(players, viewPlayer.id)}" aria-hidden="true">{initials(viewPlayer.name)}</span>
+          <PlayerAvatar avatar={players.find((p) => p.id === viewPlayer?.id)?.avatar ?? null} name={viewPlayer.name} color={playerHexById(players, viewPlayer.id)} size={40} />
           <div class="wb-dialog-meta">
             <h2 id="wb-dialog-title" class="wb-dialog-title">Block von {viewPlayer.name}</h2>
             <p class="wb-dialog-sub ui-num">{sheetTotals(viewPlayer.sheet).total} Punkte · {filledCount(viewPlayer)} von 13 Zeilen</p>
@@ -702,12 +703,6 @@
     margin: 0;
     font-size: 0.9375rem;
     font-weight: 600;
-  }
-
-  .wb-tray-avatar {
-    width: 24px;
-    height: 24px;
-    font-size: 0.6875rem;
   }
 
   .wb-tray-meta {

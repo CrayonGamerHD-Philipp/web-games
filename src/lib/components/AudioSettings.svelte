@@ -1,7 +1,11 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { page } from '$app/stores';
-  import { Check, LoaderCircle, Monitor, Moon, Play, Settings, Sun, X } from '@lucide/svelte';
+  import { Check, LoaderCircle, Monitor, Moon, Pencil, Play, Settings, Sun, X } from '@lucide/svelte';
+  import AvatarEditor from '$lib/components/AvatarEditor.svelte';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
+  import { normalizeAvatar, type Avatar } from '$lib/party-features.js';
+  import { playerHex } from '$lib/player-colors.js';
   import { onDestroy, onMount, tick } from 'svelte';
 
   type MusicTrack = { id: string; name: string; src: string };
@@ -52,6 +56,14 @@
   let renameStatus = '';
   let renameError = '';
   let isRenaming = false;
+  let partyAvatar: Avatar | null = null;
+  let editAvatar: Avatar | null = null;
+  let partyColorHex = playerHex('cyan');
+  let isEditingAvatar = false;
+  let isSavingAvatar = false;
+  let avatarStatus = '';
+  let avatarError = '';
+  let avatarStatusTimeout: ReturnType<typeof setTimeout> | null = null;
   let activeAudio: HTMLAudioElement | null = null;
   let fadingAudio: HTMLAudioElement | null = null;
   let previewAudio: HTMLAudioElement | null = null;
@@ -67,6 +79,7 @@
 
   async function openPanel() {
     isOpen = true;
+    if (routeCode && currentPlayerId) void loadPartyAvatar(routeCode, currentPlayerId);
     await tick();
     closeButton?.focus();
   }
@@ -108,6 +121,7 @@
   $: currentPlayerId = browser && routeCode ? localStorage.getItem(`party-player:${routeCode}`) ?? '' : '';
   $: currentPlayerToken = browser && routeCode ? localStorage.getItem(`party-token:${routeCode}`) ?? '' : '';
   $: selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? tracks[0];
+  $: canEditPartyAvatar = Boolean(routeCode && currentPlayerId && currentPlayerToken);
   $: canRenamePartyPlayer = Boolean(routeCode && currentPlayerId && currentPlayerToken && playerName.trim());
   $: if (browser && routeCode && currentPlayerId && loadedPartyNameKey !== `${routeCode}:${currentPlayerId}`) {
     loadedPartyNameKey = `${routeCode}:${currentPlayerId}`;
@@ -201,6 +215,7 @@
       const response = await fetch(`/api/parties/${code}`);
       const data = await response.json();
       const partyPlayer = data.party?.players?.find((player: { id: string; name?: string }) => player.id === playerId);
+      applyPartyAvatar(partyPlayer);
       const serverName = String(partyPlayer?.name ?? '').slice(0, 32);
       if (!response.ok || !serverName) return;
       playerName = serverName;
@@ -208,6 +223,69 @@
       localStorage.setItem(`web-games:player-name:${code}`, serverName);
     } catch {
       // Lokaler Name bleibt bestehen, wenn die Party gerade nicht erreichbar ist.
+    }
+  }
+
+  function applyPartyAvatar(partyPlayer: { avatar?: unknown; color?: string } | undefined) {
+    if (!partyPlayer) return;
+    partyColorHex = playerHex(partyPlayer.color);
+    if (partyPlayer.avatar) {
+      partyAvatar = normalizeAvatar(partyPlayer.avatar, partyAvatar ?? undefined);
+      if (!isEditingAvatar) editAvatar = partyAvatar;
+    }
+  }
+
+  async function loadPartyAvatar(code: string, playerId: string) {
+    try {
+      const response = await fetch(`/api/parties/${code}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      applyPartyAvatar(data.party?.players?.find((player: { id: string }) => player.id === playerId));
+    } catch {
+      // Ohne Verbindung bleibt der zuletzt bekannte Avatar stehen.
+    }
+  }
+
+  function toggleAvatarEditor() {
+    isEditingAvatar = !isEditingAvatar;
+    avatarError = '';
+    if (isEditingAvatar) editAvatar = partyAvatar;
+  }
+
+  async function saveAvatar() {
+    avatarError = '';
+    avatarStatus = '';
+    if (!canEditPartyAvatar || !editAvatar) return;
+    isSavingAvatar = true;
+
+    try {
+      const response = await fetch(`/api/parties/${routeCode}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'set-avatar', token: currentPlayerToken, avatar: editAvatar })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        avatarError = data.message ?? 'Avatar konnte nicht gespeichert werden.';
+        return;
+      }
+      const savedPlayer = data.party?.players?.find((player: { id: string }) => player.id === currentPlayerId);
+      partyAvatar = savedPlayer?.avatar ? normalizeAvatar(savedPlayer.avatar, editAvatar) : editAvatar;
+      try {
+        localStorage.setItem('web-games:avatar', JSON.stringify(partyAvatar));
+      } catch {
+        // Lokales Merken ist nur Komfort.
+      }
+      isEditingAvatar = false;
+      avatarStatus = 'Gespeichert';
+      if (avatarStatusTimeout) clearTimeout(avatarStatusTimeout);
+      avatarStatusTimeout = setTimeout(() => {
+        avatarStatus = '';
+      }, 2000);
+    } catch {
+      avatarError = 'Avatar konnte nicht gespeichert werden.';
+    } finally {
+      isSavingAvatar = false;
     }
   }
 
@@ -402,6 +480,7 @@
     activeAudio?.pause();
     fadingAudio?.pause();
     stopPreview();
+    if (avatarStatusTimeout) clearTimeout(avatarStatusTimeout);
   });
 </script>
 
@@ -544,6 +623,45 @@
           <span class="sr-only" aria-live="polite">{saved || renameStatus ? 'Gespeichert' : ''}</span>
           {#if renameError}<p class="ui-alert basis-full" role="alert">{renameError}</p>{/if}
         </div>
+
+        {#if canEditPartyAvatar}
+          <div class="settings-field">
+            <p class="settings-label" id="settings-avatar-label">Avatar</p>
+            <div class="settings-avatar-row">
+              {#if partyAvatar}
+                <PlayerAvatar avatar={partyAvatar} name={playerName} color={partyColorHex} size={56} decorative={false} />
+              {:else}
+                <span class="settings-hint">Avatar wird geladen…</span>
+              {/if}
+              <button type="button" on:click={toggleAvatarEditor} disabled={!partyAvatar} aria-expanded={isEditingAvatar} aria-controls="settings-avatar-editor" class="ui-btn">
+                {#if isEditingAvatar}
+                  <X size={17} aria-hidden="true" />
+                  Abbrechen
+                {:else}
+                  <Pencil size={17} aria-hidden="true" />
+                  Avatar bearbeiten
+                {/if}
+              </button>
+              <span class="settings-hint" aria-live="polite">
+                {#if avatarStatus}<Check size={15} aria-hidden="true" class="inline align-[-2px]" /> {avatarStatus}{/if}
+              </span>
+            </div>
+            {#if isEditingAvatar && editAvatar}
+              <div id="settings-avatar-editor" class="settings-avatar-editor" role="group" aria-labelledby="settings-avatar-label">
+                <AvatarEditor bind:avatar={editAvatar} color={partyColorHex} name={playerName} />
+                <button type="button" on:click={saveAvatar} disabled={isSavingAvatar} class="ui-btn ui-btn--primary self-start">
+                  {#if isSavingAvatar}
+                    <LoaderCircle class="animate-spin" size={17} aria-hidden="true" />
+                    Speichert…
+                  {:else}
+                    Speichern
+                  {/if}
+                </button>
+              </div>
+            {/if}
+            {#if avatarError}<p class="ui-alert" role="alert">{avatarError}</p>{/if}
+          </div>
+        {/if}
       </section>
     </div>
   </div>
@@ -591,6 +709,9 @@
   .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 999px; background: #fff; transition: transform 150ms ease; }
   .switch:checked { background: var(--accent-main); }
   .switch:checked::after { transform: translateX(20px); }
+
+  .settings-avatar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .settings-avatar-editor { display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: var(--radius-inner); background: var(--surface); }
 
   .settings-select { min-height: var(--control-height); appearance: auto; }
   .settings-preview { flex-shrink: 0; }

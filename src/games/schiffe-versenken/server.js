@@ -6,7 +6,7 @@
  * @typedef {{ x: number, y: number, result: 'hit' | 'miss' }} SchiffeShot
  * @typedef {{ id: string, name: string, ready: boolean, placed: boolean, ships: SchiffeShip[], incoming: SchiffeShot[], sunkCount: number }} SchiffePlayer
  * @typedef {{ seq: number, shooterId: string, targetId: string, x: number, y: number, result: 'hit' | 'miss' | 'sunk', shipName: string | null }} SchiffeLastShot
- * @typedef {{ phase: 'placement' | 'battle' | 'finished', size: number, fleet: FleetEntry[], currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, lastShot: SchiffeLastShot | null, shotCount: number }} SchiffeState
+ * @typedef {{ phase: 'placement' | 'battle' | 'finished', size: number, fleet: FleetEntry[], currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, lastShot: SchiffeLastShot | null, shotCount: number, extraShotOnHit?: boolean }} SchiffeState
  * @typedef {{ id: string, gameId: string, name: string, status: 'running' | 'finished', createdAt: string, players: SchiffePlayer[], state: SchiffeState }} SchiffeSession
  * @typedef {{ x?: unknown, y?: unknown, length?: unknown, dir?: unknown }} RawShip
  * @typedef {{ type?: unknown, ships?: unknown, x?: unknown, y?: unknown }} SchiffeMoveInput
@@ -141,7 +141,8 @@ export function randomFleet(random = Math.random) {
  * @returns {SchiffeSession | { error: string }}
  */
 export function createSchiffeVersenkenSession(players, options = {}) {
-  void options;
+  // Hausregel: Bei einem Treffer darf man nochmal schießen (Standard: an).
+  const extraShotOnHit = options.extraShotOnHit !== false && options.extraShotOnHit !== 'false';
   const selectedPlayers = players.slice(0, 2);
 
   if (selectedPlayers.length < schiffeVersenkenGame.minPlayers) {
@@ -171,7 +172,8 @@ export function createSchiffeVersenkenSession(players, options = {}) {
       winnerId: null,
       isDraw: false,
       lastShot: null,
-      shotCount: 0
+      shotCount: 0,
+      extraShotOnHit
     }
   };
 }
@@ -265,7 +267,7 @@ export function makeSchiffeVersenkenMove(session, playerId, move) {
     }
 
     // A hit earns another shot; a miss passes the turn.
-    if (result === 'miss') session.state.currentPlayerId = opponent.id;
+    if (result === 'miss' || session.state.extraShotOnHit === false) session.state.currentPlayerId = opponent.id;
     return { session };
   }
 

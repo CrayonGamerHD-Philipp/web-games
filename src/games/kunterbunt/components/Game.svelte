@@ -3,7 +3,8 @@
   import BuntCard from './BuntCard.svelte';
   import BuntMark from './BuntMark.svelte';
   import { BUNT_COLORS, BUNT_COLOR_NAMES, BUNT_VALUES, buntCardName, isBuntCardPlayable, isBuntWild } from '../rules.js';
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
   /** @typedef {import('../types').BuntSession} BuntSession */
   /** @typedef {import('../types').BuntState} BuntState */
@@ -24,7 +25,7 @@
   /** @type {number} */
   export let renderNonce = 0;
   /** Party players (`{ id, name, color }`) for avatar colours. */
-  /** @type {{ id: string, name?: string, color?: string }[]} */
+  /** @type {{ id: string, name?: string, color?: string, avatar?: import('$lib/party-features.js').Avatar | null }[]} */
   export let players = [];
 
   // Kept for the shared game-component API; the table reacts to `game` directly.
@@ -337,7 +338,7 @@
             {@const isNext = isRunning && !active && nextPlayerId === player.id}
             {@const count = player.handCount ?? player.hand.length}
             <li class="kb-opp" class:is-active={active} class:is-winner={state.winnerId === player.id}>
-              <span class="ui-avatar kb-opp-avatar" style="--player: {playerHexById(players, player.id)}" aria-hidden="true">{initials(player.name)}</span>
+              <PlayerAvatar avatar={players.find((p) => p.id === player.id)?.avatar ?? null} name={player.name} color={playerHexById(players, player.id)} size={36} active={active} />
               <span class="kb-opp-meta">
                 <span class="kb-opp-line">
                   <span class="kb-opp-name">{player.name}</span>

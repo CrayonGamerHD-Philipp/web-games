@@ -1,5 +1,6 @@
 <script>
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
   /** @typedef {import('../types').VierSession} VierSession */
   /** @typedef {import('../types').VierPlayer} VierPlayer */
@@ -18,7 +19,7 @@
   /** @type {number} */
   export let renderNonce = 0;
   /** Party players (`{ id, name, color }`) for disc and avatar colours. */
-  /** @type {{ id: string, name?: string, color?: string }[]} */
+  /** @type {{ id: string, name?: string, color?: string, avatar?: import('$lib/party-features.js').Avatar | null }[]} */
   export let players = [];
 
   // Part of the shared game-component API; the board reacts to `game` directly.
@@ -260,7 +261,7 @@
     <header class="v4-status">
       <p class="v4-status-text" aria-live="polite" aria-atomic="true">
         {#if statusPlayer}
-          <span class="ui-avatar v4-status-avatar" style="--player: {colors[statusPlayer.seat]}" aria-hidden="true">{initials(statusPlayer.name)}</span>
+          <PlayerAvatar avatar={players.find((p) => p.id === statusPlayer?.id)?.avatar ?? null} name={statusPlayer.name} color={colors[statusPlayer.seat]} size={32} active={isRunning} />
         {/if}
         <span>{statusText}</span>
       </p>
@@ -374,10 +375,6 @@
     line-height: 1.35;
     font-weight: 600;
     text-wrap: balance;
-  }
-
-  .v4-status-avatar {
-    flex-shrink: 0;
   }
 
   .v4-chip {

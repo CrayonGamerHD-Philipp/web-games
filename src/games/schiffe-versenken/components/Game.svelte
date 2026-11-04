@@ -4,7 +4,8 @@
   import SeaBoard from './SeaBoard.svelte';
   import FleetStatus from './FleetStatus.svelte';
   import { FLEET, randomFleet } from '../server.js';
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
   /** @typedef {import('../types').SchiffeSession} SchiffeSession */
   /** @typedef {import('../types').SchiffeMove} SchiffeMove */
@@ -30,7 +31,7 @@
   /** @type {number} */
   export let renderNonce = 0;
   /** Party-Spieler ({ id, name, color, … }) für Avatare in Spielerfarbe. */
-  /** @type {{ id: string, name?: string, color?: string }[]} */
+  /** @type {{ id: string, name?: string, color?: string, avatar?: import('$lib/party-features.js').Avatar | null }[]} */
   export let players = [];
 
   // Kept for the shared game-component API; the board reacts to `game` directly.
@@ -111,6 +112,8 @@
   $: isSpectator = !me;
   $: isMyTurn = Boolean(me && phase === 'battle' && !isFinished && game?.state.currentPlayerId === currentPlayerId);
   $: lastShot = /** @type {SchiffeLastShot | null} */ (game?.state.lastShot ?? null);
+  /** Lobby-Einstellung: Treffer erlaubt einen weiteren Schuss (Standard). */
+  $: extraShot = !(game?.state && 'extraShotOnHit' in game.state && game.state.extraShotOnHit === false);
   $: currentTurnName = game?.players.find((player) => player.id === game?.state.currentPlayerId)?.name ?? '';
 
   // ---------- Placement draft ----------
@@ -495,8 +498,9 @@
    * @param {string} stage
    * @param {string} hint
    * @param {FleetEntry | null} held
+   * @param {boolean} extraShot
    */
-  function getStatusText(phaseName, finished, myTurn, shot, self, rival, turnName, placedCount, fleetSize, stage, hint, held) {
+  function getStatusText(phaseName, finished, myTurn, shot, self, rival, turnName, placedCount, fleetSize, stage, hint, held, extraShot) {
     if (!game) return '';
     /** @param {string | null | undefined} id */
     const nameOf = (id) => game?.players.find((player) => player.id === id)?.name ?? 'Jemand';
@@ -522,23 +526,30 @@
     const shooterIsMe = Boolean(self && shot?.shooterId === self.id);
     const shooterName = nameOf(shot?.shooterId);
 
+    // Ohne Extraschuss (Einstellung extraShotOnHit = false) wechselt der Zug auch nach einem Treffer.
+    const again = extraShot;
+
     if (!self) {
       if (!shot) return `${turnName} eröffnet das Feuer.`;
-      if (shot.result === 'sunk') return `${shooterName} versenkt ${shipAcc(shot.shipName, 'der')} auf ${where}.`;
-      if (shot.result === 'hit') return `${shooterName} trifft auf ${where} und schießt nochmal.`;
+      if (shot.result === 'sunk') return `${shooterName} versenkt ${shipAcc(shot.shipName, 'der')} auf ${where}.${again ? '' : ` ${turnName} ist dran.`}`;
+      if (shot.result === 'hit') return again ? `${shooterName} trifft auf ${where} und schießt nochmal.` : `${shooterName} trifft auf ${where}. ${turnName} ist dran.`;
       return `${shooterName} schießt auf ${where}: Wasser. ${turnName} ist dran.`;
     }
 
     if (myTurn) {
       if (shot && shooterIsMe && shot.result === 'sunk') return `${shot.shipName ?? 'Schiff'} versenkt! Du darfst nochmal.`;
       if (shot && shooterIsMe && shot.result === 'hit') return `Treffer auf ${where}! Du darfst nochmal.`;
+      if (shot && !shooterIsMe && shot.result === 'sunk') return `${shooterName} hat ${shipAcc(shot.shipName, 'dein')} auf ${where} versenkt. Jetzt du – wähle ein Feld.`;
+      if (shot && !shooterIsMe && shot.result === 'hit') return `${shooterName} trifft auf ${where}. Jetzt du – wähle ein Feld.`;
       if (shot && !shooterIsMe) return `${shooterName} schießt auf ${where}: Wasser. Jetzt du – wähle ein Feld.`;
       return 'Du eröffnest das Feuer – wähle ein Feld im gegnerischen Meer.';
     }
 
+    if (shot && shooterIsMe && shot.result === 'sunk') return `${shot.shipName ?? 'Schiff'} versenkt! ${turnName} ist dran.`;
+    if (shot && shooterIsMe && shot.result === 'hit') return `Treffer auf ${where}! ${turnName} ist dran.`;
     if (shot && shooterIsMe) return `${where}: Wasser. ${turnName} ist dran.`;
     if (shot && shot.result === 'sunk') return `${shooterName} hat ${shipAcc(shot.shipName, 'dein')} auf ${where} versenkt.`;
-    if (shot && shot.result === 'hit') return `${shooterName} trifft auf ${where} und schießt nochmal.`;
+    if (shot && shot.result === 'hit') return again ? `${shooterName} trifft auf ${where} und schießt nochmal.` : `${shooterName} trifft auf ${where}.`;
     return `${turnName} zielt …`;
   }
 
@@ -554,7 +565,8 @@
     fleet.length,
     readyStage,
     notice,
-    heldEntry
+    heldEntry,
+    extraShot
   );
 
   /** @param {SchiffePlayer | null} player */
@@ -638,7 +650,7 @@
           <section class="sv-place-board" aria-label="Deine Flotte">
             {#if me}
               <div class="sv-panel-head">
-                <span class="ui-avatar" style={`--player: ${playerHexById(players, me.id)}`} aria-hidden="true">{initials(me.name)}</span>
+                <PlayerAvatar avatar={players.find((p) => p.id === me?.id)?.avatar ?? null} name={me.name} color={playerHexById(players, me.id)} size={32} />
                 <h2 class="sv-panel-title">Deine Flotte</h2>
                 <span class="sv-panel-meta ui-num">{placedShips.length}/{fleet.length}</span>
               </div>
@@ -671,7 +683,7 @@
           <section class="sv-panel sv-panel--wait">
             <div class="sv-panel-head">
               {#if homePlayer}
-                <span class="ui-avatar" style={`--player: ${playerHexById(players, homePlayer.id)}`} aria-hidden="true">{initials(homePlayer.name)}</span>
+                <PlayerAvatar avatar={players.find((p) => p.id === homePlayer?.id)?.avatar ?? null} name={homePlayer.name} color={playerHexById(players, homePlayer.id)} size={32} />
               {/if}
               <h2 class="sv-panel-title">{isSpectator ? homePlayer?.name ?? 'Spieler 1' : 'Deine Flotte'}</h2>
               <span class="sv-panel-meta">{homePlayer?.ready ? 'bereit' : 'stellt auf'}</span>
@@ -692,7 +704,7 @@
               <p>Flotte wird gemeldet …</p>
             {:else}
               {#if opponent}
-                <span class="ui-avatar" style={`--player: ${playerHexById(players, opponent.id)}`} aria-hidden="true">{initials(opponent.name)}</span>
+                <PlayerAvatar avatar={players.find((p) => p.id === opponent?.id)?.avatar ?? null} name={opponent.name} color={playerHexById(players, opponent.id)} size={32} />
               {:else}
                 <span class="sv-wait-dot" aria-hidden="true"></span>
               {/if}
@@ -749,7 +761,7 @@
           >
             <div class="sv-panel-head">
               {#if targetPlayer}
-                <span class="ui-avatar" style={`--player: ${playerHexById(players, targetPlayer.id)}`} aria-hidden="true">{initials(targetPlayer.name)}</span>
+                <PlayerAvatar avatar={players.find((p) => p.id === targetPlayer?.id)?.avatar ?? null} name={targetPlayer.name} color={playerHexById(players, targetPlayer.id)} size={32} />
               {/if}
               <h2 class="sv-panel-title" id="sv-title-target">
                 {isSpectator ? `Meer von ${targetPlayer?.name ?? ''}` : `Meer von ${targetPlayer?.name ?? 'Gegner'}`}
@@ -777,7 +789,7 @@
           >
             <div class="sv-panel-head">
               {#if homePlayer}
-                <span class="ui-avatar" style={`--player: ${playerHexById(players, homePlayer.id)}`} aria-hidden="true">{initials(homePlayer.name)}</span>
+                <PlayerAvatar avatar={players.find((p) => p.id === homePlayer?.id)?.avatar ?? null} name={homePlayer.name} color={playerHexById(players, homePlayer.id)} size={32} />
               {/if}
               <h2 class="sv-panel-title" id="sv-title-home">{isSpectator ? `Meer von ${homePlayer?.name ?? ''}` : 'Deine Flotte'}</h2>
               {#if !isSpectator && !isFinished && game.state.currentPlayerId === targetPlayer?.id}

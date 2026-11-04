@@ -2,7 +2,8 @@
   import { onDestroy, onMount } from 'svelte';
   import HeimDie from './HeimDie.svelte';
   import { SEATS, TRACK, cellOf } from '../board.js';
-  import { initials, playerHexById } from '$lib/player-colors.js';
+  import { playerHexById } from '$lib/player-colors.js';
+  import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
   /** @typedef {import('../types').HeimSession} HeimSession */
   /** @typedef {import('../types').HeimPlayer} HeimPlayer */
@@ -21,7 +22,7 @@
   /** @type {number} */
   export let renderNonce = 0;
   /** Party players (`{ id, name, color }`) for identity colours. */
-  /** @type {{ id: string, name?: string, color?: string }[]} */
+  /** @type {{ id: string, name?: string, color?: string, avatar?: import('$lib/party-features.js').Avatar | null }[]} */
   export let players = [];
 
   $: void renderNonce;
@@ -404,7 +405,7 @@
           {#each others as player (player.id)}
             {@const active = isRunning && state.currentPlayerId === player.id}
             <li class="hb-opp" class:is-active={active} class:is-winner={state.winnerId === player.id}>
-              <span class="ui-avatar hb-opp-avatar" style="--player: {colors[player.id]}" aria-hidden="true">{initials(player.name)}</span>
+              <PlayerAvatar avatar={players.find((p) => p.id === player.id)?.avatar ?? null} name={player.name} color={colors[player.id]} size={36} active={active} />
               <span class="hb-opp-meta">
                 <span class="hb-opp-name">{player.name}</span>
                 <span class="hb-opp-count ui-num">

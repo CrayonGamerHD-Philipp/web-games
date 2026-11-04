@@ -1,16 +1,24 @@
 <script>
   import { tick } from 'svelte';
-  import { ArrowLeft, Ellipsis, LoaderCircle, RotateCcw, SquareX } from '@lucide/svelte';
+  import { ArrowLeft, Ellipsis, LoaderCircle, RotateCcw, SmilePlus, SquareX } from '@lucide/svelte';
   import { getGameDefinition } from '../../../games/registry';
-  import { initials, playerHex } from '../../player-colors.js';
+  import { playerHex } from '../../player-colors.js';
+  import { GAME_SETTINGS } from '../../party-features.js';
+  import PlayerAvatar from '../../components/PlayerAvatar.svelte';
+  import ReactionBar from '../../components/ReactionBar.svelte';
+  import ReactionBubbles from '../../components/ReactionBubbles.svelte';
+  import ReactionAnnouncer from '../../components/ReactionAnnouncer.svelte';
+  import { summarizeSettings } from '../../components/game-settings.js';
   import GameResultScreen from './GameResultScreen.svelte';
 
-  /** @typedef {{ id: string, name: string, score: number, isHost?: boolean, color?: string }} Player */
+  /** @typedef {{ id: string, name: string, score: number, isHost?: boolean, color?: string, avatar?: import('../../party-features.js').Avatar | null }} Player */
+  /** @typedef {{ id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }} HistoryEntry */
+  /** @typedef {{ id: string, playerId: string, emoji: string, at: number }} Reaction */
   /** @typedef {{ id: string, value: number | null, revealed: boolean, removed: boolean }} SkyjoSlot */
   /** @typedef {{ id: string, name: string, mark?: string, grid?: SkyjoSlot[] }} GamePlayer */
   /** @typedef {import('../types').GameResult} GameResult */
   /** @typedef {{ winnerId?: string | null, isDraw?: boolean, currentPlayerId?: string | null, roundScores?: { playerId: string, score: number }[], match?: { enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] } }} ActiveGameState */
-  /** @typedef {{ id: string, gameId: string, name: string, status: string, players: GamePlayer[], state: ActiveGameState, requests: { rematch: string[], newGame: string[] } }} ActiveGame */
+  /** @typedef {{ id: string, gameId: string, name: string, status: string, players: GamePlayer[], state: ActiveGameState, requests: { rematch: string[], newGame: string[] }, settings?: Record<string, string | number | boolean> }} ActiveGame */
 
   /** @type {string} */
   export let code = '';
@@ -34,6 +42,12 @@
   export let renderNonce = 0;
   /** @type {string} */
   export let lobbyHref = '/';
+  /** Spieler-Token (für Reaktionen) */
+  export let token = '';
+  /** @type {HistoryEntry[]} */
+  export let history = [];
+  /** @type {Reaction[]} */
+  export let reactions = [];
   /** @type {(move: Record<string, unknown>) => void} */
   export let onMove = () => {};
   /** @type {() => void} */
@@ -61,7 +75,8 @@
   $: identityPlayers = activeGame
     ? activeGame.players.map((gamePlayer) => ({
         ...gamePlayer,
-        hex: playerHex(partyPlayers.find((player) => player.id === gamePlayer.id)?.color)
+        hex: playerHex(partyPlayers.find((player) => player.id === gamePlayer.id)?.color),
+        avatar: partyPlayers.find((player) => player.id === gamePlayer.id)?.avatar ?? null
       }))
     : [];
   $: gameScorePlayers = activeGame
@@ -72,11 +87,40 @@
           name: gamePlayer.name,
           score: partyPlayer?.score ?? 0,
           isHost: partyPlayer?.isHost ?? false,
-          color: partyPlayer?.color
+          color: partyPlayer?.color,
+          avatar: partyPlayer?.avatar ?? null
         };
       })
     : [];
   $: result = createResult(activeGame, currentPlayerId, winnerPlayer?.name);
+  $: settingsSummary = summarizeSettings(GAME_SETTINGS[activeGame?.gameId ?? ''] ?? [], activeGame?.settings);
+  $: canReact = Boolean(token && partyPlayers.some((player) => player.id === currentPlayerId));
+
+  /* ---------- Reaktionen (Popover / Sheet auf dem Handy) ---------- */
+  let reactOpen = false;
+  /** @type {HTMLButtonElement | null} */
+  let reactButton = null;
+  /** @type {HTMLElement | null} */
+  let reactPanel = null;
+
+  async function openReactions() {
+    closeMenu(false);
+    reactOpen = true;
+    await tick();
+    reactPanel?.querySelector('button')?.focus();
+  }
+
+  /** @param {boolean} [restoreFocus] */
+  function closeReactions(restoreFocus = true) {
+    if (!reactOpen) return;
+    reactOpen = false;
+    if (restoreFocus) reactButton?.focus();
+  }
+
+  function handleReactionSent() {
+    // Auf dem Handy verdeckt das Sheet das Spiel: nach dem Senden schließen.
+    if (window.matchMedia('(max-width: 639px)').matches) closeReactions();
+  }
 
   /* ---------- Überlaufmenü (Host-Aktionen) ---------- */
   let menuOpen = false;
@@ -86,6 +130,7 @@
   let menuList = null;
 
   async function openMenu() {
+    reactOpen = false;
     menuOpen = true;
     await tick();
     menuList?.querySelector('button')?.focus();
@@ -114,8 +159,9 @@
 
   /** @param {MouseEvent} event */
   function handleWindowClick(event) {
-    if (!menuOpen) return;
     const target = /** @type {Node} */ (event.target);
+    if (reactOpen && !reactPanel?.contains(target) && !reactButton?.contains(target)) closeReactions(false);
+    if (!menuOpen) return;
     if (menuList?.contains(target) || menuButton?.contains(target)) return;
     closeMenu(false);
   }
@@ -170,6 +216,11 @@
 
   /** @param {KeyboardEvent} event */
   function handleWindowKeydown(event) {
+    if (reactOpen && event.key === 'Escape') {
+      event.preventDefault();
+      closeReactions();
+      return;
+    }
     if (menuOpen && event.key === 'Escape') {
       event.preventDefault();
       closeMenu();
@@ -284,6 +335,14 @@
         <p class="shell-name">
           <svelte:element this={showsInlineResult ? 'span' : 'h1'} class="shell-game">{definition.name}</svelte:element>
           <span class="shell-code"><span class="sr-only">Party-Code </span>{code}</span>
+          {#if settingsSummary.length}
+            <span class="shell-settings">
+              <span class="sr-only">Einstellungen: {settingsSummary.map((item) => item.text).join(', ')}</span>
+              {#each settingsSummary as item (item.key)}
+                <span class="shell-setting" title={item.text} aria-hidden="true">{item.short}</span>
+              {/each}
+            </span>
+          {/if}
         </p>
         <p class="shell-status" aria-live="polite">
           {#if activeGame.state.winnerId}
@@ -302,6 +361,28 @@
           {#if !myGamePlayer} Du schaust zu.{/if}
         </p>
       </div>
+
+      {#if canReact}
+        <div class="shell-menu">
+          <button
+            bind:this={reactButton}
+            type="button"
+            class="ui-btn ui-btn--ghost ui-btn--icon"
+            class:is-open={reactOpen}
+            aria-label="Reaktion senden"
+            aria-expanded={reactOpen}
+            aria-controls="shell-react-panel"
+            on:click={() => (reactOpen ? closeReactions() : openReactions())}
+          >
+            <SmilePlus size={21} aria-hidden="true" />
+          </button>
+          {#if reactOpen}
+            <div bind:this={reactPanel} id="shell-react-panel" class="shell-popover shell-react">
+              <ReactionBar {code} {token} on:sent={handleReactionSent} />
+            </div>
+          {/if}
+        </div>
+      {/if}
 
       {#if isHost && !isFinished}
         <div class="shell-menu">
@@ -337,13 +418,17 @@
       {#each identityPlayers as player (player.id)}
         {@const onTurn = isRunning && activeGame.state.currentPlayerId === player.id}
         <li class="shell-player" class:is-turn={onTurn}>
-          <span class="ui-avatar shell-avatar" style="--player: {player.hex}" aria-hidden="true">{initials(player.name)}</span>
+          <span class="shell-avatar">
+            <PlayerAvatar avatar={player.avatar} name={player.name} color={player.hex} size={30} active={onTurn} />
+            <ReactionBubbles {reactions} playerId={player.id} placement="over" />
+          </span>
           <span class="shell-player-name">{player.name}</span>
           {#if player.id === currentPlayerId}<span class="shell-you">du</span>{/if}
           {#if onTurn}<span class="sr-only">, am Zug</span>{/if}
         </li>
       {/each}
     </ul>
+    <ReactionAnnouncer {reactions} players={partyPlayers} {currentPlayerId} />
   </header>
 
   {#if gameError}
@@ -365,6 +450,8 @@
           onBackToGames={onChooseNewGame}
           {onRequestRematch}
           {onRequestNewGame}
+          {history}
+          {partyPlayers}
         />
       {:else}
         <svelte:component this={GameComponent} game={activeGame} {currentPlayerId} isLoading={isActionLoading} onMove={onMove} {renderNonce} players={partyPlayers} />
@@ -377,7 +464,7 @@
         <ul class="space-y-2">
           {#each identityPlayers as player (player.id)}
             <li class="flex items-center gap-3">
-              <span class="ui-avatar" style="--player: {player.hex}" aria-hidden="true">{initials(player.name)}</span>
+              <PlayerAvatar avatar={player.avatar} name={player.name} color={player.hex} size={32} />
               <span class="min-w-0 flex-1 truncate font-semibold">{player.name}</span>
               {#if player.mark}<span class="ui-chip">{player.mark}</span>{/if}
             </li>
@@ -402,6 +489,8 @@
           onBackToGames={onChooseNewGame}
           {onRequestRematch}
           {onRequestNewGame}
+          {history}
+          {partyPlayers}
           headingLevel="h2"
         />
       </div>
@@ -462,6 +551,8 @@
     min-width: 0;
   }
   .shell-game {
+    flex: 0 1 auto;
+    min-width: min(7.5em, 60%);
     margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -477,6 +568,8 @@
     font-variant-numeric: tabular-nums;
     color: var(--muted);
   }
+  /* Schmale Handys: Spielname vor Party-Code (der Code steht in der Lobby). */
+  @media (max-width: 479px) { .shell-name:has(.shell-settings) .shell-code { display: none; } }
   .shell-status {
     margin: 1px 0 0;
     overflow: hidden;
@@ -487,6 +580,48 @@
     color: var(--muted);
   }
   .shell-status-me { color: var(--accent-text); font-weight: 600; }
+
+  .shell-settings { display: flex; flex: 0 100 auto; gap: 4px; min-width: 0; overflow: hidden; }
+  .shell-setting {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  .is-open { background: var(--surface); }
+  .shell-popover.shell-react { min-width: 0; width: 24rem; max-width: calc(100vw - 24px); padding: 4px; }
+  /* Handy: kompaktes Sheet über dem unteren Rand statt Popover unter dem Knopf. */
+  @media (max-width: 639px) {
+    .shell-popover.shell-react {
+      position: fixed;
+      top: auto;
+      left: 12px;
+      right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 60;
+      width: auto;
+      padding: 6px;
+      border-radius: var(--radius-card);
+      animation: shell-sheet-in 180ms ease-out both;
+    }
+  }
+  @keyframes shell-sheet-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shell-react { animation: none !important; }
+  }
 
   .shell-menu { position: relative; flex-shrink: 0; }
   .shell-popover {
@@ -551,7 +686,7 @@
     outline: 2px solid var(--accent-main);
     outline-offset: 0;
   }
-  .shell-avatar { width: 30px; height: 30px; font-size: 0.75rem; }
+  .shell-avatar { position: relative; display: inline-flex; flex-shrink: 0; }
   .shell-player-name {
     max-width: 9rem;
     overflow: hidden;

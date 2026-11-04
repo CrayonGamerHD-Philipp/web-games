@@ -1,10 +1,14 @@
 import { applyGameMove, availableGames, createGameSession, getGame, redactGameSession } from './games/index.js';
+import { GAME_SETTINGS, REACTIONS, REACTION_TTL_MS, normalizeAvatar, randomAvatar, sanitizeGameSettings } from '../party-features.js';
 
 /**
- * @typedef {{ id: string, token: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string }} Player
+ * @typedef {import('../party-features.js').Avatar} Avatar
+ * @typedef {{ id: string, token: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string, avatar?: Avatar, lastReactionAt?: number }} Player
+ * @typedef {{ id: string, playerId: string, emoji: string, at: number }} Reaction
+ * @typedef {{ id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }} HistoryEntry
  * @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch
- * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean }} ActiveGame
- * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null, locked?: boolean, lastActivityAt?: number }} Party
+ * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean, resultRecorded?: boolean, settings?: Record<string, string | number | boolean> }} ActiveGame
+ * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null, locked?: boolean, lastActivityAt?: number, reactions?: Reaction[], history?: HistoryEntry[] }} Party
  * @typedef {{ parties: Map<string, Party>, listeners: Map<string, Set<(party: Party) => void>> }} Store
  */
 
@@ -87,12 +91,15 @@ function resolvePlayer(party, token) {
 /** @param {Party} party */
 function normalizeParty(party) {
   party.locked ??= false;
+  party.reactions ??= [];
+  party.history ??= [];
   const usedColors = new Set();
   party.players = party.players.map((player, index) => {
     let color = playerColors.includes(player.color) && !usedColors.has(player.color) ? player.color : '';
     color ||= playerColors.find((candidate) => !usedColors.has(candidate)) ?? playerColors[index % playerColors.length];
     usedColors.add(color);
-    return { ...player, score: Number.isFinite(player.score) ? player.score : 0, color };
+    const avatar = player.avatar ? normalizeAvatar(player.avatar) : randomAvatar();
+    return { ...player, score: Number.isFinite(player.score) ? player.score : 0, color, avatar };
   });
 
   if (party.activeGame) {
@@ -147,9 +154,12 @@ function publicParty(party, viewerId = null) {
       isHost: player.isHost,
       joinedAt: player.joinedAt,
       score: player.score,
-      color: player.color
+      color: player.color,
+      avatar: player.avatar
     })),
-    availableGames: availableGames.map((game) => ({ ...game })),
+    availableGames: availableGames.map((game) => ({ ...game, settings: GAME_SETTINGS[game.id] ?? [] })),
+    reactions: (party.reactions ?? []).filter((reaction) => Date.now() - reaction.at < REACTION_TTL_MS),
+    history: (party.history ?? []).slice(-50),
     activeGame: party.activeGame ? redactActiveGame(structuredClone(party.activeGame), viewerId) : null
   };
 }
@@ -242,7 +252,7 @@ function awardScoreIfNeeded(party) {
 }
 
 /** @param {unknown} name */
-export function createParty(name) {
+export function createParty(name, avatar = null) {
   const cleanName = normalizeName(name);
 
   if (!cleanName) {
@@ -261,7 +271,8 @@ export function createParty(name) {
     isHost: true,
     joinedAt: new Date().toISOString(),
     score: 0,
-    color: playerColors[0]
+    color: playerColors[0],
+    avatar: normalizeAvatar(avatar)
   };
 
   const party = {
@@ -286,7 +297,7 @@ export function createParty(name) {
  * @param {unknown} code
  * @param {unknown} name
  */
-export function joinParty(code, name) {
+export function joinParty(code, name, avatar = null) {
   const cleanCode = normalizeCode(code);
   const cleanName = normalizeName(name);
 
@@ -317,7 +328,8 @@ export function joinParty(code, name) {
     isHost: false,
     joinedAt: new Date().toISOString(),
     score: 0,
-    color: playerColors.find((color) => !party.players.some((/** @type {Player} */ candidate) => candidate.color === color)) ?? playerColors[party.players.length % playerColors.length]
+    color: playerColors.find((color) => !party.players.some((/** @type {Player} */ candidate) => candidate.color === color)) ?? playerColors[party.players.length % playerColors.length],
+    avatar: normalizeAvatar(avatar)
   };
 
   party.players.push(player);
@@ -469,7 +481,7 @@ export function getParty(code) {
  * @param {unknown} gameId
  * @param {Record<string, unknown>} [settings]
  */
-export function startGame(code, token, gameId, settings = {}) {
+export function startGame(code, token, gameId, settings = {}, internalOptions = {}) {
   const cleanCode = normalizeCode(code);
   const party = store.parties.get(cleanCode);
 
@@ -494,10 +506,10 @@ export function startGame(code, token, gameId, settings = {}) {
     return { status: 400, error: `${game.name} braucht mindestens ${game.minPlayers} Spieler.` };
   }
 
-  const sanitizedSettings = { ...settings };
-  delete sanitizedSettings.previousMatch;
+  // Nur bekannte Einstellungen mit gültigen Werten; interne Optionen (z. B. Startspieler) kommen nur vom Server.
+  const sanitizedSettings = sanitizeGameSettings(game.id, settings);
 
-  const session = createGameSession(game.id, party.players, sanitizedSettings);
+  const session = createGameSession(game.id, party.players, { ...sanitizedSettings, ...internalOptions });
 
   if ('error' in session) {
     return { status: 400, error: session.error };
@@ -506,7 +518,8 @@ export function startGame(code, token, gameId, settings = {}) {
   party.activeGame = {
     ...session,
     requests: { rematch: [], newGame: [] },
-    scoreAwarded: false
+    scoreAwarded: false,
+    settings: sanitizedSettings
   };
   notifyParty(party);
 
@@ -539,7 +552,8 @@ export function restartGame(code, token) {
   }
 
   if (gameId === 'skyjo' && party.activeGame?.state.match?.enabled && !party.activeGame.state.match.matchFinished) {
-    const session = createGameSession(gameId, party.players, { previousMatch: party.activeGame.state.match });
+    const previousSettings = party.activeGame.settings ?? {};
+    const session = createGameSession(gameId, party.players, { ...previousSettings, previousMatch: party.activeGame.state.match });
 
     if ('error' in session) {
       return { status: 400, error: session.error };
@@ -548,7 +562,8 @@ export function restartGame(code, token) {
     party.activeGame = {
       ...session,
       requests: { rematch: [], newGame: [] },
-      scoreAwarded: false
+      scoreAwarded: false,
+      settings: previousSettings
     };
     notifyParty(party);
 
@@ -557,7 +572,7 @@ export function restartGame(code, token) {
 
   // Bei Revanchen kann ein Spiel den Startspieler wechseln (z. B. Vier in einer Reihe).
   const previousStarterId = /** @type {any} */ (party.activeGame?.state)?.startPlayerId;
-  return startGame(code, getHost(party)?.token, gameId, previousStarterId ? { previousStarterId } : {});
+  return startGame(code, getHost(party)?.token, gameId, party.activeGame?.settings ?? {}, previousStarterId ? { previousStarterId } : {});
 }
 
 /**
@@ -653,7 +668,87 @@ export function makeMove(code, token, move) {
   }
 
   awardScoreIfNeeded(activeParty);
+  recordResultIfNeeded(activeParty);
   notifyParty(activeParty);
 
   return { party: publicParty(activeParty, actor.id) };
+}
+
+/**
+ * Hält beendete Spiele für die Bestenliste der Party fest (einmal pro Spiel).
+ * Bei Skyjo im 100-Punkte-Modus zählt erst das Ende der ganzen Partie.
+ * @param {Party} party
+ */
+function recordResultIfNeeded(party) {
+  const game = party.activeGame;
+  if (!game || game.status !== 'finished' || game.resultRecorded) return;
+  const match = game.state.match;
+  if (match?.enabled && !match.matchFinished) return;
+
+  const state = /** @type {Record<string, unknown>} */ (game.state);
+  const winnerIds = Array.isArray(state.winnerIds) && state.winnerIds.length
+    ? /** @type {string[]} */ (state.winnerIds)
+    : Array.isArray(match?.winnerIds) && match.winnerIds.length
+      ? match.winnerIds
+      : game.state.winnerId
+        ? [game.state.winnerId]
+        : [];
+
+  party.history ??= [];
+  party.history.push({
+    id: game.id,
+    gameId: game.gameId,
+    gameName: getGame(game.gameId)?.name ?? game.name,
+    winnerIds,
+    isDraw: Boolean(game.state.isDraw) || winnerIds.length === 0,
+    playerIds: game.players.map((player) => player.id),
+    finishedAt: new Date().toISOString()
+  });
+  if (party.history.length > 200) party.history.splice(0, party.history.length - 200);
+  game.resultRecorded = true;
+}
+
+/**
+ * @param {unknown} code
+ * @param {unknown} token
+ * @param {unknown} avatar
+ */
+export function setPlayerAvatar(code, token, avatar) {
+  const party = store.parties.get(normalizeCode(code));
+  if (!party) return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  normalizeParty(party);
+  const player = resolvePlayer(party, token);
+  if (!player) return { status: 403, error: 'Dieses Gerät ist nicht in der Party angemeldet.' };
+
+  player.avatar = normalizeAvatar(avatar, player.avatar);
+  notifyParty(party);
+  return { party: publicParty(party, player.id) };
+}
+
+/**
+ * Kurze Emoji-Reaktion, die alle für ein paar Sekunden über dem Avatar sehen.
+ * @param {unknown} code
+ * @param {unknown} token
+ * @param {unknown} emoji
+ */
+export function sendReaction(code, token, emoji) {
+  const party = store.parties.get(normalizeCode(code));
+  if (!party) return { status: 404, error: 'Diese Party wurde nicht gefunden.' };
+  normalizeParty(party);
+  const player = resolvePlayer(party, token);
+  if (!player) return { status: 403, error: 'Dieses Gerät ist nicht in der Party angemeldet.' };
+
+  const cleanEmoji = String(emoji ?? '');
+  if (!REACTIONS.includes(cleanEmoji)) return { status: 400, error: 'Diese Reaktion gibt es nicht.' };
+
+  const now = Date.now();
+  if (player.lastReactionAt && now - player.lastReactionAt < 700) {
+    return { status: 429, error: 'Nicht so schnell.' };
+  }
+  player.lastReactionAt = now;
+
+  party.reactions = (party.reactions ?? []).filter((/** @type {Reaction} */ reaction) => now - reaction.at < REACTION_TTL_MS).slice(-30);
+  party.reactions.push({ id: crypto.randomUUID(), playerId: player.id, emoji: cleanEmoji, at: now });
+  notifyParty(party);
+  return { ok: true };
 }

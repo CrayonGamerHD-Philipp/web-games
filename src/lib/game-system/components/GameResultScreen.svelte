@@ -1,9 +1,12 @@
 <script>
   import { LoaderCircle } from '@lucide/svelte';
   import PlayingCard from '../../components/PlayingCard.svelte';
-  import { initials, playerHex } from '../../player-colors.js';
+  import PlayerAvatar from '../../components/PlayerAvatar.svelte';
+  import Leaderboard from '../../components/Leaderboard.svelte';
+  import { playerHex } from '../../player-colors.js';
 
-  /** @typedef {{ id: string, name: string, score?: number, isHost?: boolean, color?: string }} ScorePlayer */
+  /** @typedef {{ id: string, name: string, score?: number, isHost?: boolean, color?: string, avatar?: import('../../party-features.js').Avatar | null }} ScorePlayer */
+  /** @typedef {{ id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }} HistoryEntry */
   /** @typedef {{ status: 'won' | 'lost' | 'draw' | 'cancelled', winnerId?: string, winnerName?: string, title?: string, message?: string, score?: number, metadata?: Record<string, unknown> }} GameResult */
   /** @typedef {{ rematch: string[], newGame: string[] }} EndRequests */
   /** @typedef {{ playerId: string, score: number }} RoundScore */
@@ -36,6 +39,10 @@
   export let onRequestNewGame = () => {};
   /** Überschriftsebene: h1 auf der Seite, h2 im Skyjo-Modal. @type {'h1' | 'h2'} */
   export let headingLevel = 'h1';
+  /** Spielverlauf der Party (für die Bestenliste). @type {HistoryEntry[]} */
+  export let history = [];
+  /** Alle Party-Spieler (auch Zuschauer), für die Bestenliste. @type {ScorePlayer[]} */
+  export let partyPlayers = [];
 
   /**
    * @param {Record<string, unknown> | undefined} metadata
@@ -63,7 +70,6 @@
   $: isDraw = result.status === 'draw';
   $: alreadyRequestedRematch = requests.rematch.includes(currentPlayerId);
   $: alreadyRequestedNewGame = requests.newGame.includes(currentPlayerId);
-  $: sortedPlayers = [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name));
   $: scoreRows = roundScores.length
     ? [...roundScores]
         .map((roundScore) => ({
@@ -120,6 +126,11 @@
     return playerHex(players.find((player) => player.id === playerId)?.color);
   }
 
+  /** @param {string} playerId */
+  function playerAvatar(playerId) {
+    return players.find((player) => player.id === playerId)?.avatar ?? null;
+  }
+
   /**
    * @param {SkyjoRoundHistoryEntry} round
    * @param {string} playerId
@@ -132,7 +143,7 @@
 <section class="result animate-ui-pop-in" class:result--wide={skyjoRows.length || skyjoBoards.length}>
   <div class="result-head">
     {#if heroPlayer}
-      <span class="ui-avatar result-hero" style="--player: {playerColor(heroPlayer.id)}" aria-hidden="true">{initials(heroPlayer.name)}</span>
+      <span class="result-hero"><PlayerAvatar avatar={playerAvatar(heroPlayer.id)} name={heroPlayer.name} color={playerColor(heroPlayer.id)} size={56} /></span>
     {/if}
     <svelte:element this={headingLevel} id="result-title" class="ui-title">{headline}</svelte:element>
     <p class="ui-lead">{lead}</p>
@@ -152,7 +163,7 @@
           <li class="rank-row rank-row--4">
             <span class="rank-pos ui-num">{index + 1}</span>
             <span class="rank-who">
-              <span class="ui-avatar rank-avatar" style="--player: {playerColor(row.playerId)}" aria-hidden="true">{initials(row.player?.name)}</span>
+              <PlayerAvatar avatar={row.player?.avatar ?? null} name={row.player?.name ?? 'Spieler'} color={playerColor(row.playerId)} size={30} />
               <span class="rank-name">{row.player?.name ?? 'Spieler'}</span>
               {#if row.playerId === currentPlayerId}<span class="rank-you">du</span>{/if}
             </span>
@@ -171,7 +182,7 @@
             <li class="rank-row">
               <span class="rank-pos ui-num">{index + 1}</span>
               <span class="rank-who">
-                <span class="ui-avatar rank-avatar" style="--player: {playerColor(row.playerId)}" aria-hidden="true">{initials(row.player?.name)}</span>
+                <PlayerAvatar avatar={row.player?.avatar ?? null} name={row.player?.name ?? 'Spieler'} color={playerColor(row.playerId)} size={30} />
                 <span class="rank-name">{row.player?.name ?? 'Spieler'}</span>
                 {#if row.playerId === currentPlayerId}<span class="rank-you">du</span>{/if}
               </span>
@@ -183,20 +194,15 @@
     {/if}
 
     <div class="result-block">
-      <h3 class="ui-section-title">{scoreRows.length ? 'Siege in dieser Party' : 'Siege'}</h3>
-      <ol class="rank-list">
-        {#each sortedPlayers as player, index (player.id)}
-          <li class="rank-row">
-            <span class="rank-pos ui-num">{index + 1}</span>
-            <span class="rank-who">
-              <span class="ui-avatar rank-avatar" style="--player: {playerHex(player.color)}" aria-hidden="true">{initials(player.name)}</span>
-              <span class="rank-name">{player.name}</span>
-              {#if player.id === currentPlayerId}<span class="rank-you">du</span>{:else if player.isHost}<span class="rank-you">Host</span>{/if}
-            </span>
-            <span class="rank-num rank-score ui-num">{player.score ?? 0}</span>
-          </li>
-        {/each}
-      </ol>
+      <Leaderboard
+        compact
+        {history}
+        players={partyPlayers.length ? partyPlayers : players}
+        {currentPlayerId}
+        title="Bestenliste"
+        headingLevel="h3"
+        idPrefix="result-leaderboard"
+      />
     </div>
   {/if}
 
@@ -272,7 +278,7 @@
         {#each skyjoBoards as board (board.playerId)}
           <section class="ui-card board">
             <div class="board-head">
-              <span class="ui-avatar rank-avatar" style="--player: {playerColor(board.playerId)}" aria-hidden="true">{initials(board.playerName)}</span>
+              <PlayerAvatar avatar={playerAvatar(board.playerId)} name={board.playerName} color={playerColor(board.playerId)} size={30} />
               <h4 class="rank-name">{board.playerName}</h4>
               <span class="rank-score ui-num">{roundScores.find((score) => score.playerId === board.playerId)?.score ?? 0}</span>
             </div>
@@ -302,7 +308,7 @@
   @media (min-width: 768px) { .result { padding-top: 40px; } .result--wide { padding-top: 0; } }
 
   .result-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-  .result-hero { width: 56px; height: 56px; margin-bottom: 12px; font-size: 1.125rem; }
+  .result-hero { display: inline-flex; margin-bottom: 12px; }
 
   .result-block { display: flex; flex-direction: column; gap: 10px; }
   .result-block-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
@@ -313,7 +319,6 @@
   .rank-row--head { min-height: 32px; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
   .rank-pos { font-size: 0.9375rem; font-weight: 600; color: var(--muted); }
   .rank-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
-  .rank-avatar { width: 30px; height: 30px; font-size: 0.75rem; }
   .rank-name { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9375rem; font-weight: 600; }
   .rank-you { flex-shrink: 0; font-size: 0.8125rem; color: var(--muted); }
   .rank-num { text-align: right; }
