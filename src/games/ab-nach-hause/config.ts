@@ -8,7 +8,7 @@ export const abNachHauseGame: GameDefinition<HeimSession, HeimMove> = {
   description: 'Würfeln, rauskommen, schlagen: Wer bringt zuerst alle vier Figuren ins Ziel?',
   component: Game,
   icon: 'dice',
-  previewImage: '/images/ab-nach-hause-scene.svg',
+  previewImage: '/images/ab-nach-hause-scene.webp',
   minPlayers: 2,
   maxPlayers: 4,
   supportsStandalone: false

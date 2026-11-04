@@ -46,7 +46,7 @@ export const kunterbuntGame = {
   id: 'kunterbunt',
   name: 'Kunterbunt',
   description: 'Farbe oder Zahl bedienen, +2 und +4 weiterreichen, Farben wünschen – und vor der letzten Karte „Bunt!“ rufen.',
-  previewImage: '/images/kunterbunt-scene.svg',
+  previewImage: '/images/kunterbunt-scene.webp',
   minPlayers: 2,
   maxPlayers: 8
 };

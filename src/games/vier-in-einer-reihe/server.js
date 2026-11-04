@@ -30,7 +30,7 @@ export const vierInEinerReiheGame = {
   id: 'vier-in-einer-reihe',
   name: 'Vier in einer Reihe',
   description: 'Scheiben fallen nach unten: Wer zuerst vier in einer Linie hat – waagerecht, senkrecht oder schräg – gewinnt.',
-  previewImage: '/images/vier-in-einer-reihe-scene.svg',
+  previewImage: '/images/vier-in-einer-reihe-scene.webp',
   minPlayers: 2,
   maxPlayers: 2
 };

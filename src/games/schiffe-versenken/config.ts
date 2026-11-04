@@ -8,7 +8,7 @@ export const schiffeVersenkenGame: GameDefinition<SchiffeSession, SchiffeMove> =
   description: 'Flotte verstecken, Koordinaten ansagen, Schiffe versenken – das Seeduell für zwei.',
   component: Game,
   icon: 'anchor',
-  previewImage: '/images/schiffe-versenken-scene.svg',
+  previewImage: '/images/schiffe-versenken-scene.webp',
   minPlayers: 2,
   maxPlayers: 2,
   supportsStandalone: false

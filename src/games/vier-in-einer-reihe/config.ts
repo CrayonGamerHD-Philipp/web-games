@@ -8,7 +8,7 @@ export const vierInEinerReiheGame: GameDefinition<VierSession, VierMove> = {
   description: 'Scheiben fallen nach unten: Wer zuerst vier in einer Linie hat – waagerecht, senkrecht oder schräg – gewinnt.',
   component: Game,
   icon: 'grid-3x3',
-  previewImage: '/images/vier-in-einer-reihe-scene.svg',
+  previewImage: '/images/vier-in-einer-reihe-scene.webp',
   minPlayers: 2,
   maxPlayers: 2,
   supportsStandalone: false

@@ -50,7 +50,7 @@ export const abNachHauseGame = {
   id: 'ab-nach-hause',
   name: 'Ab nach Hause',
   description: 'Würfeln, rauskommen, schlagen: Wer bringt zuerst alle vier Figuren ins Ziel?',
-  previewImage: '/images/ab-nach-hause-scene.svg',
+  previewImage: '/images/ab-nach-hause-scene.webp',
   minPlayers: 2,
   maxPlayers: 4
 };

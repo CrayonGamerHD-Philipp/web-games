@@ -8,7 +8,7 @@ export const kunterbuntGame: GameDefinition<BuntSession, BuntMove> = {
   description: 'Farbe oder Zahl bedienen, +2 und +4 weiterreichen, Farben wünschen – und vor der letzten Karte „Bunt!“ rufen.',
   component: Game,
   icon: 'cards',
-  previewImage: '/images/kunterbunt-scene.svg',
+  previewImage: '/images/kunterbunt-scene.webp',
   minPlayers: 2,
   maxPlayers: 8,
   supportsStandalone: false

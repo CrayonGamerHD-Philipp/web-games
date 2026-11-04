@@ -43,7 +43,7 @@ export const sudokuDuellGame = {
   id: 'sudoku-duell',
   name: 'Sudoku-Duell',
   description: 'Alle lösen gleichzeitig dasselbe Sudoku. Falsche Zahlen sperren dich kurz – wer zuerst fertig ist, gewinnt.',
-  previewImage: '/images/sudoku-duell-scene.svg',
+  previewImage: '/images/sudoku-duell-scene.webp',
   minPlayers: 2,
   maxPlayers: 8
 };

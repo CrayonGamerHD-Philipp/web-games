@@ -16,7 +16,7 @@ export const schiffeVersenkenGame = {
   id: 'schiffe-versenken',
   name: 'Schiffe versenken',
   description: 'Flotte verstecken, Koordinaten ansagen, Schiffe versenken – das Seeduell für zwei.',
-  previewImage: '/images/schiffe-versenken-scene.svg',
+  previewImage: '/images/schiffe-versenken-scene.webp',
   minPlayers: 2,
   maxPlayers: 2
 };

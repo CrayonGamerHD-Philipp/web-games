@@ -41,7 +41,7 @@ export const wuerfelblockGame = {
   id: 'wuerfelblock',
   name: 'Würfelblock',
   description: 'Fünf Würfel, drei Würfe, dreizehn Zeilen: Pasch, Straße oder Volltreffer – wer füllt den Block am besten?',
-  previewImage: '/images/wuerfelblock-scene.svg',
+  previewImage: '/images/wuerfelblock-scene.webp',
   minPlayers: 1,
   maxPlayers: 6
 };

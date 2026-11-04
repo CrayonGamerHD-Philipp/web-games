@@ -8,7 +8,7 @@ export const sudokuDuellGame: GameDefinition<SudokuSession, SudokuMove> = {
   description: 'Alle lösen gleichzeitig dasselbe Sudoku. Falsche Zahlen sperren dich kurz – wer zuerst fertig ist, gewinnt.',
   component: Game,
   icon: 'grid-3x3',
-  previewImage: '/images/sudoku-duell-scene.svg',
+  previewImage: '/images/sudoku-duell-scene.webp',
   minPlayers: 2,
   maxPlayers: 8,
   supportsStandalone: false
