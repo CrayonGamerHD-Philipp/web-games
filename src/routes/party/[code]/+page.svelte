@@ -11,6 +11,7 @@
   import AvatarEditor from '$lib/components/AvatarEditor.svelte';
   import GameSettingsForm from '$lib/components/GameSettingsForm.svelte';
   import Leaderboard from '$lib/components/Leaderboard.svelte';
+  import PartyStats from '$lib/components/PartyStats.svelte';
   import ReactionBar from '$lib/components/ReactionBar.svelte';
   import ReactionBubbles from '$lib/components/ReactionBubbles.svelte';
   import ReactionAnnouncer from '$lib/components/ReactionAnnouncer.svelte';
@@ -23,7 +24,7 @@
   /** @typedef {{ id: string, gameId: string, name: string, status: string, settings?: Record<string, string | number | boolean> }} ActiveGame */
   /** @typedef {{ id: string, playerId: string, emoji: string, at: number }} Reaction */
   /** @typedef {{ id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }} HistoryEntry */
-  /** @typedef {{ code: string, createdAt: string, locked: boolean, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null, reactions?: Reaction[], history?: HistoryEntry[] }} Party */
+  /** @typedef {{ code: string, createdAt: string, locked: boolean, players: Player[], availableGames: GameInfo[], activeGame: ActiveGame | null, reactions?: Reaction[], history?: HistoryEntry[], rounds?: import('$lib/round-stats.js').RoundRecord[] }} Party */
 
   /** @type {Party | null} */
   let party = null;
@@ -741,6 +742,10 @@
 
         <section class="ui-panel" aria-label="Bestenliste">
           <Leaderboard history={party.history ?? []} players={party.players} currentPlayerId={playerId} idPrefix="lobby-leaderboard" />
+        </section>
+
+        <section class="ui-panel" aria-label="Statistik">
+          <PartyStats rounds={party.rounds ?? []} players={party.players} currentPlayerId={playerId} idPrefix="lobby-stats" />
         </section>
         </div>
       </div>

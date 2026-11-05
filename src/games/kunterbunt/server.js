@@ -463,9 +463,11 @@ function passTurn(session, player) {
  * @param {string | null} viewerId
  */
 export function redactKunterbuntSession(session, viewerId) {
+  // Nach Spielende darf jeder sehen, was die anderen noch auf der Hand hatten.
+  const revealHands = session.status === 'finished';
   for (const player of session.players) {
     player.handCount = player.hand.length;
-    if (!viewerId || player.id !== viewerId) player.hand = [];
+    if (!revealHands && (!viewerId || player.id !== viewerId)) player.hand = [];
   }
   const state = /** @type {Partial<BuntState>} */ (session.state);
   if (Array.isArray(state.deck)) {

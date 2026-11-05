@@ -280,6 +280,8 @@ export function makeSchiffeVersenkenMove(session, playerId, move) {
  * @param {string | null} viewerId
  */
 export function redactSchiffeVersenkenSession(session, viewerId) {
+  // Nach Spielende werden alle Flotten aufgedeckt.
+  if (session.status === 'finished') return session;
   for (const player of session.players ?? []) {
     if (player.id === viewerId) continue;
     player.ships = (player.ships ?? []).filter((ship) => ship.sunk);

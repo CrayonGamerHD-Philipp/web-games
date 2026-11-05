@@ -1,8 +1,10 @@
 <script>
-  import { LoaderCircle } from '@lucide/svelte';
+  import { Eye, LoaderCircle } from '@lucide/svelte';
   import PlayingCard from '../../components/PlayingCard.svelte';
   import PlayerAvatar from '../../components/PlayerAvatar.svelte';
   import Leaderboard from '../../components/Leaderboard.svelte';
+  import RoundStatsTable from '../../components/RoundStatsTable.svelte';
+  import PartyStats from '../../components/PartyStats.svelte';
   import { playerHex } from '../../player-colors.js';
 
   /** @typedef {{ id: string, name: string, score?: number, isHost?: boolean, color?: string, avatar?: import('../../party-features.js').Avatar | null }} ScorePlayer */
@@ -43,6 +45,12 @@
   export let history = [];
   /** Alle Party-Spieler (auch Zuschauer), für die Bestenliste. @type {ScorePlayer[]} */
   export let partyPlayers = [];
+  /** Statistik der gerade beendeten Runde. @type {import('../../round-stats.js').RoundRecord | null} */
+  export let roundStats = null;
+  /** Rundenprotokoll der Party. @type {import('../../round-stats.js').RoundRecord[]} */
+  export let rounds = [];
+  /** Öffnet das Spielfeld im Endzustand (alle Karten/Schiffe aufgedeckt). @type {(() => void) | null} */
+  export let onShowBoard = null;
 
   /**
    * @param {Record<string, unknown> | undefined} metadata
@@ -145,7 +153,7 @@
     {#if heroPlayer}
       <span class="result-hero"><PlayerAvatar avatar={playerAvatar(heroPlayer.id)} name={heroPlayer.name} color={playerColor(heroPlayer.id)} size={56} /></span>
     {/if}
-    <svelte:element this={headingLevel} id="result-title" class="ui-title">{headline}</svelte:element>
+    <svelte:element this={headingLevel} id="result-title" class="ui-title result-title" tabindex="-1">{headline}</svelte:element>
     <p class="ui-lead">{lead}</p>
   </div>
 
@@ -228,6 +236,11 @@
         </button>
       {/if}
     {/if}
+    {#if onShowBoard}
+      <button type="button" on:click={onShowBoard} class="ui-btn ui-btn--ghost ui-btn--lg result-board-btn">
+        <Eye size={18} aria-hidden="true" />Spielfeld ansehen
+      </button>
+    {/if}
   </div>
 
   <p class="result-wait" aria-live="polite">
@@ -239,6 +252,13 @@
     {/if}
   </p>
   </div>
+
+  {#if roundStats}
+    <div class="result-block">
+      <h3 class="ui-section-title">Diese Runde in Zahlen</h3>
+      <RoundStatsTable round={roundStats} players={partyPlayers.length ? partyPlayers : players} {currentPlayerId} />
+    </div>
+  {/if}
 
   {#if skyjoRoundHistory.length && skyjoHistoryPlayers.length}
     <div class="result-block">
@@ -300,6 +320,12 @@
       </div>
     </div>
   {/if}
+
+  {#if rounds.length > 1}
+    <div class="result-block">
+      <PartyStats compact {rounds} players={partyPlayers.length ? partyPlayers : players} {currentPlayerId} title="Partystatistik" headingLevel="h3" idPrefix="result-party-stats" />
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -327,6 +353,9 @@
   .result-actions { display: flex; flex-direction: column; gap: 10px; }
   .result-actions:empty { display: none; }
   @media (min-width: 640px) { .result-actions { flex-direction: row; flex-wrap: wrap; } }
+
+  .result-board-btn { color: var(--text); }
+  .result-title:focus { outline: none; }
 
   .result-next { display: flex; flex-direction: column; gap: 12px; }
   .result-wait { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.9375rem; color: var(--muted); }

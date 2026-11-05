@@ -375,7 +375,7 @@ export function redactSudokuDuellSession(session, viewerId) {
   const state = /** @type {Partial<SudokuState>} */ (session.state);
   delete state.solution;
   for (const player of session.players) {
-    if (!viewerId || player.id !== viewerId) {
+    if (session.status !== 'finished' && (!viewerId || player.id !== viewerId)) {
       player.entries = [];
       player.lastMistakeCell = null;
     }

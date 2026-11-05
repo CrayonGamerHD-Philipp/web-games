@@ -18,7 +18,7 @@
   /** @typedef {{ id: string, name: string, mark?: string, grid?: SkyjoSlot[] }} GamePlayer */
   /** @typedef {import('../types').GameResult} GameResult */
   /** @typedef {{ winnerId?: string | null, isDraw?: boolean, currentPlayerId?: string | null, roundScores?: { playerId: string, score: number }[], match?: { enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] } }} ActiveGameState */
-  /** @typedef {{ id: string, gameId: string, name: string, status: string, players: GamePlayer[], state: ActiveGameState, requests: { rematch: string[], newGame: string[] }, settings?: Record<string, string | number | boolean> }} ActiveGame */
+  /** @typedef {{ id: string, gameId: string, name: string, status: string, players: GamePlayer[], state: ActiveGameState, requests: { rematch: string[], newGame: string[] }, settings?: Record<string, string | number | boolean>, roundStats?: import('../../round-stats.js').RoundRecord }} ActiveGame */
 
   /** @type {string} */
   export let code = '';
@@ -48,6 +48,8 @@
   export let history = [];
   /** @type {Reaction[]} */
   export let reactions = [];
+  /** Rundenprotokoll der Party @type {import('../../round-stats.js').RoundRecord[]} */
+  export let rounds = [];
   /** @type {(move: Record<string, unknown>) => void} */
   export let onMove = () => {};
   /** @type {() => void} */
@@ -71,7 +73,7 @@
   // Spiele mit eigenem, vollbreitem Tisch – ohne Seitenleiste.
   $: isFullWidth = ['skyjo', 'noch-mal', 'tic-tac-toe', 'schiffe-versenken', 'kunterbunt', 'sudoku-duell', 'vier-in-einer-reihe', 'wuerfelblock', 'ab-nach-hause'].includes(activeGame?.gameId ?? '');
   // Bei beendeten Spielen (außer Skyjo, dort Modal) trägt der Ergebnis-Screen die h1.
-  $: showsInlineResult = Boolean(isFinished && !isSkyjo);
+  $: showsInlineResult = Boolean(isFinished && !isSkyjo && !showBoard);
   $: identityPlayers = activeGame
     ? activeGame.players.map((gamePlayer) => ({
         ...gamePlayer,
@@ -95,6 +97,28 @@
   $: result = createResult(activeGame, currentPlayerId, winnerPlayer?.name);
   $: settingsSummary = summarizeSettings(GAME_SETTINGS[activeGame?.gameId ?? ''] ?? [], activeGame?.settings);
   $: canReact = Boolean(token && partyPlayers.some((player) => player.id === currentPlayerId));
+
+  /* ---------- Spielfeld nach Rundenende ansehen ---------- */
+  let showBoard = false;
+  let boardFor = '';
+  // Neue Runde oder neues Spiel: wieder mit dem Ergebnis beginnen.
+  $: if ((activeGame?.id ?? '') + (activeGame?.status ?? '') !== boardFor) {
+    boardFor = (activeGame?.id ?? '') + (activeGame?.status ?? '');
+    showBoard = false;
+  }
+  $: viewingBoard = Boolean(isFinished && showBoard);
+
+  async function openBoard() {
+    showBoard = true;
+    await tick();
+    document.getElementById('shell-board-back')?.focus();
+  }
+
+  async function closeBoard() {
+    showBoard = false;
+    await tick();
+    document.getElementById('result-title')?.focus();
+  }
 
   /* ---------- Reaktionen (Popover / Sheet auf dem Handy) ---------- */
   let reactOpen = false;
@@ -437,6 +461,12 @@
 
   <div class="mt-3 grid gap-4 {isFullWidth ? '' : 'lg:grid-cols-[minmax(0,1fr)_18rem]'}">
     <div class="min-w-0">
+      {#if viewingBoard}
+        <div class="shell-board-bar">
+          <p class="shell-board-note">Endstand – alle Karten und Felder sind aufgedeckt.</p>
+          <button id="shell-board-back" type="button" class="ui-btn ui-btn--primary" on:click={closeBoard}>Zurück zum Ergebnis</button>
+        </div>
+      {/if}
       {#if showsInlineResult}
         <GameResultScreen
           {result}
@@ -452,6 +482,9 @@
           {onRequestNewGame}
           {history}
           {partyPlayers}
+          roundStats={activeGame.roundStats ?? null}
+          {rounds}
+          onShowBoard={openBoard}
         />
       {:else}
         <svelte:component this={GameComponent} game={activeGame} {currentPlayerId} isLoading={isActionLoading} onMove={onMove} {renderNonce} players={partyPlayers} />
@@ -474,7 +507,7 @@
     {/if}
   </div>
 
-  {#if isSkyjo && isFinished}
+  {#if isSkyjo && isFinished && !showBoard}
     <div class="ui-dialog-backdrop">
       <div class="ui-dialog result-dialog animate-modal-in" role="dialog" aria-modal="true" aria-labelledby="result-title" tabindex="-1" use:focusOnMount>
         <GameResultScreen
@@ -491,6 +524,9 @@
           {onRequestNewGame}
           {history}
           {partyPlayers}
+          roundStats={activeGame.roundStats ?? null}
+          {rounds}
+          onShowBoard={openBoard}
           headingLevel="h2"
         />
       </div>
@@ -697,6 +733,19 @@
     color: var(--text);
   }
   .shell-you { font-size: 0.8125rem; color: var(--muted); }
+
+  .shell-board-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+    padding: 10px 12px 10px 16px;
+    border-radius: var(--radius-inner);
+    background: var(--accent-soft);
+  }
+  .shell-board-note { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--text); }
 
   .result-dialog { max-width: 64rem; padding: 20px; }
   @media (min-width: 640px) { .result-dialog { padding: 32px; } }

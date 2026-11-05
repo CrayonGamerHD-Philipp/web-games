@@ -6,7 +6,7 @@
 
   /** @typedef {{ id: string, name: string, isHost: boolean, joinedAt: string, score: number, color: string, avatar?: import('$lib/party-features.js').Avatar }} Player */
   /** @typedef {{ id: string, gameId: string, name: string, status: string, players: { id: string, name: string, mark?: string }[], state: Record<string, unknown>, requests: { rematch: string[], newGame: string[] } }} ActiveGame */
-  /** @typedef {{ code: string, players: Player[], activeGame: ActiveGame | null, history?: { id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }[], reactions?: { id: string, playerId: string, emoji: string, at: number }[] }} Party */
+  /** @typedef {{ code: string, players: Player[], activeGame: ActiveGame | null, history?: { id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }[], reactions?: { id: string, playerId: string, emoji: string, at: number }[], rounds?: import('$lib/round-stats.js').RoundRecord[] }} Party */
 
   /** @type {Party | null} */
   let party = null;
@@ -122,6 +122,7 @@
       currentPlayerId={playerId}
       {token}
       history={party?.history ?? []}
+      rounds={party?.rounds ?? []}
       reactions={party?.reactions ?? []}
       isHost={isCurrentHost}
       {isLoading}

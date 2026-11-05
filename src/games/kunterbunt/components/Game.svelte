@@ -74,6 +74,8 @@
   $: drawLabel = pendingDraw > 0 ? `+${pendingDraw} ziehen` : 'Ziehen';
   $: needsBunt = isMyTurn && hand.length === 2 && playableIds.size > 0;
   $: opponents = orderOpponents(game, currentPlayerId);
+  // Nach Spielende schickt der Server alle Hände mit.
+  $: revealedHands = !isRunning ? opponents.filter((player) => player.hand?.length) : [];
   $: turnPlayer = game?.players.find((player) => player.id === state?.currentPlayerId) ?? null;
   $: nextPlayerId = isRunning && state?.currentPlayerId ? playerAfter(state, state.currentPlayerId) : null;
   $: nextPlayer = game?.players.find((player) => player.id === nextPlayerId) ?? null;
@@ -354,6 +356,28 @@
       </section>
     {/if}
 
+    {#if revealedHands.length}
+      <section class="ui-panel kb-reveal" aria-labelledby="kb-reveal-title">
+        <h3 id="kb-reveal-title" class="ui-section-title">Karten der anderen</h3>
+        <ul class="kb-reveal-list">
+          {#each revealedHands as player (player.id)}
+            <li class="kb-reveal-row">
+              <span class="kb-reveal-who">
+                <PlayerAvatar avatar={players.find((p) => p.id === player.id)?.avatar ?? null} name={player.name} color={playerHexById(players, player.id)} size={28} />
+                <span class="kb-opp-name">{player.name}</span>
+                <span class="kb-opp-count ui-num">{player.hand.length} {player.hand.length === 1 ? 'Karte' : 'Karten'}</span>
+              </span>
+              <ul class="kb-reveal-cards" aria-label={`Karten von ${player.name}`}>
+                {#each sortHand(player.hand) as card (card.id)}
+                  <li class="kb-reveal-card"><BuntCard {card} interactive={false} /></li>
+                {/each}
+              </ul>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
     <!-- 2. Tisch -->
     <section class="ui-panel kb-table" aria-label="Spieltisch">
       <div class="kb-piles">
@@ -604,6 +628,14 @@
     padding: 0;
     list-style: none;
   }
+
+  .kb-reveal { display: flex; flex-direction: column; gap: 12px; }
+  .kb-reveal-list { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
+  .kb-reveal-row { display: flex; flex-direction: column; gap: 8px; }
+  .kb-reveal-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .kb-reveal-cards { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .kb-reveal-card { width: 3.25rem; }
+  @media (min-width: 640px) { .kb-reveal-card { width: 3.75rem; } }
 
   .kb-opp {
     position: relative;

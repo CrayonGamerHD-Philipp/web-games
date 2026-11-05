@@ -1,4 +1,5 @@
 import { applyGameMove, availableGames, createGameSession, getGame, redactGameSession } from './games/index.js';
+import { buildRoundRecord, createTracking, trackMove } from './round-stats.js';
 import { GAME_SETTINGS, REACTIONS, REACTION_TTL_MS, normalizeAvatar, randomAvatar, sanitizeGameSettings } from '../party-features.js';
 
 /**
@@ -7,8 +8,8 @@ import { GAME_SETTINGS, REACTIONS, REACTION_TTL_MS, normalizeAvatar, randomAvata
  * @typedef {{ id: string, playerId: string, emoji: string, at: number }} Reaction
  * @typedef {{ id: string, gameId: string, gameName: string, winnerIds: string[], isDraw: boolean, playerIds: string[], finishedAt: string }} HistoryEntry
  * @typedef {{ enabled?: boolean, targetScore?: number, round?: number, totalScores?: { playerId: string, score: number }[], lastRoundScores?: { playerId: string, score: number }[], matchFinished?: boolean, winnerIds?: string[] }} SkyjoMatch
- * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean, resultRecorded?: boolean, settings?: Record<string, string | number | boolean> }} ActiveGame
- * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null, locked?: boolean, lastActivityAt?: number, reactions?: Reaction[], history?: HistoryEntry[] }} Party
+ * @typedef {{ id: string, gameId: string, name: string, status: string, createdAt: string, players: { id: string, name: string, mark?: string }[], state: { currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, roundScores?: { playerId: string, score: number }[], match?: SkyjoMatch, [key: string]: unknown }, requests: { rematch: string[], newGame: string[] }, scoreAwarded: boolean, resultRecorded?: boolean, roundRecorded?: boolean, tracking?: import('./round-stats.js').RoundTracking, roundStats?: import('../round-stats.js').RoundRecord, settings?: Record<string, string | number | boolean> }} ActiveGame
+ * @typedef {{ code: string, createdAt: string, players: Player[], activeGame: ActiveGame | null, locked?: boolean, lastActivityAt?: number, reactions?: Reaction[], history?: HistoryEntry[], rounds?: import('../round-stats.js').RoundRecord[] }} Party
  * @typedef {{ parties: Map<string, Party>, listeners: Map<string, Set<(party: Party) => void>> }} Store
  */
 
@@ -93,6 +94,7 @@ function normalizeParty(party) {
   party.locked ??= false;
   party.reactions ??= [];
   party.history ??= [];
+  party.rounds ??= [];
   const usedColors = new Set();
   party.players = party.players.map((player, index) => {
     let color = playerColors.includes(player.color) && !usedColors.has(player.color) ? player.color : '';
@@ -115,6 +117,9 @@ function normalizeParty(party) {
  * @param {string | null} viewerId
  */
 function redactActiveGame(game, viewerId) {
+  // Zählerstände bleiben auf dem Server; die fertige Rundenstatistik liegt in `roundStats`.
+  delete game.tracking;
+
   if (game.gameId !== 'skyjo') {
     return /** @type {ActiveGame} */ (redactGameSession(game.gameId, game, viewerId));
   }
@@ -160,6 +165,7 @@ function publicParty(party, viewerId = null) {
     availableGames: availableGames.map((game) => ({ ...game, settings: GAME_SETTINGS[game.id] ?? [] })),
     reactions: (party.reactions ?? []).filter((reaction) => Date.now() - reaction.at < REACTION_TTL_MS),
     history: (party.history ?? []).slice(-50),
+    rounds: (party.rounds ?? []).slice(-100),
     activeGame: party.activeGame ? redactActiveGame(structuredClone(party.activeGame), viewerId) : null
   };
 }
@@ -519,7 +525,8 @@ export function startGame(code, token, gameId, settings = {}, internalOptions = 
     ...session,
     requests: { rematch: [], newGame: [] },
     scoreAwarded: false,
-    settings: sanitizedSettings
+    settings: sanitizedSettings,
+    tracking: createTracking(session)
   };
   notifyParty(party);
 
@@ -563,7 +570,8 @@ export function restartGame(code, token) {
       ...session,
       requests: { rematch: [], newGame: [] },
       scoreAwarded: false,
-      settings: previousSettings
+      settings: previousSettings,
+      tracking: createTracking(session)
     };
     notifyParty(party);
 
@@ -661,14 +669,19 @@ export function makeMove(code, token, move) {
     return { status: 403, error: 'Dieses Geraet ist nicht in der Party angemeldet.' };
   }
 
+  const previousTurnPlayerId = activeParty.activeGame.state.currentPlayerId ?? null;
   const result = applyGameMove(activeParty.activeGame.gameId, activeParty.activeGame, actor.id, move);
 
   if ('error' in result && result.error) {
     return { status: 400, error: result.error };
   }
 
+  activeParty.activeGame.tracking ??= createTracking(activeParty.activeGame);
+  trackMove(activeParty.activeGame.tracking, activeParty.activeGame, actor.id, /** @type {Record<string, unknown>} */ (move), previousTurnPlayerId);
+
   awardScoreIfNeeded(activeParty);
   recordResultIfNeeded(activeParty);
+  recordRoundIfNeeded(activeParty);
   notifyParty(activeParty);
 
   return { party: publicParty(activeParty, actor.id) };
@@ -706,6 +719,37 @@ function recordResultIfNeeded(party) {
   });
   if (party.history.length > 200) party.history.splice(0, party.history.length - 200);
   game.resultRecorded = true;
+}
+
+/**
+ * Statistik jeder beendeten Runde (auch Zwischenrunden einer Skyjo-Partie) ins Rundenprotokoll.
+ * @param {Party} party
+ */
+function recordRoundIfNeeded(party) {
+  const game = party.activeGame;
+  if (!game || game.status !== 'finished' || game.roundRecorded) return;
+
+  const state = /** @type {Record<string, any>} */ (game.state);
+  const match = game.state.match;
+  /** @type {string[]} */
+  let winnerIds = Array.isArray(state.winnerIds) && state.winnerIds.length
+    ? state.winnerIds
+    : game.state.winnerId
+      ? [game.state.winnerId]
+      : [];
+  if (match?.enabled && !match.matchFinished && Array.isArray(game.state.roundScores) && game.state.roundScores.length) {
+    // Zwischenrunde: Rundensieger ist, wer in dieser Runde am wenigsten Punkte hat.
+    const lowest = Math.min(...game.state.roundScores.map((score) => score.score));
+    const best = game.state.roundScores.filter((score) => score.score === lowest).map((score) => score.playerId);
+    winnerIds = best.length === 1 ? best : [];
+  }
+
+  const record = buildRoundRecord(game, /** @type {import('./round-stats.js').RoundTracking} */ (game.tracking), getGame(game.gameId)?.name ?? game.name, winnerIds);
+  game.roundStats = record;
+  game.roundRecorded = true;
+  party.rounds ??= [];
+  party.rounds.push(record);
+  if (party.rounds.length > 300) party.rounds.splice(0, party.rounds.length - 300);
 }
 
 /**
