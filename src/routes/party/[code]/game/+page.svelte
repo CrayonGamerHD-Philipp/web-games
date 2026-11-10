@@ -24,7 +24,7 @@
   $: currentPlayer = party?.players.find((player) => player.id === playerId);
   $: isCurrentHost = Boolean(currentPlayer?.isHost);
   $: activeGame = party?.activeGame ?? null;
-  $: shellMaxWidth = activeGame?.gameId === 'noch-mal' ? 'max-w-[1800px] 2xl:max-w-[96vw]' : activeGame?.gameId === 'skyjo' || activeGame?.gameId === 'kunterbunt' ? 'max-w-5xl' : activeGame?.gameId === 'schiffe-versenken' ? 'max-w-6xl' : activeGame?.gameId === 'tic-tac-toe' || activeGame?.gameId === 'vier-in-einer-reihe' ? 'max-w-3xl' : activeGame?.gameId === 'sudoku-duell' || activeGame?.gameId === 'ab-nach-hause' || activeGame?.gameId === 'wuerfelblock' ? 'max-w-4xl' : 'max-w-6xl lg:px-10';
+  $: shellMaxWidth = activeGame?.gameId === 'noch-mal' ? 'max-w-[1800px] 2xl:max-w-[96vw]' : activeGame?.gameId === 'skyjo' || activeGame?.gameId === 'kunterbunt' ? 'max-w-5xl' : activeGame?.gameId === 'schiffe-versenken' || activeGame?.gameId === 'moosgeister' || activeGame?.gameId === 'auf-und-ab' ? 'max-w-6xl' : activeGame?.gameId === 'tic-tac-toe' || activeGame?.gameId === 'vier-in-einer-reihe' ? 'max-w-3xl' : activeGame?.gameId === 'sudoku-duell' || activeGame?.gameId === 'ab-nach-hause' || activeGame?.gameId === 'wuerfelblock' ? 'max-w-4xl' : 'max-w-6xl lg:px-10';
 
   async function flushGameRender() {
     renderNonce += 1;

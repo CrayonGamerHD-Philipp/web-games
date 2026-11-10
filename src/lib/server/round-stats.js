@@ -68,6 +68,36 @@ function count(counter, playerId, key) {
 
 /** Spielspezifische Werte je Spieler aus Endstand + Zählern. */
 const deriveStats = {
+  /** @param {any} session @param {RoundTracking} t @param {any} player */
+  'auf-und-ab'(session, t, player) {
+    const stats = player.stats ?? {};
+    return {
+      cardsPlayed: stats.played ?? 0,
+      fromStock: stats.fromStock ?? 0,
+      pilesCompleted: stats.completed ?? 0,
+      jokers: stats.jokers ?? 0,
+      discards: count(t.moves, player.id, 'discard'),
+      stockLeft: player.stockCount ?? player.stock?.length ?? 0
+    };
+  },
+  /** @param {any} session @param {RoundTracking} t @param {any} player */
+  moosgeister(session, t, player) {
+    /** @type {{ scores?: { playerId: string, breakdown: import('../../games/moosgeister/rules.js').MoosScore }[] }[]} */
+    const results = session.state?.results ?? [];
+    const mine = results
+      .map((result) => result.scores?.find((score) => score.playerId === player.id)?.breakdown)
+      .filter((score) => score !== undefined);
+    /** @type {{ moss: unknown }[]} */
+    const layout = player.layout ?? [];
+    return {
+      totalPoints: mine.reduce((sum, score) => sum + score.total, 0),
+      bestDurchgang: mine.length ? Math.max(...mine.map((score) => score.total)) : 0,
+      biggestGroup: mine.length ? Math.max(...mine.map((score) => score.groupSize)) : 0,
+      numberPoints: mine.reduce((sum, score) => sum + score.numbers, 0),
+      mossCards: layout.filter((slot) => slot.moss).length,
+      cardsTaken: count(t.moves, player.id, 'take')
+    };
+  },
   /** @param {any} session @param {RoundTracking} t @param {any} player @param {Record<string, unknown>} settings */
   kunterbunt(session, t, player, settings) {
     const handSize = [5, 7, 10].includes(Number(settings?.handSize)) ? Number(settings.handSize) : 7;

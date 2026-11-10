@@ -23,6 +23,22 @@ export const TURNS_STAT = { key: 'turns', label: 'Züge' };
 
 /** Spielspezifische Werte in Anzeigereihenfolge. @type {Record<string, StatDef[]>} */
 export const GAME_STATS = {
+  'auf-und-ab': [
+    { key: 'cardsPlayed', label: 'Karten gebaut', best: 'max' },
+    { key: 'fromStock', label: 'Aus dem Vorrat', best: 'max' },
+    { key: 'pilesCompleted', label: 'Stapel fertig', best: 'max' },
+    { key: 'jokers', label: 'Joker gespielt' },
+    { key: 'discards', label: 'Karten abgelegt' },
+    { key: 'stockLeft', label: 'Rest im Vorrat', best: 'min' }
+  ],
+  moosgeister: [
+    { key: 'totalPoints', label: 'Punkte', best: 'max' },
+    { key: 'bestDurchgang', label: 'Bester Durchgang', best: 'max' },
+    { key: 'biggestGroup', label: 'Größte Gruppe', best: 'max' },
+    { key: 'numberPoints', label: 'Zahlenpunkte', best: 'max' },
+    { key: 'mossCards', label: 'Moos (letzter Durchgang)' },
+    { key: 'cardsTaken', label: 'Karten genommen' }
+  ],
   kunterbunt: [
     { key: 'cardsPlayed', label: 'Karten gelegt', best: 'max' },
     { key: 'cardsDrawn', label: 'Karten gezogen', best: 'min' },

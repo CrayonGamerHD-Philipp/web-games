@@ -74,6 +74,32 @@ export const GAME_SETTINGS = {
       default: 7
     }
   ],
+  'auf-und-ab': [
+    {
+      key: 'stockSize',
+      label: 'Vorratsstapel',
+      description: 'Ab 5 Spielern höchstens 20 Karten.',
+      type: 'choice',
+      options: [
+        { value: 10, label: '10 – kurz' },
+        { value: 20, label: '20' },
+        { value: 30, label: '30 – normal' }
+      ],
+      default: 30
+    }
+  ],
+  moosgeister: [
+    {
+      key: 'durchgaenge',
+      label: 'Durchgänge',
+      type: 'choice',
+      options: [
+        { value: 1, label: '1 – kurz' },
+        { value: 3, label: '3 – normal' }
+      ],
+      default: 3
+    }
+  ],
   'schiffe-versenken': [
     { key: 'extraShotOnHit', label: 'Nach Treffer nochmal schießen', description: 'Aus: Nach jedem Schuss ist der andere dran.', type: 'toggle', default: true }
   ]

@@ -1,3 +1,5 @@
+import { aufUndAbGame, createAufUndAbSession, makeAufUndAbMove, redactAufUndAbSession } from '../../../games/auf-und-ab/server.js';
+import { createMoosgeisterSession, makeMoosgeisterMove, moosgeisterGame, redactMoosgeisterSession } from '../../../games/moosgeister/server.js';
 import { createSudokuDuellSession, makeSudokuDuellMove, redactSudokuDuellSession, sudokuDuellGame } from '../../../games/sudoku-duell/server.js';
 import { abNachHauseGame, createAbNachHauseSession, makeAbNachHauseMove } from '../../../games/ab-nach-hause/server.js';
 import { createVierInEinerReiheSession, makeVierInEinerReiheMove, vierInEinerReiheGame } from '../../../games/vier-in-einer-reihe/server.js';
@@ -9,6 +11,40 @@ import { createSkyjoSession, makeSkyjoMove, skyjoGame } from '../../../games/sky
 import { createTicTacToeSession, makeTicTacToeMove, ticTacToeGame } from '../../../games/tic-tac-toe/server.js';
 
 const gameHandlers = [
+  {
+    definition: aufUndAbGame,
+    createSession: createAufUndAbSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeAufUndAbMove(/** @type {Exclude<ReturnType<typeof createAufUndAbSession>, { error: string }>} */ (session), playerId, move),
+    /**
+     * @param {unknown} session
+     * @param {string | null} viewerId
+     */
+    redact: (session, viewerId) =>
+      redactAufUndAbSession(/** @type {Exclude<ReturnType<typeof createAufUndAbSession>, { error: string }>} */ (session), viewerId)
+  },
+  {
+    definition: moosgeisterGame,
+    createSession: createMoosgeisterSession,
+    /**
+     * @param {unknown} session
+     * @param {string} playerId
+     * @param {any} move
+     */
+    applyMove: (session, playerId, move) =>
+      makeMoosgeisterMove(/** @type {Exclude<ReturnType<typeof createMoosgeisterSession>, { error: string }>} */ (session), playerId, move),
+    /**
+     * @param {unknown} session
+     * @param {string | null} viewerId
+     */
+    redact: (session, viewerId) =>
+      redactMoosgeisterSession(/** @type {Exclude<ReturnType<typeof createMoosgeisterSession>, { error: string }>} */ (session), viewerId)
+  },
   {
     definition: sudokuDuellGame,
     createSession: createSudokuDuellSession,

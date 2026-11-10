@@ -71,7 +71,7 @@
   $: isRunning = activeGame?.status === 'running';
   $: isFinished = activeGame?.status === 'finished';
   // Spiele mit eigenem, vollbreitem Tisch – ohne Seitenleiste.
-  $: isFullWidth = ['skyjo', 'noch-mal', 'tic-tac-toe', 'schiffe-versenken', 'kunterbunt', 'sudoku-duell', 'vier-in-einer-reihe', 'wuerfelblock', 'ab-nach-hause'].includes(activeGame?.gameId ?? '');
+  $: isFullWidth = ['skyjo', 'noch-mal', 'tic-tac-toe', 'schiffe-versenken', 'kunterbunt', 'sudoku-duell', 'vier-in-einer-reihe', 'wuerfelblock', 'ab-nach-hause', 'moosgeister', 'auf-und-ab'].includes(activeGame?.gameId ?? '');
   // Bei beendeten Spielen (außer Skyjo, dort Modal) trägt der Ergebnis-Screen die h1.
   $: showsInlineResult = Boolean(isFinished && !isSkyjo && !showBoard);
   $: identityPlayers = activeGame
@@ -475,6 +475,7 @@
           {isHost}
           requests={activeGame.requests}
           roundScores={activeGame.state.roundScores ?? []}
+          higherWins={Boolean(/** @type {any} */ (activeGame.state).higherScoreWins)}
           isLoading={isActionLoading}
           onPlayAgain={onRestart}
           onBackToGames={onChooseNewGame}
@@ -517,6 +518,7 @@
           {isHost}
           requests={activeGame.requests}
           roundScores={activeGame.state.roundScores ?? []}
+          higherWins={Boolean(/** @type {any} */ (activeGame.state).higherScoreWins)}
           isLoading={isActionLoading}
           onPlayAgain={onRestart}
           onBackToGames={onChooseNewGame}

@@ -29,6 +29,8 @@
   export let requests = { rematch: [], newGame: [] };
   /** @type {RoundScore[]} */
   export let roundScores = [];
+  /** Höchste Punktzahl steht oben (z. B. Moosgeister). */
+  export let higherWins = false;
   /** @type {boolean} */
   export let isLoading = false;
   /** @type {() => void} */
@@ -84,7 +86,7 @@
           ...roundScore,
           player: players.find((player) => player.id === roundScore.playerId)
         }))
-        .sort((a, b) => a.score - b.score)
+        .sort((a, b) => (higherWins ? b.score - a.score : a.score - b.score))
     : [];
   $: skyjoMatch = getSkyjoMatch(result.metadata);
   $: skyjoBoards = getSkyjoBoards(result.metadata);
