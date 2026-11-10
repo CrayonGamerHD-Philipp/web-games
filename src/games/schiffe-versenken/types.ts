@@ -55,6 +55,16 @@ export interface SchiffeState {
   lastShot: SchiffeLastShot | null;
   shotCount: number;
   extraShotOnHit?: boolean;
+  /** Karte: offenes Meer oder mit Inseln. */
+  map?: 'meer' | 'inseln' | 'archipel';
+  /** Land (für beide Spieler gleich): dort liegen keine Schiffe, dorthin wird nicht geschossen. */
+  terrain?: SchiffeTerrain[];
+}
+
+export interface SchiffeTerrain {
+  x: number;
+  y: number;
+  kind: 'island' | 'rock';
 }
 
 export interface SchiffeSession {

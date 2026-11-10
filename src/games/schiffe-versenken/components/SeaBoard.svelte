@@ -1,11 +1,19 @@
 <script>
+  import ShipArt from './ShipArt.svelte';
+  import IslandTile from './IslandTile.svelte';
+
   /**
    * @typedef {{ dir: 'h' | 'v', part: 'start' | 'mid' | 'end', sunk: boolean }} CellShip
-   * @typedef {{ key: number, x: number, y: number, ship: CellShip | null, shot: 'hit' | 'miss' | null, ghost: 'ok' | 'bad' | null, last: boolean, pickable: boolean, label: string }} SeaCell
+   * @typedef {{ kind: 'island' | 'rock', deco: 'palm' | 'hut' | 'flowers' | 'lighthouse', joins: { t: boolean, r: boolean, b: boolean, l: boolean } }} CellTerrain
+   * @typedef {{ key: number, x: number, y: number, ship: CellShip | null, terrain?: CellTerrain | null, shot: 'hit' | 'miss' | null, ghost: 'ok' | 'bad' | null, last: boolean, pickable: boolean, label: string }} SeaCell
+   * @typedef {{ id: string, length: number, x: number, y: number, dir: 'h' | 'v', sunk?: boolean }} SeaShip
    */
 
   /** @type {SeaCell[]} */
   export let cells = [];
+  /** Schiffe, die auf diesem Brett zu sehen sind (eigene, oder versenkte des Gegners). */
+  /** @type {SeaShip[]} */
+  export let ships = [];
   /** Accessible name of the whole board. */
   export let label = 'Spielfeld';
   /** Cells react to clicks. */
@@ -29,8 +37,23 @@
   /** @param {SeaCell} cell */
   function isUsable(cell) {
     if (!interactive) return false;
-    if (mode === 'target') return !cell.shot;
+    if (mode === 'target') return !cell.shot && !cell.terrain;
     return true;
+  }
+
+  /** @param {string} id */
+  function shipType(id) {
+    if (id.startsWith('schlacht')) return 'schlachtschiff';
+    if (id.startsWith('kreuzer')) return 'kreuzer';
+    if (id.startsWith('u-boot')) return 'u-boot';
+    return 'zerstoerer';
+  }
+
+  /** Ein Schiff überspannt seine Felder im Raster (Zeile/Spalte 1 sind die Beschriftungen). @param {SeaShip} ship */
+  function shipArea(ship) {
+    const cols = ship.dir === 'h' ? ship.length : 1;
+    const rows = ship.dir === 'v' ? ship.length : 1;
+    return `grid-column: ${ship.x + 2} / span ${cols}; grid-row: ${ship.y + 2} / span ${rows}; --len: ${ship.length};`;
   }
 
   /** @param {SeaCell} cell */
@@ -105,19 +128,30 @@
   on:keydown={handleKeydown}
   on:pointerleave={onLeave}
 >
-  <span class="sb-corner" aria-hidden="true"></span>
+  <span class="sb-corner" aria-hidden="true" style="grid-column: 1; grid-row: 1"></span>
   {#each Array(SIZE) as _, col (col)}
-    <span class="sb-label sb-label--col" aria-hidden="true">{col + 1}</span>
+    <span class="sb-label sb-label--col" aria-hidden="true" style="grid-column: {col + 2}; grid-row: 1">{col + 1}</span>
+  {/each}
+
+  <!-- Schiffe liegen als ein Bild über ihren Feldern; Treffer und Vorschau zeichnen die Felder darüber. -->
+  {#each ships as ship (ship.id)}
+    <span class="sb-ship sb-ship--{ship.dir}" class:is-sunk={Boolean(ship.sunk)} style={shipArea(ship)} aria-hidden="true">
+      <svg class="sb-ship-art" viewBox="0 0 {ship.length * 100} 100" preserveAspectRatio="none">
+        <ShipArt type={shipType(ship.id)} length={ship.length} sunk={Boolean(ship.sunk)} />
+      </svg>
+    </span>
   {/each}
 
   {#each cells as cell (cell.key)}
     {#if cell.x === 0}
-      <span class="sb-label sb-label--row" aria-hidden="true">{ROWS[cell.y]}</span>
+      <span class="sb-label sb-label--row" aria-hidden="true" style="grid-column: 1; grid-row: {cell.y + 2}">{ROWS[cell.y]}</span>
     {/if}
     <button
       type="button"
       class="sb-cell"
+      style="grid-column: {cell.x + 2}; grid-row: {cell.y + 2}"
       class:has-ship={Boolean(cell.ship)}
+      class:is-land={Boolean(cell.terrain)}
       class:is-hit={cell.shot === 'hit'}
       class:is-miss={cell.shot === 'miss'}
       class:is-sunk={Boolean(cell.ship?.sunk)}
@@ -132,8 +166,8 @@
       on:pointerenter={(event) => handlePointerEnter(event, cell)}
       on:focus={(event) => handleFocus(event, cell)}
     >
-      {#if cell.ship}
-        <span class="sb-hull sb-hull--{cell.ship.dir} sb-hull--{cell.ship.part}" aria-hidden="true"></span>
+      {#if cell.terrain}
+        <IslandTile kind={cell.terrain.kind} deco={cell.terrain.deco} joins={cell.terrain.joins} />
       {/if}
       {#if cell.shot === 'miss'}
         <span class="sb-miss" aria-hidden="true"></span>
@@ -219,42 +253,78 @@
       border-radius: 999px;
     }
 
-    .is-place .sb-cell.is-pickable:hover .sb-hull {
-      background: var(--sv-hull-hover, #36505f);
+    .is-place .sb-cell.is-pickable:hover::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      background: rgb(255 255 255 / 0.25);
+      pointer-events: none;
     }
   }
 
+  /* Fokus und letzter Schuss als Ring über allem – ohne z-index auf dem Feld, damit die Schiffe sichtbar bleiben. */
   .sb-cell:focus-visible {
-    z-index: 2;
-    outline: 3px solid var(--sv-focus, #0e7490);
-    outline-offset: 0;
+    outline: none;
+  }
+
+  .sb-cell:focus-visible::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 3px var(--sv-focus, #0e7490);
+    pointer-events: none;
+  }
+
+  .sb-cell.has-ship,
+  .sb-cell.is-land {
+    background: var(--sv-sea, #dcecf4);
+  }
+
+  /* Flaches Lagunenwasser um die Inseln, passend zum Meer des Themes. */
+  .sb-cell.is-land {
+    background: color-mix(in srgb, var(--sv-sea, #dcecf4) 62%, #4fc2b9);
+  }
+
+  /* ---------- Schiffe ---------- */
+  .sb-ship {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .sb-ship-art {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 2px 2px rgb(15 40 60 / 0.25));
+  }
+
+  /* Senkrechte Schiffe: dasselbe Bild, um 90° gedreht. */
+  .sb-ship--v .sb-ship-art {
+    width: calc(100% * var(--len));
+    height: calc(100% / var(--len));
+    transform-origin: 0 0;
+    transform: rotate(90deg) translateY(-100%);
+  }
+
+  .is-place .sb-cell.is-pickable {
+    cursor: grab;
   }
 
   .sb-cell.is-hit:not(.has-ship) {
     background: var(--sv-hit-bg, #fadcd4);
   }
 
-  /* ---------- Hull segments ---------- */
-  .sb-hull {
-    position: absolute;
-    background: var(--sv-hull, #4a6273);
-    transition: background-color 160ms ease;
-  }
-
-  .is-sunk .sb-hull {
-    background: var(--sv-hull-sunk, #1d2a35);
-  }
-
-  .sb-hull--h { top: 20%; bottom: 20%; left: -1px; right: -1px; }
-  .sb-hull--v { left: 20%; right: 20%; top: -1px; bottom: -1px; }
-  .sb-hull--h.sb-hull--start { left: 10%; border-radius: 999px 0.2rem 0.2rem 999px; }
-  .sb-hull--h.sb-hull--end { right: 12%; border-radius: 0.2rem 0.45rem 0.45rem 0.2rem; }
-  .sb-hull--v.sb-hull--start { top: 10%; border-radius: 999px 999px 0.2rem 0.2rem; }
-  .sb-hull--v.sb-hull--end { bottom: 12%; border-radius: 0.2rem 0.2rem 0.45rem 0.45rem; }
-
   /* ---------- Markers: miss = dot, hit = cross, sunk = dark hull + cross ---------- */
   .sb-miss {
     position: absolute;
+    z-index: 3;
     inset: 36%;
     border-radius: 999px;
     background: var(--sv-miss, #6b8aa0);
@@ -262,6 +332,7 @@
 
   .sb-hit {
     position: absolute;
+    z-index: 3;
     inset: 18%;
   }
 
@@ -289,9 +360,14 @@
   }
 
   /* ---------- Last shot ---------- */
-  .sb-cell.is-last {
-    z-index: 1;
-    box-shadow: 0 0 0 2px var(--sv-last, #0f172a);
+  .sb-cell.is-last::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 2px var(--sv-last, #0f172a);
+    pointer-events: none;
   }
 
   .is-last .sb-hit {
@@ -330,6 +406,7 @@
   /* ---------- Placement ghost ---------- */
   .sb-ghost {
     position: absolute;
+    z-index: 3;
     inset: 0;
     border-radius: 2px;
     pointer-events: none;
@@ -366,16 +443,12 @@
       box-shadow: inset -1px -1px 0 var(--sv-gridline, #ffffff);
     }
 
-    .sb-cell.is-last {
-      box-shadow: inset 0 0 0 2px var(--sv-last, #0f172a);
-    }
+
   }
 
   @media (min-width: 480px) {
     .sb { --lbl: 1.15rem; gap: 2px; }
     .sb-label { font-size: 0.7rem; }
-    .sb-hull--h { left: -2px; right: -2px; }
-    .sb-hull--v { top: -2px; bottom: -2px; }
   }
 
   @media (min-width: 1024px) {
@@ -383,8 +456,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .sb-cell,
-    .sb-hull {
+    .sb-cell {
       transition: none;
     }
 

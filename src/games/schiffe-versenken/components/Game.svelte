@@ -3,7 +3,7 @@
   import { Check, LoaderCircle, RotateCw, Shuffle, Undo2 } from '@lucide/svelte';
   import SeaBoard from './SeaBoard.svelte';
   import FleetStatus from './FleetStatus.svelte';
-  import { FLEET, randomFleet } from '../server.js';
+  import { FLEET, blockedSet, randomFleet } from '../server.js';
   import { playerHexById } from '$lib/player-colors.js';
   import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
@@ -15,7 +15,8 @@
   /** @typedef {import('../types').SchiffeLastShot} SchiffeLastShot */
   /** @typedef {import('../types').SchiffeFleetEntry} FleetEntry */
   /** @typedef {{ dir: 'h' | 'v', part: 'start' | 'mid' | 'end', sunk: boolean }} CellShip */
-  /** @typedef {{ key: number, x: number, y: number, ship: CellShip | null, shot: 'hit' | 'miss' | null, ghost: 'ok' | 'bad' | null, last: boolean, pickable: boolean, label: string }} SeaCell */
+  /** @typedef {{ kind: 'island' | 'rock', deco: 'palm' | 'hut' | 'flowers' | 'lighthouse', joins: { t: boolean, r: boolean, b: boolean, l: boolean } }} CellTerrain */
+  /** @typedef {{ key: number, x: number, y: number, ship: CellShip | null, terrain?: CellTerrain | null, shot: 'hit' | 'miss' | null, ghost: 'ok' | 'bad' | null, last: boolean, pickable: boolean, label: string }} SeaCell */
   /** @typedef {{ id: string, name: string, length: number, x: number, y: number, dir: 'h' | 'v', sunk?: boolean, hits?: number }} BoardShip */
   /** @typedef {Record<string, { x: number, y: number, dir: 'h' | 'v' }>} Draft */
   /** @typedef {{ cells: Set<number>, ok: boolean } | null} Ghost */
@@ -115,6 +116,62 @@
   /** Lobby-Einstellung: Treffer erlaubt einen weiteren Schuss (Standard). */
   $: extraShot = !(game?.state && 'extraShotOnHit' in game.state && game.state.extraShotOnHit === false);
   $: currentTurnName = game?.players.find((player) => player.id === game?.state.currentPlayerId)?.name ?? '';
+  // Inseln und Felsen der Karte – für beide Spieler gleich.
+  $: terrain = game?.state.terrain ?? [];
+  $: blocked = blockedSet(terrain);
+  $: terrainInfo = describeTerrain(terrain);
+
+  /**
+   * Verbindet Inselfelder zu Inseln und verteilt Palmen, Hütten, Blumen und einen Leuchtturm.
+   * @param {{ x: number, y: number, kind: 'island' | 'rock' }[]} list
+   */
+  function describeTerrain(list) {
+    /** @type {Map<number, { kind: 'island' | 'rock', deco: 'palm' | 'hut' | 'flowers' | 'lighthouse', joins: { t: boolean, r: boolean, b: boolean, l: boolean } }>} */
+    const info = new Map();
+    const kinds = new Map(list.map((cell) => [cell.y * SIZE + cell.x, cell.kind]));
+    /** @param {number} key @param {number} dx @param {number} dy */
+    const islandAt = (key, dx, dy) => {
+      const x = (key % SIZE) + dx;
+      const y = Math.floor(key / SIZE) + dy;
+      return x >= 0 && y >= 0 && x < SIZE && y < SIZE && kinds.get(y * SIZE + x) === 'island';
+    };
+    const seen = new Set();
+    for (const [start, kind] of kinds) {
+      if (kind === 'rock') {
+        info.set(start, { kind, deco: 'palm', joins: { t: false, r: false, b: false, l: false } });
+        continue;
+      }
+      if (seen.has(start)) continue;
+      // Eine Insel einsammeln.
+      const island = [];
+      const stack = [start];
+      seen.add(start);
+      while (stack.length) {
+        const key = /** @type {number} */ (stack.pop());
+        island.push(key);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (!islandAt(key, dx, dy)) continue;
+          const next = key + dy * SIZE + dx;
+          if (!seen.has(next)) {
+            seen.add(next);
+            stack.push(next);
+          }
+        }
+      }
+      island.sort((a, b) => a - b);
+      /** @type {('palm' | 'hut' | 'flowers')[]} */
+      const cycle = ['palm', 'hut', 'flowers', 'palm'];
+      island.forEach((key, index) => {
+        const deco = index === 0 && island.length >= 4 ? 'lighthouse' : cycle[(key * 7 + index) % cycle.length];
+        info.set(key, {
+          kind: 'island',
+          deco,
+          joins: { t: islandAt(key, 0, -1), r: islandAt(key, 1, 0), b: islandAt(key, 0, 1), l: islandAt(key, -1, 0) }
+        });
+      });
+    }
+    return info;
+  }
 
   // ---------- Placement draft ----------
   /** @type {Draft} */
@@ -190,7 +247,7 @@
    */
   function fits(placed, shipId, candidate) {
     const occupied = new Set(placed.filter((ship) => ship.id !== shipId).flatMap(cellsOf));
-    return cellsOf(candidate).every((key) => !occupied.has(key));
+    return cellsOf(candidate).every((key) => !occupied.has(key) && !blocked.has(key));
   }
 
   /** @param {BoardShip[]} ships @param {number} x @param {number} y */
@@ -277,7 +334,7 @@
 
   function randomize() {
     if (!canEditDraft) return;
-    const ships = randomFleet();
+    const ships = randomFleet(Math.random, blocked);
     /** @type {Draft} */
     const next = {};
     const pool = [...fleet];
@@ -367,6 +424,7 @@
         const hit = shipMap.get(key);
         const result = shotMap.get(key) ?? null;
         const ghostState = ghostInfo?.cells.has(key) ? (ghostInfo.ok ? 'ok' : 'bad') : null;
+        const land = terrainInfo.get(key) ?? null;
         /** @type {CellShip | null} */
         const cellShip = hit
           ? {
@@ -377,7 +435,9 @@
           : null;
 
         let text;
-        if (opts.own) {
+        if (land) {
+          text = land.kind === 'rock' ? 'Felsen' : land.deco === 'lighthouse' ? 'Insel mit Leuchtturm' : 'Insel';
+        } else if (opts.own) {
           if (hit && hit.ship.sunk) text = `eigenes Schiff (${hit.ship.name}), versenkt`;
           else if (hit && result === 'hit') text = `eigenes Schiff (${hit.ship.name}), getroffen`;
           else if (hit) text = `eigenes Schiff (${hit.ship.name})`;
@@ -398,6 +458,7 @@
           x,
           y,
           ship: cellShip,
+          terrain: land,
           shot: result,
           ghost: ghostState,
           last: key === lastKey,
@@ -423,6 +484,7 @@
   /** @param {number} x @param {number} y */
   function shoot(x, y) {
     if (!isMyTurn || isLoading || !targetPlayer) return;
+    if (blocked.has(y * SIZE + x)) return;
     if (targetPlayer.incoming.some((shot) => shot.x === x && shot.y === y)) return;
     onMove({ type: 'shoot', x, y });
   }
@@ -657,6 +719,7 @@
             {/if}
             <SeaBoard
               cells={homeCells}
+              ships={homeShips}
               label="Deine Flotte aufstellen. Pfeiltasten bewegen, Eingabe setzt, R dreht."
               interactive={canEditDraft}
               mode="place"
@@ -695,7 +758,7 @@
                 {/each}
               </div>
             {:else}
-              <SeaBoard cells={homeCells} label="Deine Flotte" />
+              <SeaBoard cells={homeCells} ships={homeShips} label="Deine Flotte" />
             {/if}
           </section>
           <div class="sv-wait-note" role="status">
@@ -772,6 +835,7 @@
             </div>
             <SeaBoard
               cells={targetCells}
+              ships={targetPlayer?.ships ?? []}
               label={isSpectator ? `Meer von ${targetPlayer?.name ?? ''}` : 'Gegnerisches Meer – Feld wählen zum Schießen'}
               interactive={isMyTurn && !isLoading}
               mode="target"
@@ -796,7 +860,7 @@
                 <span class="sv-panel-meta">{targetPlayer?.name} zielt</span>
               {/if}
             </div>
-            <SeaBoard cells={homeCells} label={isSpectator ? `Meer von ${homePlayer?.name ?? ''}` : 'Deine Flotte'} />
+            <SeaBoard cells={homeCells} ships={homeShips} label={isSpectator ? `Meer von ${homePlayer?.name ?? ''}` : 'Deine Flotte'} />
             <FleetStatus {fleet} ships={homePlayer?.ships ?? []} own={!isSpectator} label={isSpectator ? `Flotte ${homePlayer?.name ?? ''}` : 'Deine Flotte'} />
           </section>
         </div>
@@ -806,6 +870,7 @@
           <li><span class="sv-key sv-key--hit" aria-hidden="true"></span>Treffer</li>
           <li><span class="sv-key sv-key--sunk" aria-hidden="true"></span>Versenkt</li>
           <li><span class="sv-key sv-key--last" aria-hidden="true"></span>Letzter Schuss</li>
+          {#if terrain.length}<li><span class="sv-key sv-key--land" aria-hidden="true"></span>Land – hier liegt nichts, hierhin wird nicht geschossen</li>{/if}
         </ul>
       {/if}
     </div>
@@ -1405,5 +1470,9 @@
     .sv-panel {
       transition: none;
     }
+  }
+  .sv-key--land {
+    background: #8ccf5f;
+    box-shadow: inset 0 0 0 2px #f2d79b;
   }
 </style>

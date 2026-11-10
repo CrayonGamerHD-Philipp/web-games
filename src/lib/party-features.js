@@ -135,7 +135,19 @@ export const GAME_SETTINGS = {
     }
   ],
   'schiffe-versenken': [
-    { key: 'extraShotOnHit', label: 'Nach Treffer nochmal schießen', description: 'Aus: Nach jedem Schuss ist der andere dran.', type: 'toggle', default: true }
+    { key: 'extraShotOnHit', label: 'Nach Treffer nochmal schießen', description: 'Aus: Nach jedem Schuss ist der andere dran.', type: 'toggle', default: true },
+    {
+      key: 'map',
+      label: 'Karte',
+      description: 'Mit Inseln und Felsen: Dort liegen keine Schiffe, und dorthin kann niemand schießen. Beide bekommen dieselbe Karte.',
+      type: 'choice',
+      options: [
+        { value: 'meer', label: 'Offenes Meer' },
+        { value: 'inseln', label: 'Inseln' },
+        { value: 'archipel', label: 'Inselwelt' }
+      ],
+      default: 'meer'
+    }
   ]
 };
 

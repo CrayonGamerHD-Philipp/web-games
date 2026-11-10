@@ -6,7 +6,9 @@
  * @typedef {{ x: number, y: number, result: 'hit' | 'miss' }} SchiffeShot
  * @typedef {{ id: string, name: string, ready: boolean, placed: boolean, ships: SchiffeShip[], incoming: SchiffeShot[], sunkCount: number }} SchiffePlayer
  * @typedef {{ seq: number, shooterId: string, targetId: string, x: number, y: number, result: 'hit' | 'miss' | 'sunk', shipName: string | null }} SchiffeLastShot
- * @typedef {{ phase: 'placement' | 'battle' | 'finished', size: number, fleet: FleetEntry[], currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, lastShot: SchiffeLastShot | null, shotCount: number, extraShotOnHit?: boolean }} SchiffeState
+ * @typedef {'meer' | 'inseln' | 'archipel'} SchiffeMap
+ * @typedef {{ x: number, y: number, kind: 'island' | 'rock' }} SchiffeTerrain
+ * @typedef {{ phase: 'placement' | 'battle' | 'finished', size: number, fleet: FleetEntry[], currentPlayerId: string | null, winnerId: string | null, isDraw: boolean, lastShot: SchiffeLastShot | null, shotCount: number, extraShotOnHit?: boolean, map?: SchiffeMap, terrain?: SchiffeTerrain[] }} SchiffeState
  * @typedef {{ id: string, gameId: string, name: string, status: 'running' | 'finished', createdAt: string, players: SchiffePlayer[], state: SchiffeState }} SchiffeSession
  * @typedef {{ x?: unknown, y?: unknown, length?: unknown, dir?: unknown }} RawShip
  * @typedef {{ type?: unknown, ships?: unknown, x?: unknown, y?: unknown }} SchiffeMoveInput
@@ -32,6 +34,97 @@ export const FLEET = [
   { id: 'u-boot', name: 'U-Boot', length: 2 }
 ];
 
+/** Karten: wie viele Inseln (Größe) und Felsen. */
+/** @type {Record<SchiffeMap, { islands: number[], rocks: number, label: string }>} */
+export const MAPS = {
+  meer: { islands: [], rocks: 0, label: 'Offenes Meer' },
+  inseln: { islands: [3, 4], rocks: 2, label: 'Inseln' },
+  archipel: { islands: [3, 4, 4, 5], rocks: 3, label: 'Inselwelt' }
+};
+
+/** @param {{ x: number, y: number }[]} terrain */
+export function blockedSet(terrain = []) {
+  return new Set(terrain.map((cell) => cell.y * BOARD_SIZE + cell.x));
+}
+
+/**
+ * Erzeugt Inseln (zusammenhängend, mit Abstand zueinander) und einzelne Felsen.
+ * Beide Spieler bekommen dieselbe Karte. Die Flotte passt danach immer noch sicher hinein.
+ * @param {SchiffeMap} map
+ * @param {() => number} [random]
+ * @returns {SchiffeTerrain[]}
+ */
+export function generateTerrain(map, random = Math.random) {
+  const config = MAPS[map] ?? MAPS.meer;
+  if (!config.islands.length && !config.rocks) return [];
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    /** @type {Map<number, 'island' | 'rock'>} */
+    const land = new Map();
+    /** Kein Land direkt neben anderem Land einer anderen Insel. @param {number} x @param {number} y @param {Set<number>} own */
+    const free = (x, y, own) => {
+      if (x < 0 || y < 0 || x >= BOARD_SIZE || y >= BOARD_SIZE) return false;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= BOARD_SIZE || ny >= BOARD_SIZE) continue;
+          const key = ny * BOARD_SIZE + nx;
+          if (land.has(key) && !own.has(key)) return false;
+        }
+      }
+      return !land.has(y * BOARD_SIZE + x);
+    };
+    let failed = false;
+    for (const size of config.islands) {
+      /** @type {Set<number>} */
+      const own = new Set();
+      let x = 1 + Math.floor(random() * (BOARD_SIZE - 2));
+      let y = 1 + Math.floor(random() * (BOARD_SIZE - 2));
+      if (!free(x, y, own)) {
+        failed = true;
+        break;
+      }
+      own.add(y * BOARD_SIZE + x);
+      land.set(y * BOARD_SIZE + x, 'island');
+      for (let grow = 1; grow < size; grow += 1) {
+        const options = [];
+        for (const key of own) {
+          const cx = key % BOARD_SIZE;
+          const cy = Math.floor(key / BOARD_SIZE);
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            if (free(cx + dx, cy + dy, own)) options.push((cy + dy) * BOARD_SIZE + cx + dx);
+          }
+        }
+        if (!options.length) break;
+        const pick = options[Math.floor(random() * options.length)];
+        own.add(pick);
+        land.set(pick, 'island');
+      }
+    }
+    if (failed) continue;
+    for (let rock = 0; rock < config.rocks; rock += 1) {
+      for (let tries = 0; tries < 50; tries += 1) {
+        const x = Math.floor(random() * BOARD_SIZE);
+        const y = Math.floor(random() * BOARD_SIZE);
+        if (free(x, y, new Set())) {
+          land.set(y * BOARD_SIZE + x, 'rock');
+          break;
+        }
+      }
+    }
+    /** @type {SchiffeTerrain[]} */
+    const terrain = [...land].map(([key, kind]) => ({ x: key % BOARD_SIZE, y: Math.floor(key / BOARD_SIZE), kind }));
+    // Die Flotte muss noch bequem hineinpassen.
+    try {
+      randomFleet(random, blockedSet(terrain));
+      return terrain;
+    } catch {
+      // nächster Versuch
+    }
+  }
+  return [];
+}
+
 /**
  * @param {{ x: number, y: number, length: number, dir: ShipDir }} ship
  * @returns {{ x: number, y: number }[]}
@@ -52,9 +145,10 @@ function isCoord(value) {
 /**
  * Validates a complete fleet and returns normalized ships.
  * @param {unknown} rawShips
+ * @param {Set<number>} [blocked] Land: dort darf kein Schiff liegen.
  * @returns {{ ships: SchiffeShip[] } | { error: string }}
  */
-export function validateFleet(rawShips) {
+export function validateFleet(rawShips, blocked = new Set()) {
   if (!Array.isArray(rawShips) || rawShips.length !== FLEET.length) {
     return { error: `Deine Flotte muss aus genau ${FLEET.length} Schiffen bestehen.` };
   }
@@ -84,6 +178,7 @@ export function validateFleet(rawShips) {
 
     for (const cell of shipCells({ x, y, length, dir })) {
       const key = cell.y * BOARD_SIZE + cell.x;
+      if (blocked.has(key)) return { error: `${entry.name} kann nicht auf Land liegen.` };
       if (occupied.has(key)) return { error: 'Schiffe dürfen sich nicht überlappen.' };
       occupied.add(key);
     }
@@ -100,10 +195,11 @@ export function validateFleet(rawShips) {
 /**
  * Places the standard fleet at random positions.
  * @param {() => number} [random]
+ * @param {Set<number>} [blocked] Land, auf dem kein Schiff liegen darf.
  */
-export function randomFleet(random = Math.random) {
+export function randomFleet(random = Math.random, blocked = new Set()) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
-    const occupied = new Set();
+    const occupied = new Set(blocked);
     /** @type {{ x: number, y: number, length: number, dir: ShipDir }[]} */
     const ships = [];
     let failed = false;
@@ -143,6 +239,8 @@ export function randomFleet(random = Math.random) {
 export function createSchiffeVersenkenSession(players, options = {}) {
   // Hausregel: Bei einem Treffer darf man nochmal schießen (Standard: an).
   const extraShotOnHit = options.extraShotOnHit !== false && options.extraShotOnHit !== 'false';
+  const map = /** @type {SchiffeMap} */ (Object.hasOwn(MAPS, String(options.map)) ? String(options.map) : 'meer');
+  const terrain = generateTerrain(map);
   const selectedPlayers = players.slice(0, 2);
 
   if (selectedPlayers.length < schiffeVersenkenGame.minPlayers) {
@@ -173,7 +271,9 @@ export function createSchiffeVersenkenSession(players, options = {}) {
       isDraw: false,
       lastShot: null,
       shotCount: 0,
-      extraShotOnHit
+      extraShotOnHit,
+      map,
+      terrain
     }
   };
 }
@@ -214,7 +314,8 @@ export function makeSchiffeVersenkenMove(session, playerId, move) {
       return { session };
     }
 
-    const result = validateFleet(type === 'random-fleet' ? randomFleet() : move.ships);
+    const blocked = blockedSet(session.state.terrain);
+    const result = validateFleet(type === 'random-fleet' ? randomFleet(Math.random, blocked) : move.ships, blocked);
     if ('error' in result) return { error: result.error };
     player.ships = result.ships;
     player.placed = true;
@@ -228,6 +329,7 @@ export function makeSchiffeVersenkenMove(session, playerId, move) {
     const x = Number(move.x);
     const y = Number(move.y);
     if (!isCoord(x) || !isCoord(y)) return { error: 'Dieses Feld liegt außerhalb des Spielfelds.' };
+    if (blockedSet(session.state.terrain).has(y * BOARD_SIZE + x)) return { error: 'Dort ist Land – such dir ein Feld im Wasser.' };
     if (opponent.incoming.some((shot) => shot.x === x && shot.y === y)) {
       return { error: 'Auf dieses Feld hast du schon geschossen.' };
     }
