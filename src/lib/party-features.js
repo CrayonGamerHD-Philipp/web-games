@@ -74,6 +74,31 @@ export const GAME_SETTINGS = {
       default: 7
     }
   ],
+  'noch-mal': [
+    {
+      key: 'mode',
+      label: 'Regeln',
+      description: 'Erweitert: Sonderwürfel, Zeilenwertung, Herzen und Bomben.',
+      type: 'choice',
+      options: [
+        { value: 'erweitert', label: 'Erweitert' },
+        { value: 'klassisch', label: 'Klassisch' }
+      ],
+      default: 'erweitert'
+    },
+    {
+      key: 'boardSize',
+      label: 'Spielfeld',
+      description: 'Jede Runde wird ein neues Spielfeld erzeugt.',
+      type: 'choice',
+      options: [
+        { value: 'klein', label: 'Klein 11×5' },
+        { value: 'normal', label: 'Normal 15×7' },
+        { value: 'gross', label: 'Groß 19×9' }
+      ],
+      default: 'normal'
+    }
+  ],
   'auf-und-ab': [
     {
       key: 'stockSize',

@@ -1,64 +1,128 @@
 export type NochMalColor = 'lime' | 'yellow' | 'blue' | 'pink' | 'peach';
-export type NochMalColorDie = NochMalColor | 'joker';
-export type NochMalNumberDie = 1 | 2 | 3 | 4 | 5 | 'joker';
-export type NochMalPhase = 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished';
+export type NochMalColorFace = NochMalColor | 'joker';
+export type NochMalNumberFace = number | 'joker';
+export type NochMalSpecial = 'bomb' | 'heart' | 'stars' | 'row' | 'block';
+export type NochMalRowBonus = 'bomb' | 'token' | 'heart';
+export type NochMalMode = 'klassisch' | 'erweitert';
+export type NochMalBoardSize = 'klein' | 'normal' | 'gross';
 
 export interface NochMalCell {
   id: string;
   row: number;
-  column: number;
+  col: number;
   color: NochMalColor;
-  hasStar: boolean;
+  blockId: number;
+  star: boolean;
+  gold: boolean;
 }
 
-export interface NochMalScoreBreakdown {
-  columnPoints: number;
-  colorPoints: number;
-  starPenalty: number;
-  jokerPenalty: number;
+export interface NochMalBlock {
+  id: number;
+  color: NochMalColor;
+  cells: string[];
+}
+
+export interface NochMalBoard {
+  seed: number;
+  cols: number;
+  rows: number;
+  startCol: number;
+  letters: string[];
+  cells: NochMalCell[];
+  blocks: NochMalBlock[];
+  columnPoints: { top: number[]; bottom: number[] };
+  rowBonus: NochMalRowBonus[];
+}
+
+export interface NochMalClaim {
+  first: string[];
+  normal: string[];
+}
+
+export interface NochMalClaims {
+  columns: NochMalClaim[];
+  rows: NochMalClaim[];
+  colors: Record<NochMalColor, NochMalClaim>;
+}
+
+export interface NochMalScore {
+  columns: number;
+  rows: number;
+  colors: number;
+  hearts: number;
+  jokers: number;
+  tokens: number;
+  stars: number;
   total: number;
 }
+
+export type NochMalResolvedChoice =
+  | { kind: 'combo'; colorDieIndex: number; numberDieIndex: number; color: NochMalColor; number: number; jokerCost: number }
+  | { kind: 'special'; special: NochMalSpecial }
+  | { kind: 'pass' };
 
 export interface NochMalPlayer {
   id: string;
   name: string;
   checkedCells: string[];
+  lastCells: string[];
   usedJokers: number;
-  selectedColor: NochMalColor | null;
-  selectedNumber: number | null;
-  selectedColorDieIndex: number | null;
-  selectedNumberDieIndex: number | null;
-  pendingCells: string[];
+  hearts: number;
+  specialTokens: number;
+  bonusBombs: number;
+  specialsUsed: number;
+  columnHearts: Record<string, number>;
+  lockedChoice: NochMalResolvedChoice | null;
   confirmed: boolean;
   skipped: boolean;
-  score: NochMalScoreBreakdown;
+  score: NochMalScore;
 }
 
-export interface NochMalDiceRoll {
+export interface NochMalRoll {
   id: string;
-  colorDice: NochMalColorDie[];
-  numberDice: NochMalNumberDie[];
+  colorDice: NochMalColorFace[];
+  numberDice: NochMalNumberFace[];
+  specialDie: NochMalSpecial | null;
 }
 
-export interface NochMalBonusClaim {
-  first: string[];
-  normal: string[];
+export interface NochMalAchievement {
+  kind: 'column' | 'row' | 'color';
+  index: number;
+  color?: NochMalColor;
+  playerIds: string[];
+  first: boolean;
+  points: number;
+  bonus?: NochMalRowBonus;
+}
+
+export interface NochMalEvent {
+  seq: number;
+  type: 'start' | 'roll' | 'finish';
+  round: number;
+  achievements: NochMalAchievement[];
+  text: string;
 }
 
 export interface NochMalState {
-  phase: NochMalPhase;
+  mode: NochMalMode;
+  boardSize: NochMalBoardSize;
+  board: NochMalBoard;
+  phase: 'selecting' | 'waiting' | 'finished';
   round: number;
-  roll: NochMalDiceRoll;
+  maxRounds: number;
+  roll: NochMalRoll;
   confirmedPlayerIds: string[];
   activePlayerId: string | null;
-  activeColorDieIndex: number | null;
-  activeNumberDieIndex: number | null;
-  colorBonusClaims: Record<NochMalColor, NochMalBonusClaim>;
-  columnBonusClaims: NochMalBonusClaim[];
+  startPlayerId: string | null;
+  activeChoice: NochMalResolvedChoice | null;
+  activeSkipped: boolean;
+  claims: NochMalClaims;
   winnerIds: string[];
   winnerId: string | null;
   isDraw: boolean;
-  roundScores: { playerId: string; score: number; breakdown: NochMalScoreBreakdown }[];
+  roundScores: { playerId: string; score: number; breakdown: NochMalScore }[];
+  higherScoreWins: true;
+  lastEvent: NochMalEvent | null;
 }
 
 export interface NochMalSession {
@@ -71,17 +135,12 @@ export interface NochMalSession {
   state: NochMalState;
 }
 
+export type NochMalChoice =
+  | { kind: 'combo'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number }
+  | { kind: 'special' }
+  | { kind: 'pass' };
+
 export type NochMalMove =
-  | { type: 'select-dice'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number }
-  | { type: 'select-dice-and-toggle-cell'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number; cellId: string }
-  | { type: 'toggle-cell'; cellId: string }
-  | { type: 'confirm-turn' }
-  | { type: 'submit-turn'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number; cellIds: string[] }
-  | { type: 'clear-selection' }
+  | { type: 'submit-turn'; choice: NochMalChoice; cellIds: string[]; bonusBombCells?: string[] }
+  | { type: 'lock-choice'; choice: NochMalChoice }
   | { type: 'skip-turn' };
-
-
-
-
-
-

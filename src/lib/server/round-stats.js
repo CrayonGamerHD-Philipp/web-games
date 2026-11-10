@@ -145,9 +145,15 @@ const deriveStats = {
   },
   /** @param {any} session @param {RoundTracking} t @param {any} player */
   'noch-mal'(session, t, player) {
+    const claims = session.state?.claims;
+    /** @param {{ first: string[], normal: string[] }[] | undefined} list */
+    const owned = (list) => (list ?? []).filter((claim) => claim.first.includes(player.id) || claim.normal.includes(player.id)).length;
     return {
       points: player.score?.total ?? 0,
       crosses: player.checkedCells?.length ?? 0,
+      columns: owned(claims?.columns),
+      rows: owned(claims?.rows),
+      specials: player.specialsUsed ?? 0,
       jokers: player.usedJokers ?? 0,
       skipped: count(t.moves, player.id, 'skip-turn')
     };

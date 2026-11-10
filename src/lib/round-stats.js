@@ -67,6 +67,9 @@ export const GAME_STATS = {
   'noch-mal': [
     { key: 'points', label: 'Punkte', format: 'points', best: 'max' },
     { key: 'crosses', label: 'Kreuze', best: 'max' },
+    { key: 'columns', label: 'Spalten voll', best: 'max' },
+    { key: 'rows', label: 'Zeilen voll', best: 'max' },
+    { key: 'specials', label: 'Sonderwürfel' },
     { key: 'jokers', label: 'Joker benutzt', best: 'min' },
     { key: 'skipped', label: 'Ausgesetzt' }
   ],

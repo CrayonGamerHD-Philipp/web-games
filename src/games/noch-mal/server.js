@@ -1,570 +1,463 @@
 ﻿/**
+ * Verrückte Kreuze – Würfel- und Ankreuzspiel für 1–6 Personen.
+ * Jede Runde (Session) bekommt ein neu erzeugtes Brett, das für alle gleich ist.
+ * Modus „erweitert“ bringt Sonderwürfel, Zeilenwertung, Herzen und goldene Würfelfelder.
+ *
  * @typedef {{ id: string, name: string }} BasicPlayer
- * @typedef {'lime' | 'yellow' | 'blue' | 'pink' | 'peach'} NochMalColor
- * @typedef {NochMalColor | 'joker'} NochMalColorDie
- * @typedef {1 | 2 | 3 | 4 | 5 | 'joker'} NochMalNumberDie
- * @typedef {{ columnPoints: number, colorPoints: number, starPenalty: number, jokerPenalty: number, total: number }} NochMalScoreBreakdown
- * @typedef {{ first: string[], normal: string[] }} NochMalBonusClaim
- * @typedef {{ id: string, name: string, checkedCells: string[], usedJokers: number, selectedColor: NochMalColor | null, selectedNumber: number | null, selectedColorDieIndex: number | null, selectedNumberDieIndex: number | null, pendingCells: string[], confirmed: boolean, skipped: boolean, score: NochMalScoreBreakdown }} NochMalPlayer
- * @typedef {{ id: string, colorDice: NochMalColorDie[], numberDice: NochMalNumberDie[] }} NochMalDiceRoll
- * @typedef {{ phase: 'selecting-dice' | 'selecting-cells' | 'waiting' | 'finished', round: number, roll: NochMalDiceRoll, confirmedPlayerIds: string[], activePlayerId: string | null, activeColorDieIndex: number | null, activeNumberDieIndex: number | null, colorBonusClaims: Record<NochMalColor, NochMalBonusClaim>, columnBonusClaims: NochMalBonusClaim[], winnerIds: string[], winnerId: string | null, isDraw: boolean, roundScores: { playerId: string, score: number, breakdown: NochMalScoreBreakdown }[] }} NochMalState
- * @typedef {{ id: string, gameId: 'noch-mal', name: string, status: 'running' | 'finished', createdAt: string, players: NochMalPlayer[], state: NochMalState }} NochMalSession
- * @typedef {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown, cellIds?: unknown }} NochMalMove
+ * @typedef {import('./board.js').Board} Board
+ * @typedef {import('./board.js').KreuzColor} KreuzColor
+ * @typedef {import('./board.js').BoardSize} BoardSize
+ * @typedef {import('./rules.js').Claims} Claims
+ * @typedef {import('./rules.js').SpecialKind} SpecialKind
+ * @typedef {import('./rules.js').ScoreBreakdown} ScoreBreakdown
+ * @typedef {KreuzColor | 'joker'} ColorFace
+ * @typedef {number | 'joker'} NumberFace
+ * @typedef {{ id: string, colorDice: ColorFace[], numberDice: NumberFace[], specialDie: SpecialKind | null }} Roll
+ * @typedef {{ kind: 'combo', colorDieIndex: number, numberDieIndex: number, color: KreuzColor, number: number, jokerCost: number } | { kind: 'special', special: SpecialKind } | { kind: 'pass' }} ResolvedChoice
+ * @typedef {{
+ *   id: string, name: string,
+ *   checkedCells: string[],
+ *   lastCells: string[],
+ *   usedJokers: number,
+ *   hearts: number,
+ *   specialTokens: number,
+ *   bonusBombs: number,
+ *   specialsUsed: number,
+ *   columnHearts: Record<string, number>,
+ *   lockedChoice: ResolvedChoice | null,
+ *   confirmed: boolean,
+ *   skipped: boolean,
+ *   score: ScoreBreakdown
+ * }} KreuzPlayer
+ * @typedef {{ kind: 'column' | 'row' | 'color', index: number, color?: KreuzColor, playerIds: string[], first: boolean, points: number, bonus?: string }} Achievement
+ * @typedef {{ seq: number, type: 'start' | 'roll' | 'finish', round: number, achievements: Achievement[], text: string }} KreuzEvent
+ * @typedef {{
+ *   mode: 'klassisch' | 'erweitert',
+ *   boardSize: BoardSize,
+ *   board: Board,
+ *   phase: 'selecting' | 'waiting' | 'finished',
+ *   round: number,
+ *   maxRounds: number,
+ *   roll: Roll,
+ *   confirmedPlayerIds: string[],
+ *   activePlayerId: string | null,
+ *   startPlayerId: string | null,
+ *   activeChoice: ResolvedChoice | null,
+ *   activeSkipped: boolean,
+ *   claims: Claims,
+ *   winnerIds: string[],
+ *   winnerId: string | null,
+ *   isDraw: boolean,
+ *   roundScores: { playerId: string, score: number, breakdown: ScoreBreakdown }[],
+ *   higherScoreWins: true,
+ *   lastEvent: KreuzEvent | null
+ * }} KreuzState
+ * @typedef {{ id: string, gameId: 'noch-mal', name: string, status: 'running' | 'finished', createdAt: string, players: KreuzPlayer[], state: KreuzState }} KreuzSession
+ * @typedef {{ type?: unknown, choice?: any, cellIds?: unknown, bonusBombCells?: unknown }} KreuzMove
  */
+
+import { BOARD_SIZES, COLORS, generateBoard } from './board.js';
+import {
+  JOKERS,
+  MAX_HEARTS,
+  MAX_NUMBER,
+  SPECIAL_FACES,
+  completedColorCount,
+  emptyClaims,
+  isColorDone,
+  isColumnDone,
+  isRowDone,
+  scorePlayer,
+  validateCombo,
+  validateSpecial
+} from './rules.js';
 
 export const nochMalGame = {
   id: 'noch-mal',
-  name: 'Noch mal',
-  description: 'Würfelspiel mit eigenem Spielblatt, gemeinsamen Würfeln und gleichzeitigen Zügen.',
+  name: 'Verrückte Kreuze',
+  description: 'Farbe und Zahl würfeln, Blöcke ankreuzen, Spalten und Zeilen füllen – jede Runde auf einem neuen Spielfeld. Mit Sonderwürfel, Bomben und Herzen.',
+  previewImage: '/images/noch-mal-scene.webp',
   minPlayers: 1,
   maxPlayers: 6
 };
 
-/** @type {NochMalColor[]} */
-const colors = ['lime', 'yellow', 'blue', 'pink', 'peach'];
-const rows = [
-  ['lime', 'lime', 'lime', 'yellow', 'yellow', 'yellow', 'yellow', 'lime', 'blue', 'blue', 'blue', 'peach', 'yellow', 'yellow', 'yellow'],
-  ['peach', 'lime', 'yellow', 'lime', 'yellow', 'yellow', 'peach', 'peach', 'pink', 'blue', 'blue', 'peach', 'peach', 'lime', 'lime'],
-  ['blue', 'lime', 'pink', 'lime', 'lime', 'lime', 'lime', 'pink', 'pink', 'pink', 'yellow', 'yellow', 'peach', 'lime', 'lime'],
-  ['blue', 'pink', 'pink', 'lime', 'peach', 'peach', 'blue', 'blue', 'lime', 'lime', 'yellow', 'yellow', 'peach', 'pink', 'blue'],
-  ['pink', 'peach', 'peach', 'peach', 'peach', 'pink', 'blue', 'blue', 'peach', 'peach', 'peach', 'pink', 'pink', 'pink', 'pink'],
-  ['pink', 'blue', 'blue', 'pink', 'pink', 'pink', 'pink', 'yellow', 'yellow', 'peach', 'pink', 'blue', 'blue', 'blue', 'peach'],
-  ['yellow', 'yellow', 'blue', 'blue', 'blue', 'blue', 'pink', 'yellow', 'yellow', 'yellow', 'lime', 'lime', 'lime', 'peach', 'peach']
-];
-const stars = new Set(['0-7', '1-2', '1-4', '1-9', '2-0', '2-6', '3-5', '3-13', '5-1', '5-3', '5-8', '5-10', '5-14', '6-12']);
-const topScore = [5, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 3, 3, 3, 5];
-const bottomScore = [3, 2, 2, 2, 1, 1, 1, 0, 1, 1, 1, 2, 2, 2, 3];
+const SOLO_ROUNDS = 30;
+const MAX_ROUNDS = 200;
+/** Ab diesem Wurf nimmt der aktive Spieler seine Würfel aus der Auswahl. */
+const ADVANTAGE_FROM = 4;
 
-/** @type {Record<string, { id: string, row: number, column: number, color: NochMalColor, hasStar: boolean }>} */
-const cellMap = Object.fromEntries(rows.flatMap((row, rowIndex) => row.map((color, columnIndex) => {
-  const id = `${rowIndex}-${columnIndex}`;
-  return [id, { id, row: rowIndex, column: columnIndex, color: /** @type {NochMalColor} */ (color), hasStar: stars.has(id) }];
-})));
-
-/** @returns {NochMalScoreBreakdown} */
-function emptyScore() {
-  return { columnPoints: 0, colorPoints: 0, starPenalty: 0, jokerPenalty: 8, total: 8 };
+/** @param {number} sides */
+function roll(sides) {
+  return Math.floor(Math.random() * sides);
 }
 
-/** @returns {NochMalBonusClaim} */
-function emptyBonusClaim() {
-  return { first: [], normal: [] };
-}
-
-/** @param {unknown} value @returns {NochMalBonusClaim} */
-function normalizeBonusClaim(value) {
-  const candidate = /** @type {{ first?: unknown, normal?: unknown } | null} */ (value && typeof value === 'object' ? value : null);
-  if (candidate && Array.isArray(candidate.first) && Array.isArray(candidate.normal)) {
-    return /** @type {NochMalBonusClaim} */ (candidate);
-  }
-  if (Array.isArray(value)) {
-    const [first, ...normal] = value.filter((id) => typeof id === 'string');
-    return { first: first ? [first] : [], normal };
-  }
-  return emptyBonusClaim();
-}
-
-const JOKER_CHANCE = 0.08;
-
-/**
- * @template T
- * @param {T[]} nonJokerFaces
- * @returns {T | 'joker'}
- */
-function rollFace(nonJokerFaces) {
-  if (Math.random() < JOKER_CHANCE) return 'joker';
-  return nonJokerFaces[Math.floor(Math.random() * nonJokerFaces.length)];
-}
-
-/** @returns {NochMalDiceRoll} */
-function rollDice() {
+/** @param {boolean} extended @returns {Roll} */
+function rollDice(extended) {
   return {
     id: crypto.randomUUID(),
-    colorDice: Array.from({ length: 3 }, () => rollFace(colors)),
-    numberDice: Array.from({ length: 3 }, () => rollFace([1, 2, 3, 4, 5]))
+    colorDice: Array.from({ length: 3 }, () => {
+      const face = roll(6);
+      return face === 5 ? 'joker' : COLORS[face];
+    }),
+    numberDice: Array.from({ length: 3 }, () => {
+      const face = roll(6);
+      return face === 5 ? 'joker' : face + 1;
+    }),
+    specialDie: extended ? SPECIAL_FACES[roll(SPECIAL_FACES.length)] : null
   };
 }
 
-/** @param {string} id */
-function parseCellId(id) {
-  const cell = cellMap[id];
-  return cell ?? null;
+/** @param {KreuzSession} session */
+function isExtended(session) {
+  return session.state.mode === 'erweitert';
 }
 
-/** @param {string} first @param {string} second */
-function areAdjacent(first, second) {
-  const a = parseCellId(first);
-  const b = parseCellId(second);
-  if (!a || !b) return false;
-  return Math.abs(a.row - b.row) + Math.abs(a.column - b.column) === 1;
+/** @param {KreuzSession} session @param {string | null} playerId */
+function nameOf(session, playerId) {
+  return session.players.find((player) => player.id === playerId)?.name ?? 'Jemand';
 }
 
-/** @param {string[]} ids */
-function isConnectedGroup(ids) {
-  if (ids.length <= 1) return true;
-  const selected = new Set(ids);
-  const seen = new Set([ids[0]]);
-  const queue = [ids[0]];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
-    for (const candidate of selected) {
-      if (!seen.has(candidate) && areAdjacent(current, candidate)) {
-        seen.add(candidate);
-        queue.push(candidate);
-      }
-    }
-  }
-
-  return seen.size === selected.size;
+/** @param {KreuzSession} session */
+function isAdvantageRound(session) {
+  return session.players.length > 1 && session.state.round >= ADVANTAGE_FROM;
 }
 
-/** @param {NochMalPlayer} player @param {string[]} pending */
-function hasValidAnchor(player, pending) {
-  if (pending.some((id) => parseCellId(id)?.column === 7)) {
-    return true;
-  }
-
-  return pending.some((id) => player.checkedCells.some((checkedId) => areAdjacent(id, checkedId)));
-}
-
-/** @param {NochMalPlayer} player @param {Record<NochMalColor, NochMalBonusClaim>} colorBonusClaims @param {NochMalBonusClaim[]} columnBonusClaims */
-function calculateScore(player, colorBonusClaims, columnBonusClaims) {
-  const checked = new Set(player.checkedCells);
-  const columnPoints = columnBonusClaims.reduce((sum, claims, column) => {
-    if (claims.first.includes(player.id)) return sum + topScore[column];
-    if (claims.normal.includes(player.id)) return sum + bottomScore[column];
-    return sum;
-  }, 0);
-  const colorPoints = colors.reduce((sum, color) => {
-    const claims = colorBonusClaims[color];
-    if (claims.first.includes(player.id)) return sum + 5;
-    if (claims.normal.includes(player.id)) return sum + 3;
-    return sum;
-  }, 0);
-  const starPenalty = Object.values(cellMap).filter((cell) => cell.hasStar && !checked.has(cell.id)).length * -2;
-  const jokerPenalty = 8 - player.usedJokers;
-  const total = columnPoints + colorPoints + starPenalty + jokerPenalty;
-  return { columnPoints, colorPoints, starPenalty, jokerPenalty, total };
-}
-
-/** @param {NochMalPlayer} player @param {NochMalColor} color */
-function hasCompletedColor(player, color) {
-  const checked = new Set(player.checkedCells);
-  return Object.values(cellMap).filter((cell) => cell.color === color).every((cell) => checked.has(cell.id));
-}
-
-/** @param {NochMalPlayer} player */
-function completedColorCount(player) {
-  return colors.filter((color) => hasCompletedColor(player, color)).length;
-}
-
-/** @param {NochMalSession} session */
-function normalizeSessionBonusClaims(session) {
-  session.state.columnBonusClaims = Array.from({ length: 15 }, (_, index) => normalizeBonusClaim(session.state.columnBonusClaims?.[index]));
-  for (const color of colors) {
-    session.state.colorBonusClaims[color] = normalizeBonusClaim(session.state.colorBonusClaims[color]);
-  }
-}
-
-/** @param {NochMalBonusClaim} claim @param {string} playerId */
-function hasBonusClaim(claim, playerId) {
-  return claim.first.includes(playerId) || claim.normal.includes(playerId);
-}
-
-/** @param {NochMalSession} session */
+/** @param {KreuzSession} session */
 function refreshScores(session) {
-  normalizeSessionBonusClaims(session);
   for (const player of session.players) {
-    player.score = calculateScore(player, session.state.colorBonusClaims, session.state.columnBonusClaims);
+    player.score = scorePlayer(session.state.board, player, session.state.claims, isExtended(session));
   }
 }
 
-/** @param {NochMalPlayer} player @param {number} column */
-function hasCompletedColumn(player, column) {
-  const checked = new Set(player.checkedCells);
-  return rows.every((_, row) => checked.has(`${row}-${column}`));
+/**
+ * @param {KreuzSession} session
+ * @param {Omit<KreuzEvent, 'seq'>} event
+ */
+function setEvent(session, event) {
+  const seq = (session.state.lastEvent?.seq ?? 0) + 1;
+  session.state.lastEvent = { seq, ...event };
 }
 
-/** @param {NochMalSession} session */
-function updateColumnBonusClaims(session) {
-  normalizeSessionBonusClaims(session);
+/**
+ * @param {BasicPlayer[]} players
+ * @param {Record<string, unknown>} [options]
+ * @returns {KreuzSession | { error: string }}
+ */
+export function createNochMalSession(players, options = {}) {
+  const selected = (Array.isArray(players) ? players : []).slice(0, nochMalGame.maxPlayers);
+  if (selected.length < nochMalGame.minPlayers) return { error: 'Verrückte Kreuze braucht mindestens einen Spieler.' };
 
-  for (let column = 0; column < 15; column += 1) {
-    const claims = session.state.columnBonusClaims[column];
-    const candidates = session.players.filter((player) => !hasBonusClaim(claims, player.id) && hasCompletedColumn(player, column));
-    if (candidates.length === 0) continue;
+  const mode = options.mode === 'klassisch' ? 'klassisch' : 'erweitert';
+  const boardSize = /** @type {BoardSize} */ (Object.hasOwn(BOARD_SIZES, String(options.boardSize)) ? String(options.boardSize) : 'normal');
+  const board = generateBoard({ size: boardSize, mode });
+  const order = selected.map((player) => player.id);
+  const previous = typeof options.previousStarterId === 'string' ? order.indexOf(options.previousStarterId) : -1;
+  const startPlayerId = previous >= 0 ? order[(previous + 1) % order.length] : order[0];
 
-    const target = claims.first.length === 0 ? claims.first : claims.normal;
-    for (const player of candidates) target.push(player.id);
-  }
-}
-
-/** @param {NochMalSession} session */
-function updateColorBonusClaims(session) {
-  normalizeSessionBonusClaims(session);
-
-  for (const color of colors) {
-    const claims = session.state.colorBonusClaims[color];
-    const candidates = session.players.filter((player) => !hasBonusClaim(claims, player.id) && hasCompletedColor(player, color));
-    if (candidates.length === 0) continue;
-
-    const target = claims.first.length === 0 ? claims.first : claims.normal;
-    for (const player of candidates) target.push(player.id);
-  }
-}
-
-/** @param {NochMalSession} session */
-function finishGame(session) {
-  updateColumnBonusClaims(session);
-  updateColorBonusClaims(session);
-  refreshScores(session);
-  const scores = session.players.map((player) => ({ playerId: player.id, score: player.score.total, breakdown: player.score }));
-  const highest = Math.max(...scores.map((score) => score.score));
-  const tiedPlayerIds = scores.filter((score) => score.score === highest).map((score) => score.playerId);
-  const bestRemainingJokers = Math.max(...tiedPlayerIds.map((id) => 8 - (session.players.find((player) => player.id === id)?.usedJokers ?? 8)));
-  const winnerIds = tiedPlayerIds.filter((id) => 8 - (session.players.find((player) => player.id === id)?.usedJokers ?? 8) === bestRemainingJokers);
-  session.state.phase = 'finished';
-  session.state.winnerIds = winnerIds;
-  session.state.winnerId = winnerIds.length === 1 ? winnerIds[0] : null;
-  session.state.isDraw = winnerIds.length !== 1;
-  session.state.roundScores = scores;
-  session.status = 'finished';
-}
-
-/** @param {NochMalSession} session */
-function nextActivePlayerId(session) {
-  const currentIndex = session.players.findIndex((player) => player.id === session.state.activePlayerId);
-  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % session.players.length : 0;
-  return session.players[nextIndex]?.id ?? null;
-}
-
-/** @param {NochMalSession} session */
-function startNextRound(session) {
-  updateColumnBonusClaims(session);
-  updateColorBonusClaims(session);
-  refreshScores(session);
-
-  if (session.players.some((player) => completedColorCount(player) >= 2)) {
-    finishGame(session);
-    return;
-  }
-
-  session.state.round += 1;
-  session.state.roll = rollDice();
-  session.state.phase = 'selecting-dice';
-  session.state.confirmedPlayerIds = [];
-  session.state.activePlayerId = nextActivePlayerId(session);
-  session.state.activeColorDieIndex = null;
-  session.state.activeNumberDieIndex = null;
-  for (const player of session.players) {
-    player.selectedColor = null;
-    player.selectedNumber = null;
-    player.selectedColorDieIndex = null;
-    player.selectedNumberDieIndex = null;
-    player.pendingCells = [];
-    player.confirmed = false;
-    player.skipped = false;
-  }
-}
-
-/** @param {NochMalSession} session */
-function maybeAdvanceRound(session) {
-  if (session.players.every((player) => player.confirmed)) {
-    startNextRound(session);
-    return;
-  }
-  session.state.phase = 'waiting';
-}
-
-/** @param {BasicPlayer[]} players @returns {NochMalSession | { error: string }} */
-export function createNochMalSession(players) {
-  const selectedPlayers = players.slice(0, nochMalGame.maxPlayers);
-
-  if (selectedPlayers.length < nochMalGame.minPlayers) {
-    return { error: 'Noch mal braucht mindestens einen Spieler.' };
-  }
-
-  /** @type {Record<NochMalColor, NochMalBonusClaim>} */
-  const colorBonusClaims = { lime: emptyBonusClaim(), yellow: emptyBonusClaim(), blue: emptyBonusClaim(), pink: emptyBonusClaim(), peach: emptyBonusClaim() };
-
-  return {
+  /** @type {KreuzSession} */
+  const session = {
     id: crypto.randomUUID(),
     gameId: 'noch-mal',
     name: nochMalGame.name,
     status: 'running',
     createdAt: new Date().toISOString(),
-    players: selectedPlayers.map((player) => ({
+    players: selected.map((player) => ({
       id: player.id,
       name: player.name,
       checkedCells: [],
+      lastCells: [],
       usedJokers: 0,
-      selectedColor: null,
-      selectedNumber: null,
-      selectedColorDieIndex: null,
-      selectedNumberDieIndex: null,
-      pendingCells: [],
+      hearts: 0,
+      specialTokens: mode === 'erweitert' ? 1 : 0,
+      bonusBombs: 0,
+      specialsUsed: 0,
+      columnHearts: {},
+      lockedChoice: null,
       confirmed: false,
       skipped: false,
-      score: emptyScore()
+      score: { columns: 0, rows: 0, colors: 0, hearts: 0, jokers: JOKERS, tokens: 0, stars: 0, total: 0 }
     })),
     state: {
-      phase: 'selecting-dice',
+      mode,
+      boardSize,
+      board,
+      phase: 'selecting',
       round: 1,
-      roll: rollDice(),
+      maxRounds: selected.length === 1 ? SOLO_ROUNDS : MAX_ROUNDS,
+      roll: rollDice(mode === 'erweitert'),
       confirmedPlayerIds: [],
-      activePlayerId: selectedPlayers[0]?.id ?? null,
-      activeColorDieIndex: null,
-      activeNumberDieIndex: null,
-      colorBonusClaims,
-      columnBonusClaims: Array.from({ length: 15 }, () => emptyBonusClaim()),
+      activePlayerId: startPlayerId,
+      startPlayerId,
+      activeChoice: null,
+      activeSkipped: false,
+      claims: emptyClaims(board),
       winnerIds: [],
       winnerId: null,
       isDraw: false,
-      roundScores: []
+      roundScores: [],
+      higherScoreWins: true,
+      lastEvent: null
     }
   };
+  refreshScores(session);
+  setEvent(session, { type: 'start', round: 1, achievements: [], text: `Neues Spielfeld (${BOARD_SIZES[boardSize].label}). ${nameOf(session, startPlayerId)} würfelt zuerst.` });
+  return session;
 }
 
-/** @param {NochMalSession} session */
-function isAdvantageRound(session) {
-  return session.state.round >= 4;
-}
+/**
+ * Prüft, ob der Spieler diese Würfel nehmen darf, und löst Joker auf.
+ * @param {KreuzSession} session
+ * @param {KreuzPlayer} player
+ * @param {any} raw
+ * @returns {ResolvedChoice | { error: string }}
+ */
+function resolveChoice(session, player, raw) {
+  const { state } = session;
+  const kind = raw?.kind;
+  if (kind === 'pass') return { kind: 'pass' };
 
-/** @param {NochMalSession} session */
-function hasActiveSelection(session) {
-  return session.state.activeColorDieIndex !== null && session.state.activeNumberDieIndex !== null;
-}
-
-/** @param {NochMalSession} session @param {string} playerId @param {number} colorDieIndex @param {number} numberDieIndex */
-function validateDiceAvailability(session, playerId, colorDieIndex, numberDieIndex) {
-  if (!isAdvantageRound(session)) return '';
-
-  const isActivePlayer = session.state.activePlayerId === playerId;
-  const activePlayer = session.players.find((player) => player.id === session.state.activePlayerId);
-  const activePlayerSkipped = Boolean(activePlayer?.skipped && activePlayer.confirmed && !hasActiveSelection(session));
-
-  if (!hasActiveSelection(session)) {
-    if (activePlayerSkipped) return '';
-    return isActivePlayer ? '' : 'Warte auf die Auswahl des Startspielers.';
+  const isActive = state.activePlayerId === player.id;
+  const advantage = isAdvantageRound(session);
+  const locked = advantage && !isActive ? state.activeChoice : null;
+  if (advantage && !isActive && !state.activeChoice && !state.activeSkipped) {
+    return { error: 'Warte, bis der aktive Spieler seine Würfel genommen hat.' };
   }
-
-  if (isActivePlayer) {
-    return 'Der Startspieler hat seine Wuerfel bereits gewaehlt.';
-  }
-
-  if (colorDieIndex === session.state.activeColorDieIndex || numberDieIndex === session.state.activeNumberDieIndex) {
-    return 'Diese Wuerfel wurden vom Startspieler entfernt.';
-  }
-
-  return '';
-}
-
-/** @param {NochMalPlayer} player @param {string[]} candidate */
-function validateCandidateGroup(player, candidate) {
-  if (!isConnectedGroup(candidate)) return 'Die Felder muessen orthogonal zusammenhaengen.';
-  if (!hasValidAnchor(player, candidate)) {
-    return player.checkedCells.length === 0
-      ? 'Der Zug muss in der mittleren H-Spalte beginnen.'
-      : 'Der Zug muss an deine bestehenden Kreuze anschliessen oder die H-Spalte beruehren.';
-  }
-  return '';
-}
-
-/** @param {NochMalPlayer} player @param {string} cellId */
-function validatePendingCell(player, cellId) {
-  const cell = parseCellId(cellId);
-  if (!cell) return 'Dieses Feld ist ungueltig.';
-  if (!player.selectedColor || !player.selectedNumber) return 'Waehle zuerst einen Farb- und einen Zahlenwuerfel.';
-  if (player.checkedCells.includes(cellId)) return 'Dieses Feld ist bereits angekreuzt.';
-  if (cell.color !== player.selectedColor) return 'Dieses Feld hat nicht die gewaehlte Farbe.';
-  if (!player.pendingCells.includes(cellId) && player.pendingCells.length >= player.selectedNumber) return 'Du hast bereits genug Felder ausgewaehlt.';
-
-  const candidate = player.pendingCells.includes(cellId) ? player.pendingCells : [...player.pendingCells, cellId];
-  return validateCandidateGroup(player, candidate);
-}
-
-/** @param {NochMalPlayer} player */
-function validatePendingMove(player) {
-  if (!player.selectedColor || !player.selectedNumber) return 'Waehle zuerst einen Farb- und einen Zahlenwuerfel.';
-  if (player.pendingCells.length !== player.selectedNumber) return `Markiere genau ${player.selectedNumber} Feld(er).`;
-  if (!isConnectedGroup(player.pendingCells)) return 'Die Felder muessen orthogonal zusammenhaengen.';
-  if (!hasValidAnchor(player, player.pendingCells)) return player.checkedCells.length === 0 ? 'Dein erster Zug muss die mittlere H-Spalte beruehren.' : 'Die Auswahl muss an deine bestehenden Kreuze anschliessen oder die H-Spalte beruehren.';
-  return '';
-}
-
-/** @param {NochMalSession} session @param {string} playerId @param {NochMalMove} move */
-export function makeNochMalMove(session, playerId, move) {
-  if (session.status !== 'running') return { error: 'Dieses Spiel ist bereits beendet.' };
-  const player = session.players.find((candidate) => candidate.id === playerId);
-  if (!player) return { error: 'Du schaust diese Noch-mal-Runde nur zu.' };
-  if (player.confirmed) return { error: 'Du hast diese Runde bereits bestaetigt.' };
-
-  const type = String(move.type ?? '');
-
-  if (type === 'select-dice' || type === 'select-dice-and-toggle-cell') {
-    const colorDieIndex = Number(move.colorDieIndex);
-    const numberDieIndex = Number(move.numberDieIndex);
-    if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= session.state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungueltig.' };
-    if (!Number.isInteger(numberDieIndex) || numberDieIndex < 0 || numberDieIndex >= session.state.roll.numberDice.length) return { error: 'Dieser Zahlenwürfel ist ungueltig.' };
-
-    const availabilityError = validateDiceAvailability(session, playerId, colorDieIndex, numberDieIndex);
-    if (availabilityError) return { error: availabilityError };
-
-    const colorFace = session.state.roll.colorDice[colorDieIndex];
-    const numberFace = session.state.roll.numberDice[numberDieIndex];
-    const selectedColor = colorFace === 'joker' ? String(move.color ?? '') : colorFace;
-    const selectedNumber = numberFace === 'joker' ? Number(move.number) : numberFace;
-    if (!colors.includes(/** @type {NochMalColor} */ (selectedColor))) return { error: 'Waehle eine gueltige Jokerfarbe.' };
-    if (!Number.isInteger(selectedNumber) || selectedNumber < 1 || selectedNumber > 5) return { error: 'Waehle eine gueltige Jokerzahl.' };
-
-    const jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
-    if (player.usedJokers + jokerCost > 8) return { error: 'Du hast nicht mehr genug Joker.' };
-
-    let cellId = '';
-    if (type === 'select-dice-and-toggle-cell') {
-      cellId = String(move.cellId ?? '');
-      const projectedPlayer = { ...player, selectedColor: /** @type {NochMalColor} */ (selectedColor), selectedNumber: Number(selectedNumber), pendingCells: [] };
-      const error = validatePendingCell(projectedPlayer, cellId);
-      if (error) return { error };
+  if (advantage && isActive && player.lockedChoice) {
+    // Der aktive Spieler hat schon festgelegt – der Zug muss dazu passen.
+    const lockedChoice = player.lockedChoice;
+    if (lockedChoice.kind !== kind) return { error: 'Du hast deine Würfel schon festgelegt.' };
+    if (lockedChoice.kind === 'combo' && (lockedChoice.colorDieIndex !== Number(raw.colorDieIndex) || lockedChoice.numberDieIndex !== Number(raw.numberDieIndex))) {
+      return { error: 'Du hast deine Würfel schon festgelegt.' };
     }
-
-    player.selectedColor = /** @type {NochMalColor} */ (selectedColor);
-    player.selectedNumber = Number(selectedNumber);
-    player.selectedColorDieIndex = colorDieIndex;
-    player.selectedNumberDieIndex = numberDieIndex;
-    player.pendingCells = [];
-    session.state.phase = 'selecting-cells';
-
-    if (isAdvantageRound(session) && session.state.activePlayerId === playerId && !hasActiveSelection(session)) {
-      session.state.activeColorDieIndex = colorDieIndex;
-      session.state.activeNumberDieIndex = numberDieIndex;
-    }
-
-    if (type === 'select-dice-and-toggle-cell') {
-      player.pendingCells = [cellId];
-    }
-
-    return { session };
+    return lockedChoice;
   }
 
-  // Ganzer Zug in einem Schritt: Würfel + Felder werden lokal gewählt und hier atomar geprüft.
-  if (type === 'submit-turn') {
-    const colorDieIndex = Number(move.colorDieIndex);
-    const numberDieIndex = Number(move.numberDieIndex);
-    if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= session.state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungültig.' };
-    if (!Number.isInteger(numberDieIndex) || numberDieIndex < 0 || numberDieIndex >= session.state.roll.numberDice.length) return { error: 'Dieser Zahlenwürfel ist ungültig.' };
+  if (kind === 'special') {
+    if (!isExtended(session) || !state.roll.specialDie) return { error: 'In diesem Modus gibt es keinen Sonderwürfel.' };
+    if (player.specialTokens < 1) return { error: 'Du hast keine Sonderwürfel-Marke mehr.' };
+    if (locked?.kind === 'special') return { error: 'Der Sonderwürfel wurde vom aktiven Spieler genommen.' };
+    return { kind: 'special', special: state.roll.specialDie };
+  }
 
-    const lockedByMe = isAdvantageRound(session) && session.state.activePlayerId === playerId && hasActiveSelection(session);
-    if (lockedByMe) {
-      if (colorDieIndex !== session.state.activeColorDieIndex || numberDieIndex !== session.state.activeNumberDieIndex) {
-        return { error: 'Du hast deine Würfel bereits festgelegt.' };
+  if (kind !== 'combo') return { error: 'Wähle einen Farb- und einen Zahlenwürfel oder den Sonderwürfel.' };
+  const colorDieIndex = Number(raw.colorDieIndex);
+  const numberDieIndex = Number(raw.numberDieIndex);
+  if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungültig.' };
+  if (!Number.isInteger(numberDieIndex) || numberDieIndex < 0 || numberDieIndex >= state.roll.numberDice.length) return { error: 'Dieser Zahlenwürfel ist ungültig.' };
+  if (locked?.kind === 'combo' && (locked.colorDieIndex === colorDieIndex || locked.numberDieIndex === numberDieIndex)) {
+    return { error: 'Diese Würfel hat der aktive Spieler genommen.' };
+  }
+  const colorFace = state.roll.colorDice[colorDieIndex];
+  const numberFace = state.roll.numberDice[numberDieIndex];
+  const color = colorFace === 'joker' ? raw.color : colorFace;
+  const number = numberFace === 'joker' ? Number(raw.number) : numberFace;
+  if (!COLORS.includes(color)) return { error: 'Wähle eine Farbe für den Joker.' };
+  if (!Number.isInteger(number) || number < 1 || number > MAX_NUMBER) return { error: 'Wähle eine Zahl von 1 bis 5 für den Joker.' };
+  const jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
+  if (player.usedJokers + jokerCost > JOKERS) return { error: 'Du hast nicht mehr genug Joker.' };
+  return { kind: 'combo', colorDieIndex, numberDieIndex, color, number, jokerCost };
+}
+
+/** @param {unknown} raw */
+function readIds(raw) {
+  return Array.isArray(raw) ? raw.map(String) : [];
+}
+
+/**
+ * Vergibt Spalten, Zeilen und Farben nach einem Wurf. Wer im selben Wurf gleichzeitig
+ * als Erster fertig wird, bekommt den ersten Wert gemeinsam.
+ * @param {KreuzSession} session
+ * @returns {Achievement[]}
+ */
+function resolveClaims(session) {
+  const { state } = session;
+  const { board, claims } = state;
+  const extended = isExtended(session);
+  /** @type {Achievement[]} */
+  const achievements = [];
+  const checkedOf = new Map(session.players.map((player) => [player.id, new Set(player.checkedCells)]));
+  /** @param {import('./rules.js').Claim} claim @param {(checked: Set<string>) => boolean} done */
+  const newly = (claim, done) =>
+    session.players.filter((player) => !claim.first.includes(player.id) && !claim.normal.includes(player.id) && done(/** @type {Set<string>} */ (checkedOf.get(player.id)))).map((player) => player.id);
+
+  claims.columns.forEach((claim, col) => {
+    const ids = newly(claim, (checked) => isColumnDone(board, checked, col));
+    if (!ids.length) return;
+    const first = claim.first.length === 0;
+    if (first) claim.first.push(...ids);
+    else claim.normal.push(...ids);
+    for (const id of ids) {
+      const player = /** @type {KreuzPlayer} */ (session.players.find((candidate) => candidate.id === id));
+      if (extended && player.hearts > 0) player.columnHearts[String(col)] = player.hearts;
+    }
+    achievements.push({ kind: 'column', index: col, playerIds: ids, first, points: first ? board.columnPoints.top[col] : board.columnPoints.bottom[col] });
+  });
+
+  if (extended) {
+    claims.rows.forEach((claim, row) => {
+      const ids = newly(claim, (checked) => isRowDone(board, checked, row));
+      if (!ids.length) return;
+      const first = claim.first.length === 0;
+      if (first) claim.first.push(...ids);
+      else claim.normal.push(...ids);
+      // Den Bonus bekommt jeder, der die Zeile füllt; die 5 Punkte nur der Erste.
+      const bonus = board.rowBonus[row];
+      for (const id of ids) {
+        const player = /** @type {KreuzPlayer} */ (session.players.find((candidate) => candidate.id === id));
+        if (bonus === 'bomb') player.bonusBombs += 1;
+        else if (bonus === 'token') player.specialTokens += 1;
+        else player.hearts = Math.min(MAX_HEARTS, player.hearts + 1);
       }
-    } else {
-      const availabilityError = validateDiceAvailability(session, playerId, colorDieIndex, numberDieIndex);
-      if (availabilityError) return { error: availabilityError };
-    }
-
-    const colorFace = session.state.roll.colorDice[colorDieIndex];
-    const numberFace = session.state.roll.numberDice[numberDieIndex];
-    const lockedColor = lockedByMe && player.selectedColorDieIndex === colorDieIndex ? player.selectedColor : null;
-    const lockedNumber = lockedByMe && player.selectedNumberDieIndex === numberDieIndex ? player.selectedNumber : null;
-    const selectedColor = colorFace === 'joker' ? String(lockedColor ?? move.color ?? '') : colorFace;
-    const selectedNumber = numberFace === 'joker' ? Number(lockedNumber ?? move.number) : numberFace;
-    if (!colors.includes(/** @type {NochMalColor} */ (selectedColor))) return { error: 'Wähle eine gültige Jokerfarbe.' };
-    if (!Number.isInteger(selectedNumber) || selectedNumber < 1 || selectedNumber > 5) return { error: 'Wähle eine gültige Jokerzahl.' };
-
-    const jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
-    if (player.usedJokers + jokerCost > 8) return { error: 'Du hast nicht mehr genug Joker.' };
-
-    const rawCells = Array.isArray(move.cellIds) ? move.cellIds.map(String) : [];
-    const cellIds = [...new Set(rawCells)];
-    if (cellIds.length !== rawCells.length) return { error: 'Ein Feld wurde doppelt gewählt.' };
-
-    for (const cellId of cellIds) {
-      const cell = parseCellId(cellId);
-      if (!cell) return { error: 'Dieses Feld ist ungültig.' };
-      if (player.checkedCells.includes(cellId)) return { error: 'Dieses Feld ist bereits angekreuzt.' };
-      if (cell.color !== selectedColor) return { error: 'Dieses Feld hat nicht die gewählte Farbe.' };
-    }
-
-    const projected = { ...player, selectedColor: /** @type {NochMalColor} */ (selectedColor), selectedNumber: Number(selectedNumber), pendingCells: cellIds };
-    const moveError = validatePendingMove(projected);
-    if (moveError) return { error: moveError };
-
-    if (isAdvantageRound(session) && session.state.activePlayerId === playerId && !hasActiveSelection(session)) {
-      session.state.activeColorDieIndex = colorDieIndex;
-      session.state.activeNumberDieIndex = numberDieIndex;
-    }
-
-    player.selectedColor = /** @type {NochMalColor} */ (selectedColor);
-    player.selectedNumber = Number(selectedNumber);
-    player.selectedColorDieIndex = colorDieIndex;
-    player.selectedNumberDieIndex = numberDieIndex;
-    player.usedJokers += jokerCost;
-    player.checkedCells = [...player.checkedCells, ...cellIds];
-    player.pendingCells = [];
-    player.confirmed = true;
-    session.state.confirmedPlayerIds = [...new Set([...session.state.confirmedPlayerIds, player.id])];
-    maybeAdvanceRound(session);
-    return { session };
+      achievements.push({ kind: 'row', index: row, playerIds: ids, first, points: first ? 5 : 0, bonus });
+    });
   }
 
-  if (type === 'toggle-cell') {
-    const cellId = String(move.cellId ?? '');
-    const pendingIndex = player.pendingCells.indexOf(cellId);
-    if (pendingIndex >= 0) {
-      player.pendingCells = player.pendingCells.filter((id) => id !== cellId);
-      return { session };
-    }
+  for (const color of COLORS) {
+    const claim = claims.colors[color];
+    const ids = newly(claim, (checked) => isColorDone(board, checked, color));
+    if (!ids.length) continue;
+    const first = claim.first.length === 0;
+    if (first) claim.first.push(...ids);
+    else claim.normal.push(...ids);
+    achievements.push({ kind: 'color', index: COLORS.indexOf(color), color, playerIds: ids, first, points: first ? 5 : 3 });
+  }
+  return achievements;
+}
 
-    const error = validatePendingCell(player, cellId);
-    if (error) return { error };
-    player.pendingCells = [...player.pendingCells, cellId];
-    return { session };
+/** @param {KreuzSession} session */
+function finishGame(session) {
+  const { state } = session;
+  refreshScores(session);
+  const scores = session.players.map((player) => ({ playerId: player.id, score: player.score.total, breakdown: player.score }));
+  const best = Math.max(...scores.map((entry) => entry.score));
+  const tied = session.players.filter((player) => player.score.total === best);
+  const mostJokers = Math.max(...tied.map((player) => JOKERS - player.usedJokers));
+  const winnerIds = tied.filter((player) => JOKERS - player.usedJokers === mostJokers).map((player) => player.id);
+  state.phase = 'finished';
+  state.winnerIds = winnerIds;
+  state.winnerId = winnerIds.length === 1 ? winnerIds[0] : null;
+  state.isDraw = winnerIds.length !== 1;
+  state.roundScores = scores;
+  session.status = 'finished';
+}
+
+/** @param {KreuzSession} session */
+function nextRoll(session) {
+  const { state } = session;
+  const achievements = resolveClaims(session);
+  refreshScores(session);
+
+  const ended = session.players.some((player) => completedColorCount(state.board, new Set(player.checkedCells)) >= 2) || state.round >= state.maxRounds;
+  if (ended) {
+    finishGame(session);
+    const names = state.winnerIds.map((id) => nameOf(session, id)).join(', ');
+    setEvent(session, { type: 'finish', round: state.round, achievements, text: `Spielende! ${state.winnerIds.length === 1 ? `${names} gewinnt.` : `Gleichstand: ${names}.`}` });
+    return;
   }
 
-  if (type === 'clear-selection') {
-    player.pendingCells = [];
+  const order = session.players.map((player) => player.id);
+  state.round += 1;
+  state.roll = rollDice(isExtended(session));
+  state.phase = 'selecting';
+  state.confirmedPlayerIds = [];
+  state.activePlayerId = order[(order.indexOf(state.activePlayerId ?? order[0]) + 1) % order.length];
+  state.activeChoice = null;
+  state.activeSkipped = false;
+  for (const player of session.players) {
+    player.confirmed = false;
+    player.skipped = false;
+    player.lockedChoice = null;
+  }
+  setEvent(session, { type: 'roll', round: state.round, achievements, text: `Wurf ${state.round}: ${nameOf(session, state.activePlayerId)} ist aktiv.` });
+}
+
+/** @param {KreuzSession} session @param {KreuzPlayer} player */
+function confirm(session, player) {
+  player.confirmed = true;
+  session.state.confirmedPlayerIds = [...new Set([...session.state.confirmedPlayerIds, player.id])];
+  if (session.players.every((candidate) => candidate.confirmed)) nextRoll(session);
+  else session.state.phase = 'waiting';
+}
+
+/**
+ * @param {KreuzSession} session
+ * @param {string} playerId
+ * @param {KreuzMove} move
+ * @returns {{ session: KreuzSession } | { error: string }}
+ */
+export function makeNochMalMove(session, playerId, move) {
+  const { state } = session;
+  if (session.status !== 'running') return { error: 'Das Spiel ist schon beendet.' };
+  const player = session.players.find((candidate) => candidate.id === playerId);
+  if (!player) return { error: 'Du schaust dieser Runde nur zu.' };
+  if (player.confirmed) return { error: 'Du hast diesen Wurf schon bestätigt.' };
+  const type = String(move?.type ?? '');
+  const isActive = state.activePlayerId === playerId;
+
+  if (type === 'lock-choice') {
+    if (!isAdvantageRound(session) || !isActive) return { error: 'Festlegen muss nur der aktive Spieler ab dem 4. Wurf.' };
+    if (player.lockedChoice) return { error: 'Du hast deine Würfel schon festgelegt.' };
+    const choice = resolveChoice(session, player, move.choice);
+    if ('error' in choice) return choice;
+    if (choice.kind === 'pass') return { error: 'Zum Aussetzen nutze „Aussetzen“.' };
+    player.lockedChoice = choice;
+    state.activeChoice = choice;
     return { session };
   }
 
   if (type === 'skip-turn') {
-    player.pendingCells = [];
     player.skipped = true;
-    player.confirmed = true;
-    session.state.confirmedPlayerIds = [...new Set([...session.state.confirmedPlayerIds, player.id])];
-    maybeAdvanceRound(session);
+    player.lastCells = [];
+    if (isActive && !player.lockedChoice) state.activeSkipped = true;
+    confirm(session, player);
     return { session };
   }
 
-  if (type === 'confirm-turn') {
-    const error = validatePendingMove(player);
+  if (type !== 'submit-turn') return { error: 'Diese Aktion ist nicht bekannt.' };
+
+  const choice = resolveChoice(session, player, move.choice);
+  if ('error' in choice) return choice;
+  const checked = new Set(player.checkedCells);
+  const cellIds = readIds(move.cellIds);
+
+  if (choice.kind === 'combo') {
+    const error = validateCombo(state.board, checked, choice.color, choice.number, cellIds);
     if (error) return { error };
-    const colorFace = player.selectedColorDieIndex === null ? null : session.state.roll.colorDice[player.selectedColorDieIndex];
-    const numberFace = player.selectedNumberDieIndex === null ? null : session.state.roll.numberDice[player.selectedNumberDieIndex];
-    player.usedJokers += (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
-    player.checkedCells = [...player.checkedCells, ...player.pendingCells];
-    player.pendingCells = [];
-    player.confirmed = true;
-    session.state.confirmedPlayerIds = [...new Set([...session.state.confirmedPlayerIds, player.id])];
-    maybeAdvanceRound(session);
-    return { session };
+  } else if (choice.kind === 'special') {
+    const error = validateSpecial(state.board, checked, choice.special, cellIds);
+    if (error) return { error };
+  } else if (cellIds.length) {
+    return { error: 'Ohne Würfel kannst du keine Felder ankreuzen.' };
   }
 
-  return { error: 'Diese Noch-mal-Aktion ist nicht bekannt.' };
+  // Bonusbombe aus einem Zeilenbonus: zusätzlich, nach dem normalen Zug.
+  const bombIds = readIds(move.bonusBombCells);
+  if (bombIds.length) {
+    if (player.bonusBombs < 1) return { error: 'Du hast keine Bonusbombe.' };
+    const after = new Set([...checked, ...cellIds]);
+    const error = validateSpecial(state.board, after, 'bomb', bombIds);
+    if (error) return { error: `Bonusbombe: ${error}` };
+  }
+  if (choice.kind === 'pass' && !bombIds.length) return { error: 'Wähle Würfel oder setze aussetzen.' };
+
+  // Anwenden
+  if (isAdvantageRound(session) && isActive && !state.activeChoice && choice.kind !== 'pass') state.activeChoice = choice;
+  const newCells = [...cellIds, ...bombIds];
+  if (choice.kind === 'combo') player.usedJokers += choice.jokerCost;
+  if (choice.kind === 'special') {
+    player.specialTokens -= 1;
+    player.specialsUsed += 1;
+    if (choice.special === 'heart') player.hearts = Math.min(MAX_HEARTS, player.hearts + 1);
+  }
+  if (bombIds.length) player.bonusBombs -= 1;
+  if (choice.kind === 'pass' && isActive && !state.activeChoice) state.activeSkipped = true;
+  player.checkedCells = [...player.checkedCells, ...newCells];
+  player.lastCells = newCells;
+  if (isExtended(session)) {
+    const gold = state.board.cells.filter((cell) => cell.gold && newCells.includes(cell.id)).length;
+    player.specialTokens += gold;
+  }
+  player.score = scorePlayer(state.board, player, state.claims, isExtended(session));
+  confirm(session, player);
+  return { session };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

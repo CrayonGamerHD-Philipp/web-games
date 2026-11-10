@@ -149,14 +149,6 @@ html[data-theme='dark'] .text-amber-900 { color: #fcd34d !important; }
 html[data-theme='dark'] .text-red-600,
 html[data-theme='dark'] .text-red-700 { color: #fca5a5 !important; }
 
-/* Spielmaterial behält im Dark Mode seine eigenen, bedeutungstragenden Farben. */
-html[data-theme='dark'] .noch-mal-paper {
-  background-color: #f7f5ea !important;
-  color: #0f172a !important;
-  border-color: #d6d3c8 !important;
-}
-html[data-theme='dark'] .noch-mal-paper.text-red-500 { color: #ef4444 !important; }
-
 /* ======================================================================
    UI-Bausteine – gemeinsame Sprache für alle Seiten und Spiele (DESIGN.md)
    ====================================================================== */

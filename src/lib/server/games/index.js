@@ -135,7 +135,7 @@ const gameHandlers = [
     /**
      * @param {unknown} session
      * @param {string} playerId
-     * @param {{ type?: unknown, cellId?: unknown, colorDieIndex?: unknown, numberDieIndex?: unknown, color?: unknown, number?: unknown }} move
+     * @param {any} move
      */
     applyMove: (session, playerId, move) =>
       makeNochMalMove(
