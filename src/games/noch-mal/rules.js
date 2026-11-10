@@ -206,15 +206,46 @@ export function validateSpecial(board, checked, kind, ids, options = {}) {
 export function selectableCells(board, checked, draft, action) {
   /** @type {Set<string>} */
   const result = new Set();
+  const map = cellMap(board);
   for (const cell of board.cells) {
     if (checked.has(cell.id) || draft.includes(cell.id)) continue;
     const candidate = [...draft, cell.id];
     const error = action.kind === 'combo'
       ? validateCombo(board, checked, action.color, action.number, candidate, { partial: true })
       : validateSpecial(board, checked, action.kind === 'special' ? action.special : 'bomb', candidate, { partial: true });
-    if (!error) result.add(cell.id);
+    if (error) continue;
+    // Nur anbieten, wenn der Zug von hier aus auch fertig werden kann: Im Block müssen
+    // zusammenhängend genug freie Felder liegen.
+    if (action.kind === 'combo' && reachableOpen(board, map, checked, cell, candidate) < action.number) continue;
+    result.add(cell.id);
   }
   return result;
+}
+
+/**
+ * Größe des freien, zusammenhängenden Bereichs im Block einer Zelle (der Entwurf zählt mit).
+ * @param {Board} board
+ * @param {Map<string, BoardCell>} map
+ * @param {Set<string>} checked
+ * @param {BoardCell} start
+ * @param {string[]} draft
+ */
+function reachableOpen(board, map, checked, start, draft) {
+  const inDraft = new Set(draft);
+  const seen = new Set([start.id]);
+  const stack = [start.id];
+  while (stack.length) {
+    const current = /** @type {string} */ (stack.pop());
+    for (const next of neighbourIds(board, current)) {
+      if (seen.has(next)) continue;
+      const cell = map.get(next);
+      if (!cell || cell.blockId !== start.blockId) continue;
+      if (checked.has(next) && !inDraft.has(next)) continue;
+      seen.add(next);
+      stack.push(next);
+    }
+  }
+  return seen.size;
 }
 
 /** @param {Board} board @param {Set<string>} checked @param {number} col */

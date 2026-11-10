@@ -56,10 +56,19 @@ export interface NochMalScore {
   total: number;
 }
 
-export type NochMalResolvedChoice =
-  | { kind: 'combo'; colorDieIndex: number; numberDieIndex: number; color: NochMalColor; number: number; jokerCost: number }
-  | { kind: 'special'; special: NochMalSpecial }
-  | { kind: 'pass' };
+export interface NochMalResolvedCombo {
+  colorDieIndex: number;
+  numberDieIndex: number;
+  color: NochMalColor;
+  number: number;
+  jokerCost: number;
+}
+
+/** Farbe + Zahl und/oder Sonderwürfel. */
+export interface NochMalResolvedChoice {
+  combo: NochMalResolvedCombo | null;
+  special: NochMalSpecial | null;
+}
 
 export interface NochMalPlayer {
   id: string;
@@ -135,12 +144,12 @@ export interface NochMalSession {
   state: NochMalState;
 }
 
-export type NochMalChoice =
-  | { kind: 'combo'; colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number }
-  | { kind: 'special' }
-  | { kind: 'pass' };
+export interface NochMalChoice {
+  combo: { colorDieIndex: number; numberDieIndex: number; color?: NochMalColor; number?: number } | null;
+  special: boolean;
+}
 
 export type NochMalMove =
-  | { type: 'submit-turn'; choice: NochMalChoice; cellIds: string[]; bonusBombCells?: string[] }
+  | { type: 'submit-turn'; choice: NochMalChoice; cellIds: string[]; specialCellIds?: string[]; bonusBombCells?: string[] }
   | { type: 'lock-choice'; choice: NochMalChoice }
   | { type: 'skip-turn' };

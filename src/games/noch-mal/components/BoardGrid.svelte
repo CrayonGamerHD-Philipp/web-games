@@ -49,27 +49,28 @@
     return Boolean(other && other.blockId === cell.blockId);
   }
 
-  /** Fugen nur an Blockgrenzen, Ecken nur rund, wo zwei Grenzen zusammentreffen. */
-  /** @param {Cell} cell */
+  /**
+   * Geschlossenes Spielfeld: keine Lücken. Zwischen zwei Blöcken liegt nur eine feine Kante,
+   * rund sind allein die vier Ecken des ganzen Bretts.
+   * @param {Cell} cell
+   */
   function tileStyle(cell) {
-    const t = joined(cell, -1, 0);
-    const b = joined(cell, 1, 0);
-    const l = joined(cell, 0, -1);
-    const r = joined(cell, 0, 1);
-    const seam = 'var(--seam)';
+    const sides = /** @type {const} */ ([['top', -1, 0], ['bottom', 1, 0], ['left', 0, -1], ['right', 0, 1]]);
+    const parts = [`--fill:${PALETTE[cell.color].fill}`, `--ink:${PALETTE[cell.color].ink}`];
+    for (const [side, dr, dc] of sides) {
+      const other = byId.get(`${cell.row + dr}-${cell.col + dc}`);
+      // Leicht überlappen, damit zwischen Feldern keine Haarlinien entstehen.
+      parts.push(`${side}:${other ? '-0.5px' : '0'}`);
+      if (other && other.blockId !== cell.blockId) parts.push(`border-${side}:var(--edge)`);
+    }
+    const lastRow = board.rows - 1;
+    const lastCol = board.cols - 1;
     const round = 'var(--round)';
-    return [
-      `--fill:${PALETTE[cell.color].fill}`,
-      `--ink:${PALETTE[cell.color].ink}`,
-      `top:${t ? '-0.5px' : seam}`,
-      `bottom:${b ? '-0.5px' : seam}`,
-      `left:${l ? '-0.5px' : seam}`,
-      `right:${r ? '-0.5px' : seam}`,
-      `border-top-left-radius:${!t && !l ? round : '0'}`,
-      `border-top-right-radius:${!t && !r ? round : '0'}`,
-      `border-bottom-left-radius:${!b && !l ? round : '0'}`,
-      `border-bottom-right-radius:${!b && !r ? round : '0'}`
-    ].join(';');
+    if (cell.row === 0 && cell.col === 0) parts.push(`border-top-left-radius:${round}`);
+    if (cell.row === 0 && cell.col === lastCol) parts.push(`border-top-right-radius:${round}`);
+    if (cell.row === lastRow && cell.col === 0) parts.push(`border-bottom-left-radius:${round}`);
+    if (cell.row === lastRow && cell.col === lastCol) parts.push(`border-bottom-right-radius:${round}`);
+    return parts.join(';');
   }
 
   /** @param {Cell} cell */
@@ -271,8 +272,8 @@
   .kz-board {
     --cell: clamp(2.4rem, calc((100cqi - var(--side-w) - 8px) / var(--cols)), 4.2rem);
     --side: 5.4rem;
-    --seam: 2px;
-    --round: 8px;
+    --edge: 2px solid rgb(0 0 0 / 0.26);
+    --round: 12px;
     font-size: clamp(0.75rem, calc(var(--cell) * 0.28), 1rem);
     display: grid;
     width: max-content;
@@ -283,8 +284,8 @@
 
   .kz-board.is-compact {
     --cell: 0.62rem;
-    --seam: 0.5px;
-    --round: 2px;
+    --edge: 1px solid rgb(0 0 0 / 0.22);
+    --round: 3px;
   }
 
   .kz-head {
@@ -453,6 +454,7 @@
 
   .kz-tile {
     position: absolute;
+    box-sizing: border-box;
     display: grid;
     place-items: center;
     background: var(--fill);
@@ -578,7 +580,7 @@
     .kz-board:not(.is-compact) {
       --cell: clamp(2.15rem, calc((100cqi - var(--side-w) - 8px) / var(--cols)), 3rem);
       --side: 4.4rem;
-      --round: 6px;
+      --round: 10px;
     }
   }
 </style>

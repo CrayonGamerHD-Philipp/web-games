@@ -13,7 +13,8 @@
  * @typedef {KreuzColor | 'joker'} ColorFace
  * @typedef {number | 'joker'} NumberFace
  * @typedef {{ id: string, colorDice: ColorFace[], numberDice: NumberFace[], specialDie: SpecialKind | null }} Roll
- * @typedef {{ kind: 'combo', colorDieIndex: number, numberDieIndex: number, color: KreuzColor, number: number, jokerCost: number } | { kind: 'special', special: SpecialKind } | { kind: 'pass' }} ResolvedChoice
+ * @typedef {{ colorDieIndex: number, numberDieIndex: number, color: KreuzColor, number: number, jokerCost: number }} ResolvedCombo
+ * @typedef {{ combo: ResolvedCombo | null, special: SpecialKind | null }} ResolvedChoice  Farbe+Zahl und/oder Sonderwürfel
  * @typedef {{
  *   id: string, name: string,
  *   checkedCells: string[],
@@ -53,7 +54,7 @@
  *   lastEvent: KreuzEvent | null
  * }} KreuzState
  * @typedef {{ id: string, gameId: 'noch-mal', name: string, status: 'running' | 'finished', createdAt: string, players: KreuzPlayer[], state: KreuzState }} KreuzSession
- * @typedef {{ type?: unknown, choice?: any, cellIds?: unknown, bonusBombCells?: unknown }} KreuzMove
+ * @typedef {{ type?: unknown, choice?: any, cellIds?: unknown, specialCellIds?: unknown, bonusBombCells?: unknown }} KreuzMove
  */
 
 import { BOARD_SIZES, COLORS, generateBoard } from './board.js';
@@ -82,6 +83,8 @@ export const nochMalGame = {
 };
 
 const SOLO_ROUNDS = 30;
+/** @type {Record<SpecialKind, string>} */
+const SPECIAL_NAMES = { bomb: 'Bombe', heart: 'Herz', stars: 'Sterne', row: 'Drei in einer Zeile', block: 'Farbblock' };
 const MAX_ROUNDS = 200;
 /** Ab diesem Wurf nimmt der aktive Spieler seine Würfel aus der Auswahl. */
 const ADVANTAGE_FROM = 4;
@@ -205,57 +208,65 @@ export function createNochMalSession(players, options = {}) {
 }
 
 /**
- * Prüft, ob der Spieler diese Würfel nehmen darf, und löst Joker auf.
+ * Prüft, welche Würfel der Spieler nehmen darf, und löst Joker auf.
+ * Erlaubt sind Farbe + Zahl, der Sonderwürfel oder beides zusammen.
  * @param {KreuzSession} session
  * @param {KreuzPlayer} player
- * @param {any} raw
+ * @param {any} raw  `{ combo?: { colorDieIndex, numberDieIndex, color?, number? } | null, special?: boolean }`
  * @returns {ResolvedChoice | { error: string }}
  */
 function resolveChoice(session, player, raw) {
   const { state } = session;
-  const kind = raw?.kind;
-  if (kind === 'pass') return { kind: 'pass' };
+  const wantsCombo = Boolean(raw?.combo);
+  const wantsSpecial = Boolean(raw?.special);
+  if (!wantsCombo && !wantsSpecial) return { combo: null, special: null };
 
   const isActive = state.activePlayerId === player.id;
   const advantage = isAdvantageRound(session);
-  const locked = advantage && !isActive ? state.activeChoice : null;
   if (advantage && !isActive && !state.activeChoice && !state.activeSkipped) {
     return { error: 'Warte, bis der aktive Spieler seine Würfel genommen hat.' };
   }
   if (advantage && isActive && player.lockedChoice) {
-    // Der aktive Spieler hat schon festgelegt – der Zug muss dazu passen.
+    // Der aktive Spieler hat schon festgelegt – der Zug muss genau dazu passen.
     const lockedChoice = player.lockedChoice;
-    if (lockedChoice.kind !== kind) return { error: 'Du hast deine Würfel schon festgelegt.' };
-    if (lockedChoice.kind === 'combo' && (lockedChoice.colorDieIndex !== Number(raw.colorDieIndex) || lockedChoice.numberDieIndex !== Number(raw.numberDieIndex))) {
-      return { error: 'Du hast deine Würfel schon festgelegt.' };
-    }
+    const sameCombo = lockedChoice.combo
+      ? wantsCombo && lockedChoice.combo.colorDieIndex === Number(raw.combo.colorDieIndex) && lockedChoice.combo.numberDieIndex === Number(raw.combo.numberDieIndex)
+      : !wantsCombo;
+    if (!sameCombo || Boolean(lockedChoice.special) !== wantsSpecial) return { error: 'Du hast deine Würfel schon festgelegt.' };
     return lockedChoice;
   }
+  const taken = advantage && !isActive ? state.activeChoice : null;
 
-  if (kind === 'special') {
+  /** @type {SpecialKind | null} */
+  let special = null;
+  if (wantsSpecial) {
     if (!isExtended(session) || !state.roll.specialDie) return { error: 'In diesem Modus gibt es keinen Sonderwürfel.' };
     if (player.specialTokens < 1) return { error: 'Du hast keine Sonderwürfel-Marke mehr.' };
-    if (locked?.kind === 'special') return { error: 'Der Sonderwürfel wurde vom aktiven Spieler genommen.' };
-    return { kind: 'special', special: state.roll.specialDie };
+    if (taken?.special) return { error: 'Den Sonderwürfel hat der aktive Spieler genommen.' };
+    special = state.roll.specialDie;
   }
 
-  if (kind !== 'combo') return { error: 'Wähle einen Farb- und einen Zahlenwürfel oder den Sonderwürfel.' };
-  const colorDieIndex = Number(raw.colorDieIndex);
-  const numberDieIndex = Number(raw.numberDieIndex);
-  if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungültig.' };
-  if (!Number.isInteger(numberDieIndex) || numberDieIndex < 0 || numberDieIndex >= state.roll.numberDice.length) return { error: 'Dieser Zahlenwürfel ist ungültig.' };
-  if (locked?.kind === 'combo' && (locked.colorDieIndex === colorDieIndex || locked.numberDieIndex === numberDieIndex)) {
-    return { error: 'Diese Würfel hat der aktive Spieler genommen.' };
+  /** @type {ResolvedCombo | null} */
+  let combo = null;
+  if (wantsCombo) {
+    const colorDieIndex = Number(raw.combo.colorDieIndex);
+    const numberDieIndex = Number(raw.combo.numberDieIndex);
+    if (!Number.isInteger(colorDieIndex) || colorDieIndex < 0 || colorDieIndex >= state.roll.colorDice.length) return { error: 'Dieser Farbwürfel ist ungültig.' };
+    if (!Number.isInteger(numberDieIndex) || numberDieIndex < 0 || numberDieIndex >= state.roll.numberDice.length) return { error: 'Dieser Zahlenwürfel ist ungültig.' };
+    if (taken?.combo && (taken.combo.colorDieIndex === colorDieIndex || taken.combo.numberDieIndex === numberDieIndex)) {
+      return { error: 'Diese Würfel hat der aktive Spieler genommen.' };
+    }
+    const colorFace = state.roll.colorDice[colorDieIndex];
+    const numberFace = state.roll.numberDice[numberDieIndex];
+    const color = colorFace === 'joker' ? raw.combo.color : colorFace;
+    const number = numberFace === 'joker' ? Number(raw.combo.number) : numberFace;
+    if (!COLORS.includes(color)) return { error: 'Wähle eine Farbe für den Joker.' };
+    if (!Number.isInteger(number) || number < 1 || number > MAX_NUMBER) return { error: 'Wähle eine Zahl von 1 bis 5 für den Joker.' };
+    const jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
+    if (player.usedJokers + jokerCost > JOKERS) return { error: 'Du hast nicht mehr genug Joker.' };
+    combo = { colorDieIndex, numberDieIndex, color, number, jokerCost };
   }
-  const colorFace = state.roll.colorDice[colorDieIndex];
-  const numberFace = state.roll.numberDice[numberDieIndex];
-  const color = colorFace === 'joker' ? raw.color : colorFace;
-  const number = numberFace === 'joker' ? Number(raw.number) : numberFace;
-  if (!COLORS.includes(color)) return { error: 'Wähle eine Farbe für den Joker.' };
-  if (!Number.isInteger(number) || number < 1 || number > MAX_NUMBER) return { error: 'Wähle eine Zahl von 1 bis 5 für den Joker.' };
-  const jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
-  if (player.usedJokers + jokerCost > JOKERS) return { error: 'Du hast nicht mehr genug Joker.' };
-  return { kind: 'combo', colorDieIndex, numberDieIndex, color, number, jokerCost };
+  return { combo, special };
 }
 
 /** @param {unknown} raw */
@@ -399,7 +410,7 @@ export function makeNochMalMove(session, playerId, move) {
     if (player.lockedChoice) return { error: 'Du hast deine Würfel schon festgelegt.' };
     const choice = resolveChoice(session, player, move.choice);
     if ('error' in choice) return choice;
-    if (choice.kind === 'pass') return { error: 'Zum Aussetzen nutze „Aussetzen“.' };
+    if (!choice.combo && !choice.special) return { error: 'Zum Aussetzen nutze „Aussetzen“.' };
     player.lockedChoice = choice;
     state.activeChoice = choice;
     return { session };
@@ -419,38 +430,47 @@ export function makeNochMalMove(session, playerId, move) {
   if ('error' in choice) return choice;
   const checked = new Set(player.checkedCells);
   const cellIds = readIds(move.cellIds);
+  const specialIds = readIds(move.specialCellIds);
 
-  if (choice.kind === 'combo') {
-    const error = validateCombo(state.board, checked, choice.color, choice.number, cellIds);
-    if (error) return { error };
-  } else if (choice.kind === 'special') {
-    const error = validateSpecial(state.board, checked, choice.special, cellIds);
+  // Zuerst Farbe + Zahl, danach darf die Sonderaktion schon an die neuen Kreuze anschließen.
+  if (choice.combo) {
+    const error = validateCombo(state.board, checked, choice.combo.color, choice.combo.number, cellIds);
     if (error) return { error };
   } else if (cellIds.length) {
-    return { error: 'Ohne Würfel kannst du keine Felder ankreuzen.' };
+    return { error: 'Ohne Farb- und Zahlenwürfel kannst du hier keine Felder ankreuzen.' };
+  }
+  const afterCombo = new Set([...checked, ...cellIds]);
+  if (choice.special) {
+    const error = validateSpecial(state.board, afterCombo, choice.special, specialIds);
+    if (error) return { error: `${SPECIAL_NAMES[choice.special]}: ${error}` };
+  } else if (specialIds.length) {
+    return { error: 'Ohne Sonderwürfel gibt es keine Sonderfelder.' };
   }
 
-  // Bonusbombe aus einem Zeilenbonus: zusätzlich, nach dem normalen Zug.
+  // Bonusbombe aus einem Zeilenbonus: zusätzlich, nach allem anderen.
   const bombIds = readIds(move.bonusBombCells);
   if (bombIds.length) {
     if (player.bonusBombs < 1) return { error: 'Du hast keine Bonusbombe.' };
-    const after = new Set([...checked, ...cellIds]);
+    const after = new Set([...afterCombo, ...specialIds]);
     const error = validateSpecial(state.board, after, 'bomb', bombIds);
     if (error) return { error: `Bonusbombe: ${error}` };
   }
-  if (choice.kind === 'pass' && !bombIds.length) return { error: 'Wähle Würfel oder setze aussetzen.' };
+  const usesDice = Boolean(choice.combo || choice.special);
+  if (!usesDice && !bombIds.length) return { error: 'Wähle Würfel oder setze aus.' };
 
   // Anwenden
-  if (isAdvantageRound(session) && isActive && !state.activeChoice && choice.kind !== 'pass') state.activeChoice = choice;
-  const newCells = [...cellIds, ...bombIds];
-  if (choice.kind === 'combo') player.usedJokers += choice.jokerCost;
-  if (choice.kind === 'special') {
+  if (isAdvantageRound(session) && isActive && !state.activeChoice) {
+    if (usesDice) state.activeChoice = choice;
+    else state.activeSkipped = true;
+  }
+  const newCells = [...cellIds, ...specialIds, ...bombIds];
+  if (choice.combo) player.usedJokers += choice.combo.jokerCost;
+  if (choice.special) {
     player.specialTokens -= 1;
     player.specialsUsed += 1;
     if (choice.special === 'heart') player.hearts = Math.min(MAX_HEARTS, player.hearts + 1);
   }
   if (bombIds.length) player.bonusBombs -= 1;
-  if (choice.kind === 'pass' && isActive && !state.activeChoice) state.activeSkipped = true;
   player.checkedCells = [...player.checkedCells, ...newCells];
   player.lastCells = newCells;
   if (isExtended(session)) {

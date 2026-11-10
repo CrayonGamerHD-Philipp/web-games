@@ -38,6 +38,7 @@
   const audioCache = new Map();
 
   // ---- Lokaler Zug (local-first) ----
+  // Pro Wurf: Farbe + Zahl, der Sonderwürfel oder beides. Jede Würfelwahl hat ihren eigenen Entwurf.
   /** @type {number | null} */
   let colorIdx = null;
   /** @type {number | null} */
@@ -47,11 +48,18 @@
   let jokerColor = null;
   /** @type {number | null} */
   let jokerNumber = null;
+  /** Kreuze für Farbe + Zahl. */
   /** @type {string[]} */
   let draft = [];
+  /** Kreuze für die Sonderaktion. */
+  /** @type {string[]} */
+  let specialDraft = [];
   /** @type {string[]} */
   let bombDraft = [];
   let bombMode = false;
+  /** Vom Spieler gewählt, was er gerade setzt; null = automatisch. */
+  /** @type {'combo' | 'special' | null} */
+  let manualMode = null;
   let rollKey = '';
   let lastSeq = -1;
   /** @type {{ id: number, text: string, tone: 'mine' | 'other' | 'neutral' }[]} */
@@ -88,18 +96,13 @@
     resetTurn();
   }
   // Festgelegte Wahl des aktiven Spielers übernehmen.
-  $: if (myLock && myLock.kind === 'combo' && (colorIdx !== myLock.colorDieIndex || numberIdx !== myLock.numberDieIndex)) {
-    colorIdx = myLock.colorDieIndex;
-    numberIdx = myLock.numberDieIndex;
-    jokerColor = myLock.color;
-    jokerNumber = myLock.number;
-    useSpecial = false;
+  $: if (myLock?.combo && (colorIdx !== myLock.combo.colorDieIndex || numberIdx !== myLock.combo.numberDieIndex)) {
+    colorIdx = myLock.combo.colorDieIndex;
+    numberIdx = myLock.combo.numberDieIndex;
+    jokerColor = myLock.combo.color;
+    jokerNumber = myLock.combo.number;
   }
-  $: if (myLock && myLock.kind === 'special' && !useSpecial) {
-    useSpecial = true;
-    colorIdx = null;
-    numberIdx = null;
-  }
+  $: if (myLock && Boolean(myLock.special) !== useSpecial) useSpecial = Boolean(myLock.special);
 
   $: colorFace = roll && colorIdx !== null ? roll.colorDice[colorIdx] : null;
   $: numberFace = roll && numberIdx !== null ? roll.numberDice[numberIdx] : null;
@@ -107,30 +110,48 @@
   $: comboNumber = numberFace === 'joker' ? jokerNumber : /** @type {number | null} */ (numberFace);
   $: jokerCost = (colorFace === 'joker' ? 1 : 0) + (numberFace === 'joker' ? 1 : 0);
   $: jokersLeft = JOKERS - (me?.usedJokers ?? 0);
+  $: comboChosen = colorIdx !== null && numberIdx !== null;
+  $: halfCombo = (colorIdx === null) !== (numberIdx === null);
+  /** @type {{ color: Color, number: number } | null} */
+  $: combo = comboChosen && comboColor && comboNumber ? { color: comboColor, number: comboNumber } : null;
   $: special = useSpecial ? roll?.specialDie ?? null : null;
-  /** @type {{ kind: 'combo', color: Color, number: number } | { kind: 'special', special: import('../types').NochMalSpecial } | null} */
-  $: action = special
-    ? { kind: 'special', special }
-    : comboColor && comboNumber
-      ? { kind: 'combo', color: comboColor, number: comboNumber }
-      : null;
-  $: needsJoker = !special && ((colorFace === 'joker' && !jokerColor) || (numberFace === 'joker' && !jokerNumber));
-  $: afterMain = new Set([...checked, ...draft]);
+  $: specialNeedsCells = Boolean(special && special !== 'heart');
+  $: needsJoker = comboChosen && ((colorFace === 'joker' && !jokerColor) || (numberFace === 'joker' && !jokerNumber));
+  $: afterCombo = new Set([...checked, ...draft]);
+  $: afterSpecial = new Set([...afterCombo, ...specialDraft]);
+  /** Was nimmt der nächste Tipp aufs Brett auf? */
+  /** @type {'combo' | 'special' | 'bomb' | null} */
+  $: editMode = bombMode
+    ? 'bomb'
+    : manualMode === 'combo' && combo
+      ? 'combo'
+      : manualMode === 'special' && specialNeedsCells
+        ? 'special'
+        : combo && draft.length < combo.number
+          ? 'combo'
+          : specialNeedsCells
+            ? 'special'
+            : combo
+              ? 'combo'
+              : null;
   $: selectable = board && canPlay && !waitingForActive
-    ? bombMode
-      ? selectableCells(board, afterMain, bombDraft, { kind: 'bonus-bomb' })
-      : action && !(action.kind === 'special' && action.special === 'heart')
-        ? selectableCells(board, checked, draft, action)
-        : new Set()
+    ? computeSelectable({ mode: editMode, currentCombo: combo, currentSpecial: special, base: checked, withCombo: afterCombo, withSpecial: afterSpecial, comboCells: draft, specialCells: specialDraft, bombCells: bombDraft })
     : new Set();
-  $: mainError = board && action ? (action.kind === 'combo' ? validateCombo(board, checked, action.color, action.number, draft) : validateSpecial(board, checked, action.special, draft)) : 'Wähle Würfel.';
-  $: bombError = board && bombDraft.length ? validateSpecial(board, afterMain, 'bomb', bombDraft) : '';
-  $: canSubmit = Boolean(canPlay && !waitingForActive && !bombError && ((action && !mainError) || (!action && bombDraft.length)));
-  $: mustLock = Boolean(canPlay && advantage && isActive && !myLock && action && !needsJoker && !draft.length);
-  $: noOption = Boolean(action && !needsJoker && action.kind === 'combo' && draft.length === 0 && selectable.size === 0 && !bombMode);
-  $: displayDraft = new Set(bombMode ? [...draft, ...bombDraft] : draft);
-  $: focusMode = Boolean(selectable.size || draft.length || bombDraft.length);
-  $: statusText = getStatus(game, me, action, draft, bombMode, waitingForActive, needsJoker, noOption);
+  $: comboError = board && combo ? validateCombo(board, checked, combo.color, combo.number, draft) : '';
+  $: specialError = board && special ? validateSpecial(board, afterCombo, special, specialDraft) : '';
+  $: bombError = board && bombDraft.length ? validateSpecial(board, afterSpecial, 'bomb', bombDraft) : '';
+  $: usesDice = comboChosen || Boolean(special);
+  $: canSubmit = Boolean(
+    canPlay && !waitingForActive && !needsJoker && !halfCombo &&
+    !(combo && comboError) && !(special && specialError) && !bombError &&
+    (usesDice || bombDraft.length)
+  );
+  $: mustLock = Boolean(canPlay && advantage && isActive && !myLock && usesDice && !needsJoker && !halfCombo && !draft.length && !specialDraft.length);
+  $: noOption = Boolean(editMode === 'combo' && combo && !needsJoker && draft.length === 0 && selectable.size === 0);
+  $: displayDraft = new Set([...draft, ...specialDraft, ...bombDraft]);
+  $: focusMode = Boolean(selectable.size || draft.length || specialDraft.length || bombDraft.length);
+  // halfCombo, colorIdx, jokerColor und bombDraft liest getStatus intern – hier stehen sie, damit Svelte neu rechnet.
+  $: statusText = (void [halfCombo, colorIdx, jokerColor, bombDraft.length, waitingNames], getStatus(game, me, editMode, combo, special, draft, specialDraft, waitingForActive, needsJoker, noOption));
   $: waitingNames = game ? game.players.filter((player) => !player.confirmed && player.id !== currentPlayerId).map((player) => player.name) : [];
   $: score = me?.score ?? null;
   $: opponents = game ? game.players.filter((player) => player.id !== currentPlayerId) : [];
@@ -140,6 +161,36 @@
   $: viewingRace = viewing && board && game ? buildColorRace(board, viewing, game, viewing.id) : [];
   $: handleEvent(state?.lastEvent ?? null);
 
+  /**
+   * Alle Abhängigkeiten kommen als Argument, damit Svelte die Hervorhebung bei jeder Änderung neu berechnet.
+   * @param {{ mode: 'combo' | 'special' | 'bomb' | null, currentCombo: { color: Color, number: number } | null, currentSpecial: import('../types').NochMalSpecial | null, base: Set<string>, withCombo: Set<string>, withSpecial: Set<string>, comboCells: string[], specialCells: string[], bombCells: string[] }} input
+   * @returns {Set<string>}
+   */
+  function computeSelectable({ mode, currentCombo, currentSpecial, base, withCombo, withSpecial, comboCells, specialCells, bombCells }) {
+    if (!board || !mode) return new Set();
+    if (mode === 'bomb') return selectableCells(board, withSpecial, bombCells, { kind: 'bonus-bomb' });
+    if (mode === 'special' && currentSpecial) {
+      const result = selectableCells(board, withCombo, specialCells, { kind: 'special', special: currentSpecial });
+      for (const id of bombCells) result.delete(id);
+      return result;
+    }
+    if (mode === 'combo' && currentCombo) {
+      const result = selectableCells(board, base, comboCells, { kind: 'combo', color: currentCombo.color, number: currentCombo.number });
+      for (const id of [...specialCells, ...bombCells]) result.delete(id);
+      return result;
+    }
+    return new Set();
+  }
+
+  /** Ändert sich die Kombi, muss die Sonderaktion noch dazu passen – sonst beginnt sie neu. */
+  function revalidateLater() {
+    if (!board) return;
+    const base = new Set([...checked, ...draft]);
+    if (special && specialDraft.length && validateSpecial(board, base, special, specialDraft, { partial: true })) specialDraft = [];
+    const withSpecial = new Set([...base, ...specialDraft]);
+    if (bombDraft.length && validateSpecial(board, withSpecial, 'bomb', bombDraft, { partial: true })) bombDraft = [];
+  }
+
   function resetTurn() {
     colorIdx = null;
     numberIdx = null;
@@ -147,79 +198,115 @@
     jokerColor = null;
     jokerNumber = null;
     draft = [];
+    specialDraft = [];
     bombDraft = [];
     bombMode = false;
+    manualMode = null;
   }
 
   /** @param {number} index */
   function pickColor(index) {
     if (!canPlay || myLock) return;
-    useSpecial = false;
     colorIdx = colorIdx === index ? null : index;
     jokerColor = null;
     draft = [];
+    manualMode = null;
+    revalidateLater();
   }
 
   /** @param {number} index */
   function pickNumber(index) {
     if (!canPlay || myLock) return;
-    useSpecial = false;
     numberIdx = numberIdx === index ? null : index;
     jokerNumber = null;
     draft = [];
+    manualMode = null;
+    revalidateLater();
   }
 
   function pickSpecial() {
     if (!canPlay || myLock) return;
     useSpecial = !useSpecial;
-    colorIdx = null;
-    numberIdx = null;
+    specialDraft = [];
+    manualMode = null;
+    revalidateLater();
+  }
+
+  /** @param {Color} color */
+  function chooseJokerColor(color) {
+    jokerColor = color;
     draft = [];
+    revalidateLater();
+  }
+
+  /** @param {number} value */
+  function chooseJokerNumber(value) {
+    jokerNumber = value;
+    draft = [];
+    revalidateLater();
+  }
+
+  /**
+   * @param {string[]} list
+   * @param {string} id
+   * @param {(rest: string[]) => boolean} valid
+   */
+  function removeFrom(list, id, valid) {
+    const rest = list.filter((cell) => cell !== id);
+    return !rest.length || valid(rest) ? rest : [];
   }
 
   /** @param {string} id */
   function toggleCell(id) {
     if (!board || !canPlay) return;
-    if (bombMode) {
-      bombDraft = bombDraft.includes(id) ? bombDraft.filter((cell) => cell !== id) : selectable.has(id) ? [...bombDraft, id] : bombDraft;
-      if (!bombDraft.includes(id) && selectable.has(id)) return;
-      playSound('mark');
+    const currentBoard = board;
+    // Ein Tipp auf ein schon gewähltes Feld nimmt es aus seinem Entwurf.
+    if (bombDraft.includes(id)) {
+      bombDraft = bombDraft.filter((cell) => cell !== id);
       return;
     }
-    if (draft.includes(id)) {
-      const rest = draft.filter((cell) => cell !== id);
-      // Zerfällt der Rest, beginnt der Entwurf neu.
-      const stillValid = !action || !rest.length || !(action.kind === 'combo' ? validateCombo(board, checked, action.color, action.number, rest, { partial: true }) : validateSpecial(board, checked, action.special, rest, { partial: true }));
-      draft = stillValid ? rest : [];
+    if (specialDraft.includes(id) && special) {
+      const kind = special;
+      specialDraft = kind === 'block' ? [] : removeFrom(specialDraft, id, (rest) => !validateSpecial(currentBoard, afterCombo, kind, rest, { partial: true }));
+      revalidateLater();
+      return;
+    }
+    if (draft.includes(id) && combo) {
+      const current = combo;
+      draft = removeFrom(draft, id, (rest) => !validateCombo(currentBoard, checked, current.color, current.number, rest, { partial: true }));
+      revalidateLater();
       return;
     }
     if (!selectable.has(id)) return;
-    if (action?.kind === 'special' && action.special === 'block') {
-      const cell = board.cells.find((candidate) => candidate.id === id);
-      if (cell) draft = board.blocks[cell.blockId].cells.filter((cellId) => !checked.has(cellId));
-    } else {
-      draft = [...draft, id];
-    }
+    if (editMode === 'bomb') bombDraft = [...bombDraft, id];
+    else if (editMode === 'special' && special === 'block') {
+      const cell = currentBoard.cells.find((candidate) => candidate.id === id);
+      if (cell) specialDraft = currentBoard.blocks[cell.blockId].cells.filter((cellId) => !afterCombo.has(cellId));
+    } else if (editMode === 'special') specialDraft = [...specialDraft, id];
+    else if (editMode === 'combo') draft = [...draft, id];
     playSound('mark');
   }
 
   function undo() {
-    if (bombMode && bombDraft.length) bombDraft = bombDraft.slice(0, -1);
-    else if (action?.kind === 'special' && action.special === 'block') draft = [];
-    else draft = draft.slice(0, -1);
+    if (editMode === 'bomb' && bombDraft.length) bombDraft = bombDraft.slice(0, -1);
+    else if (editMode === 'special' && specialDraft.length) specialDraft = special === 'block' ? [] : specialDraft.slice(0, -1);
+    else if (draft.length) {
+      draft = draft.slice(0, -1);
+      revalidateLater();
+    } else if (specialDraft.length) specialDraft = specialDraft.slice(0, -1);
+    else if (bombDraft.length) bombDraft = bombDraft.slice(0, -1);
   }
 
   /** @returns {import('../types').NochMalChoice} */
   function buildChoice() {
-    if (special) return { kind: 'special' };
+    /** @type {import('../types').NochMalChoice} */
+    const choice = { combo: null, special: Boolean(special) };
     if (colorIdx !== null && numberIdx !== null) {
-      /** @type {import('../types').NochMalChoice} */
-      const choice = { kind: 'combo', colorDieIndex: colorIdx, numberDieIndex: numberIdx };
-      if (colorFace === 'joker' && jokerColor) choice.color = jokerColor;
-      if (numberFace === 'joker' && jokerNumber) choice.number = jokerNumber;
-      return choice;
+      choice.combo = { colorDieIndex: colorIdx, numberDieIndex: numberIdx };
+      if (colorFace === 'joker' && jokerColor) choice.combo.color = jokerColor;
+      if (numberFace === 'joker' && jokerNumber) choice.combo.number = jokerNumber;
     }
-    return { kind: 'pass' };
+    return choice;
   }
 
   function lockChoice() {
@@ -230,7 +317,7 @@
   function submit() {
     if (!canSubmit) return;
     playSound('confirm');
-    onMove({ type: 'submit-turn', choice: buildChoice(), cellIds: draft, bonusBombCells: bombDraft });
+    onMove({ type: 'submit-turn', choice: buildChoice(), cellIds: draft, specialCellIds: specialDraft, bonusBombCells: bombDraft });
   }
 
   function skip() {
@@ -241,32 +328,42 @@
   /**
    * @param {Session | null} session
    * @param {Player | null} player
-   * @param {typeof action} current
+   * @param {'combo' | 'special' | 'bomb' | null} mode
+   * @param {{ color: Color, number: number } | null} currentCombo
+   * @param {import('../types').NochMalSpecial | null} currentSpecial
    * @param {string[]} cells
-   * @param {boolean} bombing
+   * @param {string[]} specialCells
    * @param {boolean} waiting
    * @param {boolean} joker
    * @param {boolean} nothing
    */
-  function getStatus(session, player, current, cells, bombing, waiting, joker, nothing) {
+  function getStatus(session, player, mode, currentCombo, currentSpecial, cells, specialCells, waiting, joker, nothing) {
     if (!session) return '';
     if (session.status === 'finished') return 'Spielende – alle Felder sind gewertet.';
     if (!player) return `Du schaust zu. ${activePlayer?.name ?? 'Jemand'} ist aktiv.`;
     if (player.confirmed) return waitingNames.length ? `Erledigt. Noch dran: ${waitingNames.join(', ')}.` : 'Erledigt.';
     if (waiting) return `Warte, bis ${activePlayer?.name ?? 'der aktive Spieler'} Würfel nimmt. Du darfst danach aus dem Rest wählen.`;
-    if (bombing) return `Bonusbombe: bis zu 4 Felder in einem 2×2-Feld (${bombDraft.length} von 4).`;
-    if (!current) {
-      if (joker) return colorFace === 'joker' && !jokerColor ? 'Welche Farbe soll der Joker sein?' : 'Welche Zahl soll der Joker sein?';
-      const options = extended && player.specialTokens > 0 ? 'eine Farbe und eine Zahl – oder den Sonderwürfel' : 'eine Farbe und eine Zahl';
+    if (joker) return colorFace === 'joker' && !jokerColor ? 'Welche Farbe soll der Joker sein?' : 'Welche Zahl soll der Joker sein?';
+    if (mode === 'bomb') return `Bonusbombe: bis zu 4 Felder in einem 2×2-Feld (${bombDraft.length} von 4).`;
+    if (!currentCombo && !currentSpecial) {
+      if (halfCombo) return colorIdx === null ? 'Wähle noch einen Farbwürfel.' : 'Wähle noch einen Zahlenwürfel.';
+      const options = extended && player.specialTokens > 0 ? 'Farbe und Zahl, den Sonderwürfel oder beides' : 'eine Farbe und eine Zahl';
       return isActive && advantage ? `Du bist aktiv: Nimm ${options}. Die anderen wählen danach aus dem Rest.` : `Wähle ${options}.`;
     }
-    if (current.kind === 'special') {
-      if (current.special === 'heart') return 'Herz: Dein Bonus für jede fertige Spalte steigt um 1. Bestätige.';
-      return `${SPECIALS[current.special].name}: ${SPECIALS[current.special].hint}`;
+    if (halfCombo) return colorIdx === null ? 'Wähle noch einen Farbwürfel – oder nimm den anderen wieder weg.' : 'Wähle noch einen Zahlenwürfel – oder nimm den anderen wieder weg.';
+    const extra = currentCombo && currentSpecial ? (currentSpecial === 'heart' ? ' Das Herz kommt beim Bestätigen dazu.' : ' Danach: Sonderaktion.') : '';
+    if (mode === 'special' && currentSpecial) {
+      const done = currentCombo ? `Farbe + Zahl fertig. ` : '';
+      return `${done}${SPECIALS[currentSpecial].name}: ${SPECIALS[currentSpecial].hint} (${specialCells.length} gesetzt)`;
     }
-    if (nothing) return `Mit ${current.number} × ${PALETTE[current.color].name} passt gerade nichts. Wähle anders oder setze aus.`;
-    const word = current.number === 1 ? 'Feld' : 'Felder';
-    return `Kreuze ${current.number} ${word} in ${PALETTE[current.color].name} an – ${cells.length} von ${current.number}.`;
+    if (currentCombo) {
+      if (nothing) return `Mit ${currentCombo.number} × ${PALETTE[currentCombo.color].name} passt gerade nichts. Wähle anders oder setze aus.`;
+      if (mode === 'combo' && cells.length > 0 && cells.length < currentCombo.number && selectable.size === 0) return 'Von hier geht es nicht weiter. Nimm mit „Zurück“ Felder weg und beginne woanders.';
+      const word = currentCombo.number === 1 ? 'Feld' : 'Felder';
+      return `Kreuze ${currentCombo.number} ${word} in ${PALETTE[currentCombo.color].name} an – ${cells.length} von ${currentCombo.number}.${extra}`;
+    }
+    if (currentSpecial === 'heart') return 'Herz: Dein Bonus für jede fertige Spalte steigt um 1. Bestätige.';
+    return '';
   }
 
   /**
@@ -397,12 +494,12 @@
 
   /** @param {number} index */
   function colorDieTaken(index) {
-    return takenChoice?.kind === 'combo' && takenChoice.colorDieIndex === index;
+    return takenChoice?.combo?.colorDieIndex === index;
   }
 
   /** @param {number} index */
   function numberDieTaken(index) {
-    return takenChoice?.kind === 'combo' && takenChoice.numberDieIndex === index;
+    return takenChoice?.combo?.numberDieIndex === index;
   }
 
   /** @param {import('../types').NochMalColorFace} face @param {number} index */
@@ -443,7 +540,7 @@
               <Die
                 kind="color"
                 {face}
-                selected={colorIdx === index && !useSpecial}
+                selected={colorIdx === index}
                 taken={colorDieTaken(index)}
                 disabled={!canPlay || waitingForActive || colorDieTaken(index) || Boolean(myLock) || (face === 'joker' && jokersLeft < 1)}
                 label={colorDieLabel(face, index)}
@@ -456,7 +553,7 @@
               <Die
                 kind="number"
                 {face}
-                selected={numberIdx === index && !useSpecial}
+                selected={numberIdx === index}
                 taken={numberDieTaken(index)}
                 disabled={!canPlay || waitingForActive || numberDieTaken(index) || Boolean(myLock) || (face === 'joker' && jokersLeft < 1)}
                 label={numberDieLabel(face, index)}
@@ -470,14 +567,14 @@
                 kind="special"
                 face={roll.specialDie}
                 selected={useSpecial}
-                taken={takenChoice?.kind === 'special'}
-                disabled={!canPlay || waitingForActive || (me?.specialTokens ?? 0) < 1 || takenChoice?.kind === 'special' || Boolean(myLock)}
+                taken={Boolean(takenChoice?.special)}
+                disabled={!canPlay || waitingForActive || (me?.specialTokens ?? 0) < 1 || Boolean(takenChoice?.special) || Boolean(myLock)}
                 label={`Sonderwürfel: ${SPECIAL_LABELS[roll.specialDie].name}${(me?.specialTokens ?? 0) < 1 ? ', keine Marke' : ''}`}
                 onPick={pickSpecial}
               />
               <span class="kz-special-text">
                 <strong>{SPECIAL_LABELS[roll.specialDie].name}</strong>
-                <span>{(me?.specialTokens ?? 0) > 0 ? `Kostet 1 Marke · du hast ${me?.specialTokens}` : 'Keine Marke – kreuze ein Würfelfeld an'}</span>
+                <span>{(me?.specialTokens ?? 0) > 0 ? `Zusätzlich oder allein · 1 Marke · du hast ${me?.specialTokens}` : 'Keine Marke – kreuze ein Würfelfeld an'}</span>
               </span>
             </div>
           {/if}
@@ -494,7 +591,7 @@
                 role="radio"
                 aria-checked={jokerColor === color}
                 aria-label={PALETTE[color].name}
-                on:click={() => { jokerColor = color; draft = []; }}
+                on:click={() => chooseJokerColor(color)}
               ></button>
             {/each}
           </div>
@@ -502,7 +599,7 @@
         {#if canPlay && numberFace === 'joker' && !myLock}
           <div class="kz-joker" role="radiogroup" aria-label="Zahl für den Joker">
             {#each [1, 2, 3, 4, 5] as value (value)}
-              <button type="button" class="kz-joker-num ui-num" class:is-on={jokerNumber === value} role="radio" aria-checked={jokerNumber === value} on:click={() => { jokerNumber = value; draft = []; }}>{value}</button>
+              <button type="button" class="kz-joker-num ui-num" class:is-on={jokerNumber === value} role="radio" aria-checked={jokerNumber === value} on:click={() => chooseJokerNumber(value)}>{value}</button>
             {/each}
           </div>
         {/if}
@@ -510,10 +607,21 @@
           <p class="kz-note">Kostet {jokerCost} {jokerCost === 1 ? 'Joker' : 'Joker'} · {jokersLeft} übrig</p>
         {/if}
 
-        {#if action?.kind === 'combo' && draft.length > 0}
+        {#if combo && specialNeedsCells && canPlay && !waitingForActive}
+          <div class="kz-modes" role="group" aria-label="Was setzt du gerade?">
+            <button type="button" class="kz-mode" class:is-on={editMode === 'combo'} aria-pressed={editMode === 'combo'} on:click={() => { manualMode = 'combo'; bombMode = false; }}>
+              <span class="kz-mode-swatch" style={`--fill:${PALETTE[combo.color].fill}`}></span>{combo.number} × {PALETTE[combo.color].name}
+              <span class="kz-mode-count ui-num">{draft.length}/{combo.number}</span>
+            </button>
+            <button type="button" class="kz-mode" class:is-on={editMode === 'special'} aria-pressed={editMode === 'special'} on:click={() => { manualMode = 'special'; bombMode = false; }}>
+              {#if special}<Glyph name={special} size={16} />{SPECIAL_LABELS[special].short}{/if}
+              <span class="kz-mode-count ui-num">{specialDraft.length}</span>
+            </button>
+          </div>
+        {:else if combo && draft.length > 0}
           <div class="kz-progress" aria-hidden="true">
-            {#each Array(action.number) as _, index (index)}
-              <span class="kz-progress-dot" class:is-on={index < draft.length} style={`--fill:${PALETTE[action.color].fill}`}></span>
+            {#each Array(combo.number) as _, index (index)}
+              <span class="kz-progress-dot" class:is-on={index < draft.length} style={`--fill:${PALETTE[combo.color].fill}`}></span>
             {/each}
           </div>
         {/if}
@@ -534,7 +642,7 @@
             </button>
           {/if}
           <div class="kz-actions-row">
-            <button type="button" class="ui-btn ui-btn--ghost" disabled={!canPlay || (!draft.length && !bombDraft.length)} on:click={undo}><Undo2 size={16} aria-hidden="true" />Zurück</button>
+            <button type="button" class="ui-btn ui-btn--ghost" disabled={!canPlay || (!draft.length && !specialDraft.length && !bombDraft.length)} on:click={undo}><Undo2 size={16} aria-hidden="true" />Zurück</button>
             <button type="button" class="ui-btn ui-btn--ghost" disabled={!canPlay || (Boolean(myLock) && !noOption)} on:click={skip}>Aussetzen</button>
           </div>
         </div>
@@ -914,6 +1022,51 @@
     margin: 8px 0 0;
     font-size: 0.8125rem;
     color: var(--muted);
+  }
+
+  .kz-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .kz-mode {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .kz-mode.is-on {
+    background: var(--accent-main);
+    color: #fff;
+  }
+
+  .kz-mode:focus-visible {
+    outline: 3px solid var(--accent-main);
+    outline-offset: 2px;
+  }
+
+  .kz-mode-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: var(--fill);
+  }
+
+  .kz-mode-count {
+    opacity: 0.75;
   }
 
   .kz-progress {
