@@ -1,4 +1,6 @@
 <script>
+  import { tick } from 'svelte';
+  import { Eye, X } from '@lucide/svelte';
   import StufenCard from './StufenCard.svelte';
   import { DISCARD_PILES, canPlay, cardName, isJoker, nextValue } from '../rules.js';
   import { playerHexById } from '$lib/player-colors.js';
@@ -35,6 +37,14 @@
   let selection = null;
   let lastSeq = -1;
 
+  /** Geöffneter Ablagestapel zum Nachschauen. */
+  /** @type {{ playerId: string, index: number } | null} */
+  let viewer = null;
+  /** @type {HTMLElement | null} */
+  let viewerEl = null;
+  /** @type {HTMLElement | null} */
+  let viewerReturnFocus = null;
+
   $: state = game?.state ?? null;
   $: isRunning = game?.status === 'running';
   $: me = game?.players.find((player) => player.id === currentPlayerId) ?? null;
@@ -55,6 +65,11 @@
   $: statusText = getStatusText(game, isMyTurn, Boolean(me), turnPlayer, active, selectedCard, anyPlayable);
   $: eventText = state?.lastEvent?.text ?? '';
   $: handleEvent(state?.lastEvent ?? null);
+  $: viewerPlayer = viewer ? game?.players.find((player) => player.id === viewer?.playerId) ?? null : null;
+  $: viewerCards = viewer && viewerPlayer ? viewerPlayer.discards[viewer.index] ?? [] : [];
+  $: viewerTitle = viewer && viewerPlayer
+    ? `Ablage ${viewer.index + 1} ${viewerPlayer.id === currentPlayerId ? '(deine)' : `von ${viewerPlayer.name}`}`
+    : '';
 
   /** @param {AufCard[]} cards */
   function sortHand(cards) {
@@ -210,6 +225,46 @@
     return players.find((player) => player.id === id)?.avatar ?? null;
   }
 
+  /**
+   * @param {string} playerId
+   * @param {number} index
+   */
+  async function openViewer(playerId, index) {
+    viewerReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    viewer = { playerId, index };
+    await tick();
+    viewerEl?.querySelector('button')?.focus();
+  }
+
+  function closeViewer() {
+    if (!viewer) return;
+    viewer = null;
+    const target = viewerReturnFocus;
+    viewerReturnFocus = null;
+    if (target && target.isConnected) target.focus();
+  }
+
+  /** @param {KeyboardEvent} event */
+  function handleViewerKeydown(event) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeViewer();
+      return;
+    }
+    if (event.key !== 'Tab' || !viewerEl) return;
+    const focusables = Array.from(viewerEl.querySelectorAll('button'));
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   /** @param {AufCard[]} pile */
   function topOf(pile) {
     return pile[pile.length - 1] ?? null;
@@ -247,9 +302,19 @@
                 </span>
                 {#each player.discards as pile, index (index)}
                   {@const top = topOf(pile)}
-                  <span class="aa-mini" title={`Ablage ${index + 1}: ${pile.length} Karten`}>
-                    {#if top}<StufenCard card={top} />{:else}<span class="aa-empty"></span>{/if}
-                  </span>
+                  {#if top}
+                    <button
+                      type="button"
+                      class="aa-mini aa-mini-btn"
+                      title={`Ablage ${index + 1}: ${pile.length} ${pile.length === 1 ? 'Karte' : 'Karten'} – ansehen`}
+                      aria-label={`Ablage ${index + 1} von ${player.name}: oben ${cardName(top)}, ${pile.length} ${pile.length === 1 ? 'Karte' : 'Karten'}. Ansehen`}
+                      on:click={() => openViewer(player.id, index)}
+                    >
+                      <StufenCard card={top} badge={pile.length > 1 ? pile.length : null} />
+                    </button>
+                  {:else}
+                    <span class="aa-mini" title={`Ablage ${index + 1}: leer`}><span class="aa-empty"></span></span>
+                  {/if}
                 {/each}
               </div>
             </li>
@@ -324,6 +389,7 @@
             <div class="aa-discards">
               {#each me.discards as pile, index (index)}
                 {@const top = topOf(pile)}
+                <div class="aa-discard-col">
                 <button
                   type="button"
                   class="aa-card-btn aa-discard"
@@ -340,6 +406,17 @@
                     <span class="aa-empty aa-empty--discard">{index + 1}</span>
                   {/if}
                 </button>
+                {#if pile.length}
+                  <button
+                    type="button"
+                    class="aa-peek"
+                    aria-label={`Ablage ${index + 1} ansehen, ${pile.length} ${pile.length === 1 ? 'Karte' : 'Karten'}`}
+                    on:click={() => openViewer(me.id, index)}
+                  >
+                    <Eye size={14} aria-hidden="true" /><span class="ui-num">{pile.length}</span>
+                  </button>
+                {/if}
+                </div>
               {/each}
             </div>
           </div>
@@ -388,6 +465,45 @@
       </section>
     {/if}
   </div>
+  {#if viewer && viewerPlayer}
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="ui-dialog-backdrop" role="presentation" on:click|self={closeViewer}>
+      <div
+        bind:this={viewerEl}
+        class="ui-dialog aa-viewer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="aa-viewer-title"
+        aria-describedby="aa-viewer-text"
+        tabindex="-1"
+        on:keydown={handleViewerKeydown}
+      >
+        <div class="aa-viewer-head">
+          <PlayerAvatar avatar={avatarOf(viewerPlayer.id)} name={viewerPlayer.name} color={playerHexById(players, viewerPlayer.id)} size={28} />
+          <h2 id="aa-viewer-title" class="aa-viewer-title">{viewerTitle}</h2>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Schließen" on:click={closeViewer}><X size={18} aria-hidden="true" /></button>
+        </div>
+        <p id="aa-viewer-text" class="aa-viewer-text">
+          {#if viewerCards.length}
+            {viewerCards.length} {viewerCards.length === 1 ? 'Karte' : 'Karten'}, von unten nach oben. Nur die oberste kann gespielt werden.
+          {:else}
+            Dieser Stapel ist leer.
+          {/if}
+        </p>
+        {#if viewerCards.length}
+          <ol class="aa-viewer-list">
+            {#each viewerCards as card, position (card.id)}
+              {@const isTop = position === viewerCards.length - 1}
+              <li class="aa-viewer-item" class:is-top={isTop}>
+                <span class="aa-viewer-card"><StufenCard {card} /></span>
+                <span class="aa-viewer-pos ui-num">{isTop ? 'oben' : `${position + 1}.`}</span>
+              </li>
+            {/each}
+          </ol>
+        {/if}
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -696,8 +812,125 @@
     gap: 8px;
   }
 
+  .aa-discard-col {
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+    min-width: 0;
+  }
+
   .aa-discard {
     width: 100%;
+  }
+
+  .aa-peek {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 28px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--pill-neutral-bg);
+    color: var(--pill-neutral-ink);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .aa-peek:focus-visible,
+  .aa-mini-btn:focus-visible {
+    outline: 3px solid var(--accent-main);
+    outline-offset: 2px;
+  }
+
+  .aa-mini-btn {
+    position: relative;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .aa-mini-btn :global(.stufen-badge) {
+    right: -5px;
+    top: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 0.625rem;
+    line-height: 16px;
+  }
+
+  @media (hover: hover) {
+    .aa-peek:hover {
+      background: color-mix(in srgb, var(--accent-main) 18%, var(--pill-neutral-bg));
+    }
+
+    .aa-mini-btn:hover {
+      transform: translateY(-2px);
+    }
+  }
+
+  .aa-viewer {
+    max-width: 560px;
+  }
+
+  .aa-viewer-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .aa-viewer-title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 700;
+  }
+
+  .aa-viewer-text {
+    margin: 6px 0 14px;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .aa-viewer-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4rem, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .aa-viewer-item {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+  }
+
+  .aa-viewer-card {
+    display: block;
+    width: 100%;
+    max-width: 4.5rem;
+  }
+
+  .aa-viewer-pos {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .aa-viewer-item.is-top .aa-viewer-card {
+    border-radius: 10px;
+    box-shadow: 0 0 0 3px var(--accent-main);
+  }
+
+  .aa-viewer-item.is-top .aa-viewer-pos {
+    font-weight: 700;
+    color: var(--accent-main);
   }
 
   .aa-discard.is-target {
