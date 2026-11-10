@@ -74,6 +74,15 @@ export const GAME_SETTINGS = {
       default: 7
     }
   ],
+  'ab-nach-hause': [
+    {
+      key: 'items',
+      label: 'Items & Glücksfelder',
+      description: 'Auf ?-Feldern gibt es Items wie Turbo, Schutzschild, Gewitter oder Falle. Wer hinten liegt, bekommt die stärkeren.',
+      type: 'toggle',
+      default: false
+    }
+  ],
   'noch-mal': [
     {
       key: 'mode',

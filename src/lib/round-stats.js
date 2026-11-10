@@ -77,7 +77,8 @@ export const GAME_STATS = {
     { key: 'rolls', label: 'Würfe' },
     { key: 'piecesHome', label: 'Figuren im Ziel', best: 'max' },
     { key: 'captures', label: 'Rausgeworfen', best: 'max' },
-    { key: 'wasCaptured', label: 'Selbst rausgeflogen', best: 'min' }
+    { key: 'wasCaptured', label: 'Selbst rausgeflogen', best: 'min' },
+    { key: 'itemsUsed', label: 'Items eingesetzt' }
   ],
   'sudoku-duell': [
     { key: 'solved', label: 'Felder gelöst', best: 'max' },

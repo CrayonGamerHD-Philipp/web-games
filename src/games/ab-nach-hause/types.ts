@@ -6,6 +6,27 @@ export interface HeimPlayer {
   /** Fortschritt je Figur: -1 Basis, 0–39 Bahn (ab eigenem Startfeld), 40–43 Zuhause. */
   pieces: number[];
   homeCount: number;
+  /** Items auf der Hand (höchstens 2), nur mit Items-Einstellung. */
+  items: HeimItem[];
+  itemsUsed: number;
+}
+
+export type HeimItem = 'wish' | 'turbo' | 'reroll' | 'shield' | 'storm' | 'trap';
+
+export interface HeimTrap {
+  field: number;
+  ownerId: string;
+}
+
+export interface HeimItemState {
+  enabled: boolean;
+  /** Glücksfelder (Bahnindex). */
+  boxes: number[];
+  traps: HeimTrap[];
+  /** Spieler mit aktivem Schutzschild. */
+  shields: string[];
+  /** Turbo ist für den aktuellen Zug aktiv. */
+  turbo: boolean;
 }
 
 export interface HeimCapture {
@@ -25,7 +46,7 @@ export interface HeimLastMove extends HeimLegalMove {
   playerId: string;
 }
 
-export type HeimEventType = 'start' | 'roll' | 'no-move' | 'retry' | 'bonus' | 'enter' | 'move' | 'capture' | 'home' | 'win';
+export type HeimEventType = 'start' | 'roll' | 'no-move' | 'retry' | 'bonus' | 'enter' | 'move' | 'capture' | 'home' | 'win' | 'item' | 'trap' | 'pickup';
 
 export interface HeimEvent {
   seq: number;
@@ -52,6 +73,7 @@ export interface HeimState {
   moveCount: number;
   lastMove: HeimLastMove | null;
   lastEvent: HeimEvent | null;
+  items: HeimItemState;
 }
 
 export interface HeimSession {
@@ -64,4 +86,4 @@ export interface HeimSession {
   state: HeimState;
 }
 
-export type HeimMove = { type: 'roll' } | { type: 'move'; pieceIndex: number };
+export type HeimMove = { type: 'roll' } | { type: 'move'; pieceIndex: number } | { type: 'use-item'; item: HeimItem; value?: number };

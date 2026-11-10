@@ -164,7 +164,8 @@ const deriveStats = {
       rolls: count(t.moves, player.id, 'roll'),
       piecesHome: player.homeCount ?? 0,
       captures: count(t.events, player.id, 'capture'),
-      wasCaptured: count(t.events, player.id, 'wasCaptured')
+      wasCaptured: count(t.events, player.id, 'wasCaptured'),
+      itemsUsed: player.itemsUsed ?? 0
     };
   },
   /** @param {any} session @param {RoundTracking} t @param {any} player */

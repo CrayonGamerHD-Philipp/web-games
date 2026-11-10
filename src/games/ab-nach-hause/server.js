@@ -19,11 +19,14 @@
  *   im Rahmen der drei Versuche erneut gewürfelt). Züge werden nie automatisch ausgeführt.
  *
  * @typedef {{ id: string, name: string }} BasicPlayer
- * @typedef {{ id: string, name: string, seat: number, pieces: number[], homeCount: number }} HeimPlayer
+ * @typedef {import('./items.js').HeimItem} HeimItem
+ * @typedef {{ id: string, name: string, seat: number, pieces: number[], homeCount: number, items: HeimItem[], itemsUsed: number }} HeimPlayer
+ * @typedef {{ field: number, ownerId: string }} HeimTrap
+ * @typedef {{ enabled: boolean, boxes: number[], traps: HeimTrap[], shields: string[], turbo: boolean }} HeimItemState
  * @typedef {{ playerId: string, pieceIndex: number } | null} HeimCapture
  * @typedef {{ pieceIndex: number, from: number, to: number, capture: HeimCapture }} HeimLegalMove
  * @typedef {{ seq: number, playerId: string, pieceIndex: number, from: number, to: number, capture: HeimCapture }} HeimLastMove
- * @typedef {'start' | 'roll' | 'no-move' | 'retry' | 'bonus' | 'enter' | 'move' | 'capture' | 'home' | 'win'} HeimEventType
+ * @typedef {'start' | 'roll' | 'no-move' | 'retry' | 'bonus' | 'enter' | 'move' | 'capture' | 'home' | 'win' | 'item' | 'trap' | 'pickup'} HeimEventType
  * @typedef {{ seq: number, type: HeimEventType, playerId: string | null, text: string, dice?: number, capturedPlayerId?: string }} HeimEvent
  * @typedef {{
  *   currentPlayerId: string | null,
@@ -38,13 +41,15 @@
  *   turnOrder: string[],
  *   moveCount: number,
  *   lastMove: HeimLastMove | null,
- *   lastEvent: HeimEvent | null
+ *   lastEvent: HeimEvent | null,
+ *   items: HeimItemState
  * }} HeimState
  * @typedef {{ id: string, gameId: string, name: string, status: 'running' | 'finished', createdAt: string, players: HeimPlayer[], state: HeimState }} HeimSession
- * @typedef {{ type?: unknown, pieceIndex?: unknown }} HeimMove
+ * @typedef {{ type?: unknown, pieceIndex?: unknown, item?: unknown, value?: unknown }} HeimMove
  */
 
 import { BASE, HOME_END, HOME_START, PIECES_PER_PLAYER, SEAT_LAYOUT, SEATS, TRACK_LENGTH, trackIndexOf } from './board.js';
+import { BOX_FIELDS, ITEMS, MAX_ITEMS, STORM_STEPS, TURBO_BONUS, drawItem } from './items.js';
 
 export const abNachHauseGame = {
   id: 'ab-nach-hause',
@@ -60,18 +65,22 @@ export const abNachHauseGame = {
  * @param {HeimPlayer[]} players
  * @param {number} playerIndex
  * @param {number} die
+ * @param {{ shielded?: string[], allowEnter?: boolean }} [options] Geschützte Spieler kann man nicht schlagen.
  * @returns {HeimLegalMove[]}
  */
-export function computeAbNachHauseLegalMoves(players, playerIndex, die) {
+export function computeAbNachHauseLegalMoves(players, playerIndex, die, options = {}) {
   const player = players[playerIndex];
   const { seat, pieces } = player;
+  const shielded = new Set(options.shielded ?? []);
+  const allowEnter = options.allowEnter ?? die === 6;
 
   /** @type {Map<number, { playerId: string, pieceIndex: number, own: boolean }>} */
   const occupied = new Map();
   players.forEach((other, otherIndex) => {
     other.pieces.forEach((progress, pieceIndex) => {
       const field = trackIndexOf(other.seat, progress);
-      if (field >= 0) occupied.set(field, { playerId: other.id, pieceIndex, own: otherIndex === playerIndex });
+      // Eine geschützte Figur blockiert ihr Feld wie eine eigene.
+      if (field >= 0) occupied.set(field, { playerId: other.id, pieceIndex, own: otherIndex === playerIndex || shielded.has(other.id) });
     });
   });
 
@@ -79,7 +88,7 @@ export function computeAbNachHauseLegalMoves(players, playerIndex, die) {
   const candidates = [];
   pieces.forEach((progress, pieceIndex) => {
     if (progress === BASE) {
-      if (die !== 6) return;
+      if (!allowEnter) return;
       const target = occupied.get(SEATS[seat].start);
       if (target?.own) return;
       candidates.push({ pieceIndex, from: BASE, to: 0, capture: target ? { playerId: target.playerId, pieceIndex: target.pieceIndex } : null });
@@ -104,7 +113,7 @@ export function computeAbNachHauseLegalMoves(players, playerIndex, die) {
   const onStart = pieces.indexOf(0);
 
   // Rauskommen ist Pflicht.
-  if (die === 6 && inBase && onStart === -1) {
+  if (allowEnter && inBase && onStart === -1) {
     return candidates.filter((move) => move.from === BASE);
   }
   // Startfeld räumen, solange noch Figuren in der Basis warten (wenn möglich).
@@ -135,7 +144,7 @@ export function abNachHauseRollsAllowed(players, playerIndex) {
  * @returns {HeimSession | { error: string }}
  */
 export function createAbNachHauseSession(players, options = {}) {
-  void options;
+  const itemsEnabled = /** @type {any} */ (options).items === true;
   const selected = Array.isArray(players) ? players.slice(0, abNachHauseGame.maxPlayers) : [];
   if (selected.length < abNachHauseGame.minPlayers) {
     return { error: 'Ab nach Hause braucht mindestens zwei Spieler.' };
@@ -147,7 +156,9 @@ export function createAbNachHauseSession(players, options = {}) {
     name: player.name,
     seat: seats[index],
     pieces: Array(PIECES_PER_PLAYER).fill(BASE),
-    homeCount: 0
+    homeCount: 0,
+    items: [],
+    itemsUsed: 0
   }));
   const first = heimPlayers[0];
 
@@ -172,11 +183,12 @@ export function createAbNachHauseSession(players, options = {}) {
       turnOrder: heimPlayers.map((player) => player.id),
       moveCount: 0,
       lastMove: null,
-      lastEvent: null
+      lastEvent: null,
+      items: { enabled: itemsEnabled, boxes: itemsEnabled ? [...BOX_FIELDS] : [], traps: [], shields: [], turbo: false }
     }
   };
   beginTurn(session, 0);
-  pushEvent(session, 'start', first.id, `${first.name} beginnt. Mit einer 6 kommt eine Figur heraus.`);
+  pushEvent(session, 'start', first.id, `${first.name} beginnt. Mit einer 6 kommt eine Figur heraus.${itemsEnabled ? ' Auf den ?-Feldern gibt es Items.' : ''}`);
   return session;
 }
 
@@ -200,7 +212,11 @@ function pushEvent(session, type, playerId, text, extra = {}) {
 function beginTurn(session, playerIndex) {
   const { state } = session;
   const allowed = abNachHauseRollsAllowed(session.players, playerIndex);
-  state.currentPlayerId = session.players[playerIndex].id;
+  const nextId = session.players[playerIndex].id;
+  // Ein Schild hält bis zum nächsten eigenen Zug.
+  if (state.items && state.currentPlayerId !== nextId) state.items.shields = state.items.shields.filter((id) => id !== nextId);
+  if (state.items) state.items.turbo = false;
+  state.currentPlayerId = nextId;
   state.phase = 'roll';
   state.rollsLeft = allowed;
   state.maxRolls = allowed;
@@ -215,6 +231,140 @@ function nextPlayerIndex(session, playerIndex) {
 /** @param {number} value */
 function diceWord(value) {
   return value === 6 ? 'eine 6' : `eine ${value}`;
+}
+
+/** @param {HeimSession} session @param {number} playerIndex */
+function shieldedFor(session, playerIndex) {
+  const me = session.players[playerIndex].id;
+  return (session.state.items?.shields ?? []).filter((id) => id !== me);
+}
+
+/**
+ * @param {HeimSession} session
+ * @param {number} playerIndex
+ * @param {number} value
+ * @param {boolean} [allowEnter]
+ */
+function legalFor(session, playerIndex, value, allowEnter) {
+  return computeAbNachHauseLegalMoves(session.players, playerIndex, value, { shielded: shieldedFor(session, playerIndex), allowEnter });
+}
+
+/** Wie weit ist ein Spieler? Basis zählt 0, jedes Feld 1 mehr. @param {HeimPlayer} player */
+function raceScore(player) {
+  return player.pieces.reduce((sum, progress) => sum + (progress < 0 ? 0 : progress + 1), 0);
+}
+
+/** 0 = vorne, 1 = ganz hinten. @param {HeimSession} session @param {HeimPlayer} player */
+function behindShare(session, player) {
+  if (session.players.length < 2) return 0.5;
+  const ranked = [...session.players].sort((a, b) => raceScore(b) - raceScore(a));
+  return ranked.findIndex((candidate) => candidate.id === player.id) / (session.players.length - 1);
+}
+
+/** Welche Figur steht auf diesem Bahnfeld? @param {HeimSession} session @param {number} field */
+function pieceAt(session, field) {
+  for (const player of session.players) {
+    const pieceIndex = player.pieces.findIndex((progress) => trackIndexOf(player.seat, progress) === field);
+    if (pieceIndex !== -1) return { player, pieceIndex };
+  }
+  return null;
+}
+
+/**
+ * Ein Item einsetzen.
+ * @param {HeimSession} session
+ * @param {number} playerIndex
+ * @param {HeimMove} move
+ * @returns {{ session: HeimSession } | { error: string }}
+ */
+function useItem(session, playerIndex, move) {
+  const { state } = session;
+  const player = session.players[playerIndex];
+  if (!state.items?.enabled) return { error: 'In dieser Runde gibt es keine Items.' };
+  const item = /** @type {HeimItem} */ (String(move.item ?? ''));
+  const slot = player.items.indexOf(item);
+  if (slot === -1 || !ITEMS[item]) return { error: 'Dieses Item hast du nicht.' };
+  if (!ITEMS[item].phases.includes(/** @type {'roll' | 'move'} */ (state.phase))) {
+    return { error: ITEMS[item].phases.includes('move') && state.phase === 'roll' ? 'Das geht erst nach dem Würfeln.' : 'Das geht nur vor dem Würfeln.' };
+  }
+  const spend = () => {
+    player.items.splice(slot, 1);
+    player.itemsUsed += 1;
+  };
+
+  if (item === 'wish') {
+    const value = Number(move.value);
+    if (!Number.isInteger(value) || value < 1 || value > 6) return { error: 'Wähle eine Zahl von 1 bis 6.' };
+    spend();
+    return roll(session, playerIndex, { forced: value, viaItem: 'Wunschwürfel' });
+  }
+
+  if (item === 'reroll') {
+    spend();
+    return roll(session, playerIndex, { keepTries: true, viaItem: 'Neu würfeln' });
+  }
+
+  if (item === 'turbo') {
+    if (state.items.turbo) return { error: 'Turbo läuft schon für diesen Zug.' };
+    const value = /** @type {number} */ (state.dice) + TURBO_BONUS;
+    const legal = legalFor(session, playerIndex, value, false);
+    if (!legal.length) return { error: `Mit ${value} Feldern kann gerade keine Figur ziehen.` };
+    spend();
+    state.items.turbo = true;
+    state.legalMoves = legal;
+    pushEvent(session, 'item', player.id, `${player.name} zündet den Turbo: ${state.dice} + ${TURBO_BONUS} = ${value} Felder!`);
+    return { session };
+  }
+
+  if (item === 'shield') {
+    if (state.items.shields.includes(player.id)) return { error: 'Dein Schild ist schon aktiv.' };
+    spend();
+    state.items.shields.push(player.id);
+    pushEvent(session, 'item', player.id, `${player.name} hebt ein Schutzschild – bis zum nächsten Zug unschlagbar.`);
+    return { session };
+  }
+
+  if (item === 'trap') {
+    const lead = player.pieces
+      .map((progress, pieceIndex) => ({ progress, pieceIndex }))
+      .filter((entry) => entry.progress >= 1 && entry.progress < TRACK_LENGTH)
+      .sort((a, b) => b.progress - a.progress)[0];
+    if (!lead) return { error: 'Du brauchst eine Figur auf der Bahn (nicht auf dem Startfeld).' };
+    const field = trackIndexOf(player.seat, lead.progress - 1);
+    spend();
+    state.items.traps = state.items.traps.filter((trap) => trap.ownerId !== player.id && trap.field !== field);
+    state.items.traps.push({ field, ownerId: player.id });
+    pushEvent(session, 'item', player.id, `${player.name} legt eine Falle hinter die eigene Figur.`);
+    return { session };
+  }
+
+  // Gewitter: trifft die vorderste ungeschützte Bahnfigur des Führenden.
+  const rivals = session.players
+    .filter((other) => other.id !== player.id && !state.items.shields.includes(other.id))
+    .map((other) => ({
+      other,
+      lead: other.pieces
+        .map((progress, pieceIndex) => ({ progress, pieceIndex }))
+        .filter((entry) => entry.progress >= 0 && entry.progress < TRACK_LENGTH)
+        .sort((a, b) => b.progress - a.progress)[0]
+    }))
+    .filter((entry) => entry.lead)
+    .sort((a, b) => raceScore(b.other) - raceScore(a.other));
+  const target = rivals[0];
+  if (!target || !target.lead) return { error: 'Gerade steht keine fremde Figur ungeschützt auf der Bahn.' };
+  spend();
+  let next = target.lead.progress - STORM_STEPS;
+  while (next >= 0 && pieceAt(session, trackIndexOf(target.other.seat, next))) next -= 1;
+  target.other.pieces[target.lead.pieceIndex] = next < 0 ? BASE : next;
+  if (state.phase === 'move') {
+    // Die Lage hat sich geändert – Züge neu berechnen.
+    const value = /** @type {number} */ (state.dice) + (state.items.turbo ? TURBO_BONUS : 0);
+    state.legalMoves = legalFor(session, playerIndex, value, state.items.turbo ? false : undefined);
+  }
+  pushEvent(session, 'item', player.id, next < 0
+    ? `Gewitter! ${target.other.name}s vorderste Figur muss zurück in die Basis.`
+    : `Gewitter! ${target.other.name}s vorderste Figur muss ${target.lead.progress - next} Felder zurück.`);
+  return { session };
 }
 
 /**
@@ -241,6 +391,10 @@ export function makeAbNachHauseMove(session, playerId, move) {
     if (state.phase !== 'roll') return { error: 'Du hast schon gewürfelt – zieh jetzt eine Figur.' };
     return roll(session, playerIndex);
   }
+  if (type === 'use-item') {
+    if (state.phase === 'done') return { error: 'Das Spiel ist vorbei.' };
+    return useItem(session, playerIndex, move);
+  }
   if (type === 'move') {
     if (state.phase !== 'move') return { error: 'Erst würfeln, dann ziehen.' };
     const pieceIndex = Number(move.pieceIndex);
@@ -257,22 +411,29 @@ export function makeAbNachHauseMove(session, playerId, move) {
 /**
  * @param {HeimSession} session
  * @param {number} playerIndex
+ * @param {{ forced?: number, keepTries?: boolean, viaItem?: string }} [options]
  */
-function roll(session, playerIndex) {
+function roll(session, playerIndex, options = {}) {
   const { state } = session;
   const player = session.players[playerIndex];
-  const value = 1 + Math.min(5, Math.floor(Math.random() * 6));
+  const value = options.forced ?? 1 + Math.min(5, Math.floor(Math.random() * 6));
   state.dice = value;
   state.rollSeq += 1;
-  state.rollsLeft = Math.max(0, state.rollsLeft - 1);
-  const legal = computeAbNachHauseLegalMoves(session.players, playerIndex, value);
+  if (!options.keepTries) state.rollsLeft = Math.max(0, state.rollsLeft - 1);
+  if (state.items) state.items.turbo = false;
+  const legal = legalFor(session, playerIndex, value);
+  const how = options.viaItem ? `${options.viaItem}: ` : '';
 
   if (legal.length) {
     state.phase = 'move';
     state.legalMoves = legal;
     const hint = legal.length === 1 ? 'Ein Zug ist möglich.' : `${legal.length} Figuren können ziehen.`;
-    pushEvent(session, 'roll', player.id, `${player.name} würfelt ${diceWord(value)}. ${hint}`, { dice: value });
+    pushEvent(session, 'roll', player.id, `${how}${player.name} würfelt ${diceWord(value)}. ${hint}`, { dice: value });
     return { session };
+  }
+  if (options.viaItem && state.phase === 'move') {
+    // Neu gewürfelt, aber nichts geht: Zug endet wie nach einem normalen Wurf.
+    state.rollsLeft = Math.max(0, state.rollsLeft - 1);
   }
 
   state.legalMoves = [];
@@ -311,6 +472,31 @@ function applyMove(session, playerIndex, legal) {
     victim = session.players.find((candidate) => candidate.id === capture.playerId);
     if (victim) victim.pieces[capture.pieceIndex] = BASE;
   }
+
+  // Items: Falle auslösen, Glücksfeld einsammeln.
+  let itemText = '';
+  /** @type {HeimEventType | null} */
+  let itemType = null;
+  if (state.items?.enabled && legal.to < TRACK_LENGTH) {
+    const field = trackIndexOf(player.seat, legal.to);
+    const trap = state.items.traps.find((candidate) => candidate.field === field && candidate.ownerId !== player.id);
+    if (trap) {
+      state.items.traps = state.items.traps.filter((candidate) => candidate !== trap);
+      const owner = session.players.find((candidate) => candidate.id === trap.ownerId);
+      if (state.items.shields.includes(player.id)) {
+        itemText = ` Das Schild fängt die Falle von ${owner?.name ?? 'jemandem'} ab.`;
+      } else {
+        player.pieces[legal.pieceIndex] = BASE;
+        itemType = 'trap';
+        itemText = ` Falle von ${owner?.name ?? 'jemandem'} – zurück in die Basis!`;
+      }
+    } else if (state.items.boxes.includes(field) && player.items.length < MAX_ITEMS) {
+      const item = drawItem(behindShare(session, player));
+      player.items.push(item);
+      itemType = 'pickup';
+      itemText = ` Glücksfeld: ${ITEMS[item].name}!`;
+    }
+  }
   player.homeCount = player.pieces.filter((progress) => progress >= HOME_START).length;
   state.moveCount += 1;
   state.legalMoves = [];
@@ -339,7 +525,12 @@ function applyMove(session, playerIndex, legal) {
     type = 'home';
     text = `${player.name} bringt eine Figur nach Hause (${player.homeCount} von 4).`;
   } else {
-    text = `${player.name} zieht ${die} ${die === 1 ? 'Feld' : 'Felder'}.`;
+    const steps = legal.to - legal.from;
+    text = `${player.name} zieht ${steps} ${steps === 1 ? 'Feld' : 'Felder'}.`;
+  }
+  if (itemText) {
+    text += itemText;
+    if (itemType && type === 'move') type = itemType;
   }
 
   if (die === 6) {

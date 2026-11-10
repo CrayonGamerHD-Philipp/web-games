@@ -1,6 +1,8 @@
 <script>
   import { onDestroy, onMount } from 'svelte';
   import HeimDie from './HeimDie.svelte';
+  import ItemIcon from './ItemIcon.svelte';
+  import { ITEMS } from '../items.js';
   import { SEATS, TRACK, cellOf } from '../board.js';
   import { playerHexById } from '$lib/player-colors.js';
   import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
@@ -37,6 +39,7 @@
     move: '/sounds/select1.mp3',
     capture: '/sounds/ping.mp3',
     enter: '/sounds/take_card1.mp3',
+    item: '/sounds/turn_card1.mp3',
     win: '/sounds/win1.mp3',
     lose: '/sounds/lose1.mp3'
   };
@@ -59,6 +62,10 @@
   let previewPiece = null;
   /** @type {HTMLElement | null} */
   let rootEl = null;
+  /** Wunschwürfel: Zahlenauswahl offen. */
+  let wishOpen = false;
+  /** Item, dessen Erklärung gerade gezeigt wird. @type {string | null} */
+  let infoItem = null;
 
   $: state = game?.state ?? null;
   $: isRunning = game?.status === 'running';
@@ -83,6 +90,12 @@
   $: dieLabel = getDieLabel(canRoll, state?.dice ?? null, state?.rollsLeft ?? 0, state?.maxRolls ?? 1);
   $: myColor = me ? colors[me.id] : 'var(--accent-main)';
   $: hint = getHint(isMyTurn, state, legalMoves.length);
+  $: itemsOn = Boolean(state?.items?.enabled);
+  $: boxFields = new Set(itemsOn ? state?.items?.boxes ?? [] : []);
+  $: traps = new Map((state?.items?.traps ?? []).map((trap) => [trap.field, trap.ownerId]));
+  $: shields = new Set(state?.items?.shields ?? []);
+  $: myItems = me?.items ?? [];
+  $: if (!isMyTurn || state?.phase !== 'roll') wishOpen = false;
 
   onMount(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -175,7 +188,8 @@
       return st.phase === 'move' ? `${prefix}${turn.name} hat eine ${st.dice} und zieht.` : `${prefix}${turn.name} würfelt.`;
     }
     if (st.phase === 'move') {
-      return moveCount === 1 ? `Du hast eine ${st.dice}. Ein Zug ist möglich.` : `Du hast eine ${st.dice}. Wähle eine markierte Figur.`;
+      const value = st.items?.turbo ? `${st.dice} + 3 Turbo` : `eine ${st.dice}`;
+      return moveCount === 1 ? `Du hast ${value}. Ein Zug ist möglich.` : `Du hast ${value}. Wähle eine markierte Figur.`;
     }
     if (st.maxRolls > 1) {
       return st.rollsLeft === st.maxRolls ? 'Würfle – du hast drei Versuche für eine 6.' : `Würfle noch einmal – ${st.rollsLeft === 1 ? 'letzter Versuch' : `${st.rollsLeft} Versuche`}.`;
@@ -300,6 +314,8 @@
     if (ev.type === 'win') playSound(ev.playerId === currentPlayerId || !session.players.some((p) => p.id === currentPlayerId) ? 'win' : 'lose');
     else if (ev.type === 'capture') playSound('capture');
     else if (ev.type === 'enter') playSound('enter');
+    else if (ev.type === 'item' || ev.type === 'pickup') playSound('item');
+    else if (ev.type === 'trap') playSound('capture');
     else if (ev.type === 'move' || ev.type === 'home') playSound('move');
     else if (ev.type !== 'start') playSound('dice');
   }
@@ -327,6 +343,41 @@
   function roll() {
     if (!canRoll) return;
     onMove({ type: 'roll' });
+  }
+
+  /**
+   * Alle Abhängigkeiten als Argument, damit Svelte den Knopf bei jedem Phasenwechsel neu bewertet.
+   * @param {import('../types').HeimItem} item
+   * @param {boolean} myTurn
+   * @param {boolean} loading
+   * @param {string | undefined} phase
+   * @param {boolean} turboOn
+   */
+  function canUseItem(item, myTurn, loading, phase, turboOn) {
+    return Boolean(myTurn && !loading && phase && ITEMS[item].phases.includes(/** @type {'roll' | 'move'} */ (phase)) && !(item === 'turbo' && turboOn));
+  }
+
+  /** @param {import('../types').HeimItem} item */
+  function useItem(item) {
+    if (!canUseItem(item, isMyTurn, isLoading, state?.phase, Boolean(state?.items?.turbo))) return;
+    if (item === 'wish') {
+      wishOpen = !wishOpen;
+      return;
+    }
+    onMove({ type: 'use-item', item });
+  }
+
+  /** @param {number} value */
+  function useWish(value) {
+    wishOpen = false;
+    onMove({ type: 'use-item', item: 'wish', value });
+  }
+
+  /** @param {import('../types').HeimItem} item */
+  function itemWhen(item) {
+    const phases = ITEMS[item].phases;
+    if (phases.length === 2) return 'jederzeit in deinem Zug';
+    return phases[0] === 'roll' ? 'vor dem Würfeln' : 'nach dem Würfeln';
   }
 
   /** @param {number} pieceIndex */
@@ -412,6 +463,14 @@
                   <svg class="hb-opp-shape" viewBox="0 0 20 20" style="color: {colors[player.id]}" aria-label={SHAPE_NAMES[player.seat]} role="img"><use href="#hb-shape-{player.seat}" /></svg>
                   {player.homeCount}/4 zu Hause{#if active}<span class="hb-opp-state">{' · am Zug'}</span>{/if}
                 </span>
+                {#if itemsOn && (player.items.length || shields.has(player.id))}
+                  <span class="hb-opp-items">
+                    {#if shields.has(player.id)}<span class="hb-opp-item" title="Schutzschild aktiv"><ItemIcon name="shield" size={16} /></span>{/if}
+                    {#each player.items as item, itemIndex (itemIndex)}
+                      <span class="hb-opp-item" title={ITEMS[item].name}><ItemIcon name={item} size={16} /></span>
+                    {/each}
+                  </span>
+                {/if}
               </span>
             </li>
           {/each}
@@ -466,6 +525,13 @@
           >
             {#if color}
               <svg class="hb-start-arrow" viewBox="0 0 20 20" aria-hidden="true"><use href="#hb-shape-{field.startSeat}" /></svg>
+            {:else if traps.has(index)}
+              {@const owner = traps.get(index) ?? ''}
+              <span class="hb-trap" style="--owner: {colors[owner] ?? 'var(--muted)'}" title={`Falle von ${game.players.find((p) => p.id === owner)?.name ?? '?'}`}>
+                <ItemIcon name="trap" size={18} />
+              </span>
+            {:else if boxFields.has(index)}
+              <span class="hb-box" title="Glücksfeld: Wer hier landet, bekommt ein Item"><ItemIcon name="box" size={18} /></span>
             {/if}
           </span>
         {/each}
@@ -499,6 +565,7 @@
                 <button
                   type="button"
                   class="hb-piece is-legal"
+                  class:is-shielded={shields.has(player.id)}
                   class:is-moving={animating.has(key)}
                   class:is-preview={previewPiece === index}
                   style="{place(cell)} --seat: {color}; --ink: {inkOn(color)}"
@@ -515,6 +582,7 @@
               {:else}
                 <span
                   class="hb-piece"
+                  class:is-shielded={shields.has(player.id)}
                   class:is-moving={animating.has(key)}
                   class:is-mine={player.id === me?.id}
                   style="{place(cell)} --seat: {color}; --ink: {inkOn(color)}"
@@ -558,6 +626,56 @@
         </button>
       {/if}
     </section>
+
+    {#if itemsOn && me}
+      <section class="hb-items" aria-label="Deine Items">
+        <div class="hb-items-head">
+          <h3 class="hb-items-title">Deine Items</h3>
+          {#if shields.has(me.id)}<span class="hb-items-shield"><ItemIcon name="shield" size={16} />Schild aktiv</span>{/if}
+        </div>
+        {#if myItems.length}
+          <ul class="hb-items-list">
+            {#each myItems as item, itemIndex (`${item}-${itemIndex}`)}
+              {@const usable = canUseItem(item, isMyTurn, isLoading, state.phase, Boolean(state.items?.turbo))}
+              <li>
+                <button
+                  type="button"
+                  class="hb-item"
+                  class:is-ready={usable}
+                  class:is-open={item === 'wish' && wishOpen}
+                  disabled={!usable}
+                  aria-describedby={`hb-item-hint-${itemIndex}`}
+                  on:click={() => useItem(item)}
+                  on:pointerenter={() => (infoItem = `${itemIndex}`)}
+                  on:pointerleave={() => (infoItem = null)}
+                  on:focus={() => (infoItem = `${itemIndex}`)}
+                  on:blur={() => (infoItem = null)}
+                >
+                  <ItemIcon name={item} size={28} />
+                  <span class="hb-item-text">
+                    <span class="hb-item-name">{ITEMS[item].name}</span>
+                    <span class="hb-item-when">{usable ? 'Jetzt einsetzen' : itemWhen(item)}</span>
+                  </span>
+                </button>
+                <p class="hb-item-hint" id={`hb-item-hint-${itemIndex}`} class:is-shown={infoItem === `${itemIndex}`}>{ITEMS[item].hint}</p>
+              </li>
+            {/each}
+          </ul>
+          {#if wishOpen}
+            <div class="hb-wish" role="group" aria-label="Wunschzahl wählen">
+              {#each [1, 2, 3, 4, 5, 6] as value (value)}
+                <button type="button" class="hb-wish-btn ui-num" on:click={() => useWish(value)}>{value}</button>
+              {/each}
+            </div>
+          {/if}
+        {:else}
+          <p class="hb-items-empty">
+            <ItemIcon name="box" size={18} />
+            Beende einen Zug auf einem ?-Feld, um ein Item zu bekommen (höchstens 2).
+          </p>
+        {/if}
+      </section>
+    {/if}
   </div>
 {/if}
 
@@ -568,7 +686,7 @@
 
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'status' 'opps' 'board' 'mine';
+    grid-template-areas: 'status' 'opps' 'board' 'mine' 'items';
     gap: 12px;
     margin-top: 12px;
     color: var(--text);
@@ -749,6 +867,187 @@
     background: color-mix(in srgb, var(--seat) 26%, var(--raised));
     box-shadow: inset 0 0 0 2.5px var(--seat);
     color: var(--seat);
+  }
+
+  .hb-box,
+  .hb-trap {
+    display: grid;
+    place-items: center;
+    width: 72%;
+    height: 72%;
+  }
+
+  .hb-box :global(svg),
+  .hb-trap :global(svg) {
+    width: 100%;
+    height: 100%;
+  }
+
+  .hb-trap {
+    border-radius: 999px;
+    box-shadow: 0 0 0 2px var(--owner);
+    background: color-mix(in srgb, var(--owner) 18%, var(--raised));
+  }
+
+  .hb-piece.is-shielded .hb-token {
+    box-shadow: 0 0 0 3px #3fae6b, 0 0 10px 2px rgb(63 174 107 / 0.55);
+  }
+
+  .hb-opp-items {
+    display: flex;
+    gap: 3px;
+    margin-top: 2px;
+  }
+
+  .hb-opp-item {
+    display: inline-flex;
+  }
+
+  .hb-items {
+    grid-area: items;
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border-radius: var(--radius-card);
+    background: var(--surface);
+  }
+
+  .hb-items-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .hb-items-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+  }
+
+  .hb-items-shield {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--positive);
+  }
+
+  .hb-items-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hb-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 56px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: var(--radius-inner);
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 140ms ease, box-shadow 140ms ease;
+  }
+
+  .hb-item:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  .hb-item.is-ready {
+    box-shadow: inset 0 0 0 2px var(--accent-main);
+  }
+
+  .hb-item.is-ready:hover {
+    transform: translateY(-2px);
+  }
+
+  .hb-item.is-open {
+    background: var(--accent-soft);
+  }
+
+  .hb-item:focus-visible {
+    outline: 3px solid var(--accent-main);
+    outline-offset: 2px;
+  }
+
+  .hb-item-text {
+    display: grid;
+    min-width: 0;
+  }
+
+  .hb-item-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+  }
+
+  .hb-item-when {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .hb-item.is-ready .hb-item-when {
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+
+  .hb-item-hint {
+    margin: 4px 2px 0;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .hb-item-hint {
+      display: none;
+    }
+
+    .hb-item-hint.is-shown {
+      display: block;
+    }
+  }
+
+  .hb-wish {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+
+  .hb-wish-btn {
+    min-height: 44px;
+    border: 0;
+    border-radius: 12px;
+    background: #f4c542;
+    color: #3d2a00;
+    font-size: 1.125rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .hb-wish-btn:focus-visible {
+    outline: 3px solid var(--accent-main);
+    outline-offset: 2px;
+  }
+
+  .hb-items-empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--muted);
   }
 
   .hb-start-arrow {
@@ -965,9 +1264,11 @@
     .hb {
       grid-template-columns: minmax(0, 652px) minmax(0, 1fr);
       grid-template-rows: auto auto auto 1fr;
+      grid-template-rows: auto auto auto auto 1fr;
       grid-template-areas:
         'status status'
         'board mine'
+        'board items'
         'board opps'
         'board .';
       column-gap: 24px;
