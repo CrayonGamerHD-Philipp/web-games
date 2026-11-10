@@ -85,6 +85,9 @@
   $: waitingForActive = Boolean(advantage && !isActive && !state?.activeChoice && !state?.activeSkipped);
   $: takenChoice = advantage && !isActive ? state?.activeChoice ?? null : null;
   $: myLock = me?.lockedChoice ?? null;
+  // Vom aktiven Spieler genommene Würfel – als Werte, damit das Template sie reaktiv sieht.
+  $: takenColor = takenChoice?.combo?.colorDieIndex ?? -1;
+  $: takenNumber = takenChoice?.combo?.numberDieIndex ?? -1;
   $: canPlay = Boolean(isRunning && me && !me.confirmed && !isLoading);
   $: checked = new Set(me?.checkedCells ?? []);
   $: recent = new Set(me?.lastCells ?? []);
@@ -492,26 +495,16 @@
     return 'wählt';
   }
 
-  /** @param {number} index */
-  function colorDieTaken(index) {
-    return takenChoice?.combo?.colorDieIndex === index;
-  }
-
-  /** @param {number} index */
-  function numberDieTaken(index) {
-    return takenChoice?.combo?.numberDieIndex === index;
-  }
-
-  /** @param {import('../types').NochMalColorFace} face @param {number} index */
-  function colorDieLabel(face, index) {
+  /** @param {import('../types').NochMalColorFace} face @param {number} index @param {boolean} taken */
+  function colorDieLabel(face, index, taken) {
     const name = face === 'joker' ? 'Farbjoker' : PALETTE[face].name;
-    return `Farbwürfel ${index + 1}: ${name}${colorDieTaken(index) ? ', genommen' : ''}`;
+    return `Farbwürfel ${index + 1}: ${name}${taken ? ', genommen' : ''}`;
   }
 
-  /** @param {import('../types').NochMalNumberFace} face @param {number} index */
-  function numberDieLabel(face, index) {
+  /** @param {import('../types').NochMalNumberFace} face @param {number} index @param {boolean} taken */
+  function numberDieLabel(face, index, taken) {
     const name = face === 'joker' ? 'Zahlenjoker' : String(face);
-    return `Zahlenwürfel ${index + 1}: ${name}${numberDieTaken(index) ? ', genommen' : ''}`;
+    return `Zahlenwürfel ${index + 1}: ${name}${taken ? ', genommen' : ''}`;
   }
 </script>
 
@@ -541,9 +534,9 @@
                 kind="color"
                 {face}
                 selected={colorIdx === index}
-                taken={colorDieTaken(index)}
-                disabled={!canPlay || waitingForActive || colorDieTaken(index) || Boolean(myLock) || (face === 'joker' && jokersLeft < 1)}
-                label={colorDieLabel(face, index)}
+                taken={index === takenColor}
+                disabled={!canPlay || waitingForActive || index === takenColor || Boolean(myLock) || (face === 'joker' && jokersLeft < 1)}
+                label={colorDieLabel(face, index, index === takenColor)}
                 onPick={() => pickColor(index)}
               />
             {/each}
@@ -554,9 +547,9 @@
                 kind="number"
                 {face}
                 selected={numberIdx === index}
-                taken={numberDieTaken(index)}
-                disabled={!canPlay || waitingForActive || numberDieTaken(index) || Boolean(myLock) || (face === 'joker' && jokersLeft < 1)}
-                label={numberDieLabel(face, index)}
+                taken={index === takenNumber}
+                disabled={!canPlay || waitingForActive || index === takenNumber || Boolean(myLock) || (face === 'joker' && jokersLeft < 1)}
+                label={numberDieLabel(face, index, index === takenNumber)}
                 onPick={() => pickNumber(index)}
               />
             {/each}
