@@ -230,3 +230,61 @@ export function scoreLayout(layout, durchgang) {
 export function moosCardName(card) {
   return `${MOOS_COLOR_NAMES[card.color]} ${card.number}`;
 }
+
+/**
+ * @typedef {{ text: string, points: number, slots: number[] }} MoosExplainLine
+ * @typedef {{ key: 'numbers' | 'symbols' | 'bonus' | 'group', label: string, rule: string, points: number, lines: MoosExplainLine[], slots: number[] }} MoosExplainItem
+ */
+
+/**
+ * Schlüsselt die Wertung einer Auslage Karte für Karte auf – für „So wird gerechnet“.
+ * Die Summe der Punkte entspricht immer `scoreLayout(layout, durchgang).total`.
+ * @param {MoosLayout} layout
+ * @param {number} durchgang
+ * @returns {MoosExplainItem[]}
+ */
+export function explainLayout(layout, durchgang) {
+  const score = scoreLayout(layout, durchgang);
+  const faces = layout.map((slot, index) => ({ card: slot.face, index, onMoss: Boolean(slot.moss) })).filter((entry) => entry.card !== null);
+
+  /** @type {MoosExplainLine[]} */
+  const numberLines = faces
+    .filter((entry) => entry.onMoss)
+    .map((entry) => ({ text: `${moosCardName(/** @type {MoosCard} */ (entry.card))} liegt auf Moos`, points: /** @type {MoosCard} */ (entry.card).number, slots: [entry.index] }));
+
+  /** @type {MoosExplainLine[]} */
+  const symbolLines = [];
+  for (const entry of faces) {
+    const card = /** @type {MoosCard} */ (entry.card);
+    if (card.spirals) symbolLines.push({ text: `${moosCardName(card)}: ${card.spirals} ${card.spirals === 1 ? 'Spirale' : 'Spiralen'}`, points: card.spirals, slots: [entry.index] });
+    if (card.crosses) symbolLines.push({ text: `${moosCardName(card)}: ${card.crosses} ${card.crosses === 1 ? 'Kreuz' : 'Kreuze'}`, points: -card.crosses, slots: [entry.index] });
+  }
+
+  /** @type {MoosExplainLine[]} */
+  const bonusLines = [];
+  for (const entry of faces) {
+    const card = /** @type {MoosCard} */ (entry.card);
+    const bonusColor = card.bonus;
+    if (!bonusColor) continue;
+    const matching = faces.filter((other) => hasColor(/** @type {MoosCard} */ (other.card), bonusColor));
+    bonusLines.push({
+      text: `${moosCardName(card)}: +1 je ${MOOS_COLOR_NAMES[bonusColor]} – ${matching.length} ${matching.length === 1 ? 'Geist' : 'Geister'} (bunte zählen mit)`,
+      points: matching.length,
+      slots: [entry.index, ...matching.map((other) => other.index).filter((index) => index !== entry.index)]
+    });
+  }
+
+  const best = largestGroup(layout);
+  const multiplier = groupMultiplier(durchgang);
+  /** @type {MoosExplainLine[]} */
+  const groupLines = best.size
+    ? [{ text: `Gruppe ${best.color ? MOOS_COLOR_NAMES[best.color] : ''}: ${best.size} ${best.size === 1 ? 'Geist' : 'Geister'} × ${multiplier} Punkte`, points: best.size * multiplier, slots: best.slots }]
+    : [];
+
+  return [
+    { key: 'numbers', label: 'Zahlen auf Moos', rule: 'Ein Geist auf Moos bringt seine Zahl. Geister ohne Moos darunter zählen hier nicht.', points: score.numbers, lines: numberLines, slots: numberLines.flatMap((line) => line.slots) },
+    { key: 'symbols', label: 'Spiralen und Kreuze', rule: 'Jede Spirale +1, jedes Kreuz −1 – auf allen offenen Geistern.', points: score.spirals - score.crosses, lines: symbolLines, slots: symbolLines.flatMap((line) => line.slots) },
+    { key: 'bonus', label: 'Farbbonus', rule: 'Ein Geist mit „+1 je Farbe“ zählt jeden offenen Geist dieser Farbe, auch sich selbst und bunte.', points: score.bonus, lines: bonusLines, slots: [...new Set(bonusLines.flatMap((line) => line.slots))] },
+    { key: 'group', label: 'Größte Farbgruppe', rule: `Die größte Gruppe gleichfarbiger, waagerecht oder senkrecht benachbarter Geister. Jeder zählt ${multiplier} (Durchgang ${durchgang}: 2, 3 oder 4 je Durchgang). Bunte zählen zu jeder Farbe.`, points: score.group, lines: groupLines, slots: best.slots }
+  ];
+}
