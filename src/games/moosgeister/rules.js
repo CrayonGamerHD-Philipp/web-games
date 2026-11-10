@@ -226,6 +226,43 @@ export function scoreLayout(layout, durchgang) {
   };
 }
 
+/** Drei Waldgeister je Farbe. */
+/** @type {Record<MoosCardColor, { id: string, name: string }[]>} */
+export const SPIRITS = {
+  blau: [{ id: 'tauling', name: 'Tauling' }, { id: 'schirm', name: 'Schirmtröpfchen' }, { id: 'huepf', name: 'Pfützenhüpfer' }],
+  gruen: [{ id: 'moosling', name: 'Moosling' }, { id: 'farn', name: 'Farnling' }, { id: 'schnecke', name: 'Moosschnecke' }],
+  gelb: [{ id: 'pfifferling', name: 'Pfifferling' }, { id: 'eichel', name: 'Eichelchen' }, { id: 'gluehwurm', name: 'Glühwürmchen' }],
+  rot: [{ id: 'fliegenpilz', name: 'Fliegenpilzchen' }, { id: 'erdbeer', name: 'Erdbeerchen' }, { id: 'kaefer', name: 'Marienkäferchen' }],
+  bunt: [{ id: 'bluete', name: 'Blütenkind' }, { id: 'raupe', name: 'Regenbogenraupe' }, { id: 'falter', name: 'Farbfalter' }]
+};
+
+/**
+ * Welcher Geist auf einer Karte sitzt – fest je Karte, damit sie in jeder Runde gleich aussieht.
+ * Die Karten einer Zahl und Farbe verteilen sich reihum auf die drei Geister.
+ * @param {{ id: string, color: MoosCardColor }} card
+ */
+export function spiritOf(card) {
+  const list = SPIRITS[card.color] ?? SPIRITS.gruen;
+  if (!spiritSlots) {
+    // Reihum innerhalb jeder Farbe (Kartenreihenfolge des Decks): jeder Geist kommt etwa gleich oft vor.
+    spiritSlots = new Map();
+    /** @type {Record<string, number>} */
+    const seen = {};
+    for (const deckCard of createMoosDeck()) {
+      seen[deckCard.color] = (seen[deckCard.color] ?? 0) + 1;
+      spiritSlots.set(deckCard.id, (seen[deckCard.color] - 1) % 3);
+    }
+  }
+  const slot = spiritSlots.get(card.id);
+  if (slot !== undefined) return list[slot];
+  let hash = 0;
+  for (const char of card.id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return list[hash % list.length];
+}
+
+/** @type {Map<string, number> | null} */
+let spiritSlots = null;
+
 /** @param {MoosCard} card */
 export function moosCardName(card) {
   return `${MOOS_COLOR_NAMES[card.color]} ${card.number}`;

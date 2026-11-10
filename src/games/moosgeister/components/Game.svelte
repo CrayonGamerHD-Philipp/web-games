@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import GeistCard from './GeistCard.svelte';
   import ScoreExplainer from './ScoreExplainer.svelte';
-  import { MOOS_COLOR_NAMES, applyPlacement, filledCount, groupMultiplier, largestGroup, moosCardName, placementOptions, scoreLayout } from '../rules.js';
+  import { MOOS_COLOR_NAMES, spiritOf, applyPlacement, filledCount, groupMultiplier, largestGroup, moosCardName, placementOptions, scoreLayout } from '../rules.js';
   import { playerHexById } from '$lib/player-colors.js';
   import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
 
@@ -253,7 +253,7 @@
 
   /** @param {MoosCard} card */
   function cardLabel(card) {
-    const parts = [moosCardName(card)];
+    const parts = [moosCardName(card), spiritOf(card).name];
     if (card.spirals) parts.push(`${card.spirals} ${card.spirals === 1 ? 'Spirale' : 'Spiralen'}`);
     if (card.crosses) parts.push(`${card.crosses} ${card.crosses === 1 ? 'Kreuz' : 'Kreuze'}`);
     if (card.bonus) parts.push(`+1 je ${MOOS_COLOR_NAMES[card.bonus]}`);
