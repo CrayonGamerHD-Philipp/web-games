@@ -33,8 +33,8 @@
   export let targets = [];
   /** @type {Record<string, string>} */
   export let colors = {};
-  /** @type {string | null} */
-  export let activePlayerId = null;
+  /** Der Wächter, der gerade zieht. @type {string | null} */
+  export let activeGuardId = null;
   /** @type {Record<string, string>} */
   export let plans = {};
   /** @type {string | null} */
@@ -47,6 +47,8 @@
   export let onTarget = () => {};
   /** @type {(key: string) => void} */
   export let onInspect = () => {};
+  /** Was sich gerade sichtbar verändert hat (für Töne). @type {(kinds: string[]) => void} */
+  export let onChanges = () => {};
 
   const W = COLS * CELL;
   const H = 11 * CELL;
@@ -194,13 +196,16 @@
     if (!next) return;
     if (prev && animate) {
       const before = prev;
+      /** @type {string[]} */
+      const kinds = [];
       // Wächter
       for (const guard of next.guards) {
-        const old = before.guards.find((candidate) => candidate.playerId === guard.playerId);
+        const old = before.guards.find((candidate) => candidate.id === guard.id);
         if (old && old.at !== guard.at) {
           const [oc, or] = parseKey(old.at);
           const [nc, nr] = parseKey(guard.at);
-          guardMoves[guard.playerId] = { n: (guardMoves[guard.playerId]?.n ?? 0) + 1, dx: (oc - nc) * CELL, dy: (or - nr) * CELL };
+          guardMoves[guard.id] = { n: (guardMoves[guard.id]?.n ?? 0) + 1, dx: (oc - nc) * CELL, dy: (or - nr) * CELL };
+          kinds.push('hop');
         }
       }
       guardMoves = guardMoves;
@@ -211,11 +216,14 @@
         const old = before.ships.find((candidate) => candidate.id === ship.id);
         if (!old) {
           shipMoves[ship.id] = { n: (shipMoves[ship.id]?.n ?? 0) + 1, dx: 0, dy: 0, pop: true };
+          kinds.push('pop');
         } else if (old.step !== ship.step) {
+          kinds.push('sail');
           const [oc, or] = parseKey(shipCell(old));
           const [nc, nr] = parseKey(shipCell(ship));
           shipMoves[ship.id] = { n: (shipMoves[ship.id]?.n ?? 0) + 1, dx: (oc - nc) * CELL, dy: (or - nr) * CELL, pop: false };
         }
+        if (old && ship.drift > old.drift) kinds.push('drift');
       }
       shipMoves = shipMoves;
       const gone = before.ships.filter((ship) => !next.ships.some((candidate) => candidate.id === ship.id))
@@ -224,9 +232,11 @@
         const [c, r] = parseKey(shipCell(ship));
         if (savedDelta > 0 && (ship.step >= 2 || wreckDelta <= 0)) {
           savedDelta -= 1;
+          kinds.push('dock');
           addFx({ kind: 'dock', x: PIER[0] * CELL, y: PIER[1] * CELL, dx: (c - PIER[0]) * CELL, dy: (r - PIER[1]) * CELL });
         } else {
           wreckDelta -= 1;
+          kinds.push('wreck');
           addFx({ kind: 'wreck', x: c * CELL, y: r * CELL });
         }
       }
@@ -236,9 +246,10 @@
         const b = next.tiles[key];
         if (a === b) continue;
         const [c, r] = parseKey(key);
-        if (b === 'wet' && a === 'dry') addFx({ kind: 'flood', x: c * CELL, y: r * CELL });
-        else if (b === 'sunk') addFx({ kind: 'sink', x: c * CELL, y: r * CELL });
-        else if (b === 'dry' && a === 'wet') addFx({ kind: 'sack', x: c * CELL, y: r * CELL });
+        const kind = b === 'wet' && a === 'dry' ? 'flood' : b === 'sunk' ? 'sink' : b === 'dry' && a === 'wet' ? 'sack' : null;
+        if (!kind) continue;
+        addFx({ kind, x: c * CELL, y: r * CELL });
+        kinds.push(kind);
       }
       // Feuer
       for (const lamp of LANE_IDS) {
@@ -246,8 +257,16 @@
         const b = next.lamps[lamp];
         if (a === b) continue;
         lampFx[lamp] = { n: (lampFx[lamp]?.n ?? 0) + 1, kind: b > a ? 'glow' : 'shake' };
+        kinds.push(b > a ? 'glow' : 'shake');
       }
       lampFx = lampFx;
+      if (next.stormStep > before.stormStep) kinds.push('surge');
+      // Eine Welle, die ein Feuer löscht, ist ein Flut-Ereignis, auch wenn das Feld schon nass war.
+      if (kinds.includes('shake') && !kinds.includes('flood')) {
+        const lampTilesHit = LANE_IDS.some((lamp) => next.lamps[lamp] === 0 && before.lamps[lamp] > 1);
+        if (lampTilesHit) kinds.push('flood');
+      }
+      if (kinds.length) onChanges([...new Set(kinds)]);
     }
     prev = JSON.parse(JSON.stringify(next));
   }
@@ -459,9 +478,9 @@
   {/each}
 
   <!-- Wächter -->
-  {#each guardSpots as guard, index (guard.playerId)}
-    {@const move = guardMoves[guard.playerId]}
-    {@const active = guard.playerId === activePlayerId}
+  {#each guardSpots as guard, index (guard.id)}
+    {@const move = guardMoves[guard.id]}
+    {@const active = guard.id === activeGuardId}
     {@const color = colors[guard.playerId] ?? '#ffffff'}
     {#key move?.n}
       <g class={move && animate ? 'lt-fx-hop' : ''} style="--dx:{move?.dx ?? 0}px;--dy:{move?.dy ?? 0}px">

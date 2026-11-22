@@ -8,7 +8,7 @@
  * @typedef {'funzel' | 'lotti' | 'sacki' | 'kiek' | 'piepser'} RoleId
  * @typedef {'walk' | 'sandbag' | 'kindle' | 'pilot'} ActionType
  * @typedef {{ id: number, lane: LaneId, step: number, drift: number }} Ship
- * @typedef {{ playerId: string, role: RoleId, at: string }} Guard
+ * @typedef {{ id: string, playerId: string, role: RoleId, at: string }} Guard
  * @typedef {{ type: 'flood', at: string } | { type: 'flicker', lamp: LaneId } | { type: 'ship' } | { type: 'surge' }} StormCard
  * @typedef {{ at: string, action: ActionType, shipId?: number, lamp?: LaneId }} Target
  * @typedef {{ steps: number, sandbags: number, kindled: number, piloted: number }} GuardStats
@@ -172,13 +172,26 @@ export function cardsForStep(stormStep) {
 /* ---------- Aktionen ---------- */
 
 /**
+ * Der Wächter, den dieser Spieler gerade steuert. Allein spielt man zwei Wächter abwechselnd,
+ * dann entscheidet `currentGuardId`.
+ * @param {BoardView & { currentGuardId?: string | null }} state
+ * @param {string} playerId
+ * @returns {Guard | null}
+ */
+export function activeGuard(state, playerId) {
+  const current = state.currentGuardId ? state.guards.find((guard) => guard.id === state.currentGuardId) : null;
+  if (current) return current.playerId === playerId ? current : null;
+  return state.guards.find((guard) => guard.playerId === playerId) ?? null;
+}
+
+/**
  * Alle Aktionen, die der Wächter dieses Spielers gerade ausführen darf.
- * @param {BoardView & { actionsLeft: number, freeSandbagUsed: boolean }} state
+ * @param {BoardView & { actionsLeft: number, freeSandbagUsed: boolean, currentGuardId?: string | null }} state
  * @param {string} playerId
  * @returns {Target[]}
  */
 export function targetsFor(state, playerId) {
-  const guard = state.guards.find((candidate) => candidate.playerId === playerId);
+  const guard = activeGuard(state, playerId);
   if (!guard) return [];
   const hasAction = state.actionsLeft > 0;
   const freeSandbag = guard.role === 'sacki' && !state.freeSandbagUsed;
@@ -266,13 +279,13 @@ export function driftShip(state, ship) {
 
 /**
  * Führt eine Aktion aus. Ändert den Zustand direkt.
- * @param {BoardView & { actionsLeft: number, freeSandbagUsed: boolean }} state
+ * @param {BoardView & { actionsLeft: number, freeSandbagUsed: boolean, currentGuardId?: string | null }} state
  * @param {string} playerId
  * @param {{ action?: unknown, at?: unknown, shipId?: unknown }} move
  * @returns {{ error: string } | { text: string }}
  */
 export function applyAction(state, playerId, move) {
-  const guard = state.guards.find((candidate) => candidate.playerId === playerId);
+  const guard = activeGuard(state, playerId);
   if (!guard) return { error: 'Du hast keinen Wächter.' };
   const target = targetsFor(state, playerId).find((candidate) =>
     candidate.action === move.action &&

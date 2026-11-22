@@ -10,8 +10,8 @@
 
   /** @type {number} */
   export let target = 6;
-  /** @type {import('../types').LtRoleId | null} */
-  export let role = null;
+  /** Die eigenen Wächter (allein sind es zwei). @type {import('../types').LtRoleId[]} */
+  export let roles = [];
   /** @type {() => void} */
   export let onClose = () => {};
 
@@ -25,8 +25,13 @@
 
 <section class="ui-panel lt-guide" aria-labelledby="lt-guide-title">
   <div class="lt-guide-head">
-    <h3 id="lt-guide-title" class="lt-guide-title">So gewinnt ihr zusammen</h3>
-    <p class="lt-guide-lead">Ihr spielt alle gemeinsam gegen den Sturm. Entweder gewinnt ihr alle oder niemand.</p>
+    {#if roles.length > 1}
+      <h3 id="lt-guide-title" class="lt-guide-title">So gewinnst du gegen den Sturm</h3>
+      <p class="lt-guide-lead">Du spielst allein und steuerst zwei Wächter abwechselnd. Mit mehreren spielt ihr alle zusammen gegen den Sturm.</p>
+    {:else}
+      <h3 id="lt-guide-title" class="lt-guide-title">So gewinnt ihr zusammen</h3>
+      <p class="lt-guide-lead">Ihr spielt alle gemeinsam gegen den Sturm. Entweder gewinnt ihr alle oder niemand.</p>
+    {/if}
   </div>
 
   <ol class="lt-goals">
@@ -88,17 +93,21 @@
   <div class="lt-turn">
     <div class="lt-turn-text">
       <h4>Dein Zug</h4>
-      <p>Du hast {ACTIONS_PER_TURN} Aktionen. Alles, was du gerade tun kannst, leuchtet als Symbol auf dem Brett. Tipp es an. Mit „Zurück“ nimmst du eine Aktion zurück. Nach „Zug beenden“ zieht der Sturm über die Insel.</p>
+      <p>Du hast {ACTIONS_PER_TURN} Aktionen. Alles, was du gerade tun kannst, leuchtet als Symbol auf dem Brett. Tipp es an. Mit „Zurück“ nimmst du eine Aktion zurück. Nach deiner letzten Aktion zieht der Sturm von selbst über die Insel. Mit „Zug beenden“ kannst du auch früher aufhören.</p>
       <ul class="lt-actions">
         {#each ACTIONS as [type, label] (type)}
           <li><svg viewBox="-12 -12 24 24" aria-hidden="true"><circle r="11" fill="#ffffff" stroke="#1b6e66" stroke-width="2"></circle><ActionIcon {type} /></svg>{label}</li>
         {/each}
       </ul>
     </div>
-    {#if role}
-      <div class="lt-you">
-        <svg viewBox="40 30 120 170" aria-hidden="true"><Guard {role} /></svg>
-        <p><strong>Du bist {ROLES[role].name}</strong>, {ROLES[role].title}. {ROLES[role].ability}</p>
+    {#if roles.length}
+      <div class="lt-you-list">
+        {#each roles as role, index (index)}
+          <div class="lt-you">
+            <svg viewBox="40 30 120 170" aria-hidden="true"><Guard {role} /></svg>
+            <p><strong>{roles.length > 1 ? ROLES[role].name : `Du bist ${ROLES[role].name}`}</strong>, {ROLES[role].title}. {ROLES[role].ability}</p>
+          </div>
+        {/each}
       </div>
     {/if}
   </div>
@@ -130,6 +139,7 @@
   .lt-actions { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; }
   .lt-actions li { display: inline-flex; align-items: center; gap: 6px; }
   .lt-actions svg { width: 24px; height: 24px; }
+  .lt-you-list { display: grid; gap: 8px; }
   .lt-you { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--radius-inner); background: var(--raised); }
   .lt-you svg { width: 56px; height: 64px; }
   .lt-you strong { color: var(--text); }

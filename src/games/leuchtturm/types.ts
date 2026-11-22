@@ -11,6 +11,7 @@ export interface LtShip {
 }
 
 export interface LtGuard {
+  id: string;
   playerId: string;
   role: LtRoleId;
   at: string;
@@ -43,6 +44,8 @@ export interface LtStormFrame {
 export interface LtStormRecord {
   seq: number;
   playerId: string;
+  /** Der Zug endete von selbst, weil keine Aktion mehr möglich war. */
+  auto: boolean;
   before: LtBoardView;
   frames: LtStormFrame[];
   summary: string;
@@ -66,7 +69,11 @@ export interface LtState extends LtBoardView {
   difficulty: string;
   target: number;
   currentPlayerId: string | null;
+  /** Der Wächter, der gerade zieht (allein spielt man zwei abwechselnd). */
+  currentGuardId: string | null;
   turnOrder: string[];
+  guardOrder: string[];
+  solo: boolean;
   turn: number;
   actionsLeft: number;
   freeSandbagUsed: boolean;

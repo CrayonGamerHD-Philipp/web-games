@@ -7,7 +7,7 @@
  * @typedef {import('./rules.js').GuardStats} GuardStats
  * @typedef {{ id: string, name: string, stats: GuardStats }} LtPlayer
  * @typedef {{ kind: 'flood' | 'flicker' | 'ship' | 'surge' | 'ships', title: string, text: string, view: BoardView }} StormFrame
- * @typedef {{ seq: number, playerId: string, before: BoardView, frames: StormFrame[], summary: string }} StormRecord
+ * @typedef {{ seq: number, playerId: string, auto: boolean, before: BoardView, frames: StormFrame[], summary: string }} StormRecord
  * @typedef {{ seq: number, type: string, playerId: string | null, text: string }} LtEvent
  * @typedef {{ tiles: BoardView['tiles'], lamps: BoardView['lamps'], ships: BoardView['ships'], guards: BoardView['guards'], saved: number, actionsLeft: number, freeSandbagUsed: boolean, stats: Record<string, GuardStats> }} UndoSnapshot
  * @typedef {BoardView & {
@@ -15,7 +15,10 @@
  *   difficulty: string,
  *   target: number,
  *   currentPlayerId: string | null,
+ *   currentGuardId: string | null,
  *   turnOrder: string[],
+ *   guardOrder: string[],
+ *   solo: boolean,
  *   turn: number,
  *   actionsLeft: number,
  *   freeSandbagUsed: boolean,
@@ -55,15 +58,16 @@ import {
   isAlive,
   resolveStorm,
   shuffle,
+  targetsFor,
   viewOf
 } from './rules.js';
 
 export const leuchtturmGame = {
   id: 'leuchtturm',
   name: 'Leuchtturmwächter',
-  description: 'Alle gegen den Sturm: Haltet die Leuchtfeuer am Brennen, stopft die Deiche und lotst gemeinsam genug Schiffe in den Hafen.',
+  description: 'Alle gegen den Sturm: Haltet die Leuchtfeuer am Brennen, stopft die Deiche und lotst gemeinsam genug Schiffe in den Hafen. Allein spielt man zwei Wächter.',
   previewImage: '/images/leuchtturm-scene.svg',
-  minPlayers: 2,
+  minPlayers: 1,
   maxPlayers: 5
 };
 
@@ -100,6 +104,7 @@ function finish(session) {
   const { state } = session;
   state.phase = 'finished';
   state.currentPlayerId = null;
+  state.currentGuardId = null;
   state.winnerIds = state.result === 'won' ? session.players.map((player) => player.id) : [];
   session.status = 'finished';
   setEvent(session, { type: state.result === 'won' ? 'win' : 'lose', playerId: null, text: state.reason });
@@ -113,15 +118,20 @@ function finish(session) {
 export function createLeuchtturmSession(players, options = {}) {
   const selected = (Array.isArray(players) ? players : []).slice(0, leuchtturmGame.maxPlayers);
   if (selected.length < leuchtturmGame.minPlayers) {
-    return { error: 'Leuchtturmwächter braucht mindestens zwei Spieler.' };
+    return { error: 'Leuchtturmwächter braucht mindestens einen Spieler.' };
   }
   const difficulty = typeof options.difficulty === 'string' && options.difficulty in DIFFICULTIES ? options.difficulty : 'normal';
   const setup = DIFFICULTIES[difficulty];
-  const roles = shuffle(ROLE_ORDER).slice(0, selected.length);
   const order = selected.map((player) => player.id);
   const previous = typeof options.previousStarterId === 'string' ? order.indexOf(options.previousStarterId) : -1;
   const start = previous >= 0 ? (previous + 1) % order.length : Math.floor(Math.random() * order.length);
   const turnOrder = [...order.slice(start), ...order.slice(0, start)];
+  // Allein steuert man zwei Wächter abwechselnd, sonst hat jeder einen.
+  const solo = selected.length === 1;
+  const owners = solo ? [order[0], order[0]] : turnOrder;
+  const roles = shuffle(ROLE_ORDER).slice(0, owners.length);
+  /** @type {import('./rules.js').Guard[]} */
+  const guards = owners.map((playerId, index) => ({ id: `g${index + 1}`, playerId, role: roles[index], at: START_TILES[index] }));
 
   /** @type {Record<string, import('./rules.js').TileState>} */
   const tiles = Object.fromEntries(ISLAND_KEYS.map((key) => [key, /** @type {const} */ ('dry')]));
@@ -154,12 +164,15 @@ export function createLeuchtturmSession(players, options = {}) {
       tiles,
       lamps: { ...setup.lamps },
       ships: LANE_IDS.map((lane, index) => ({ id: index + 1, lane, step: 0, drift: 0 })),
-      guards: order.map((playerId, index) => ({ playerId, role: roles[index], at: START_TILES[index] })),
+      guards,
       saved: 0,
       wrecked: 0,
       stormStep: setup.stormStep,
-      currentPlayerId: turnOrder[0],
+      currentPlayerId: guards[0].playerId,
+      currentGuardId: guards[0].id,
       turnOrder,
+      guardOrder: guards.map((guard) => guard.id),
+      solo,
       turn: 1,
       actionsLeft: ACTIONS_PER_TURN,
       freeSandbagUsed: false,
@@ -179,7 +192,13 @@ export function createLeuchtturmSession(players, options = {}) {
       lastEvent: null
     }
   };
-  setEvent(session, { type: 'start', playerId: turnOrder[0], text: `${nameOf(session, turnOrder[0])} beginnt.` });
+  setEvent(session, {
+    type: 'start',
+    playerId: guards[0].playerId,
+    text: solo
+      ? `Du spielst allein mit ${ROLES[guards[0].role].name} und ${ROLES[guards[1].role].name}. ${ROLES[guards[0].role].name} beginnt.`
+      : `${nameOf(session, turnOrder[0])} beginnt.`
+  });
   return session;
 }
 
@@ -218,7 +237,12 @@ export function makeLeuchtturmMove(session, playerId, move) {
     if (type === 'pilot') stats.piloted += 1;
     state.moveCount += 1;
     setEvent(session, { type, playerId, text: result.text });
-    if (checkEnd(state)) finish(session);
+    if (checkEnd(state)) {
+      finish(session);
+      return { session };
+    }
+    // Nichts mehr zu tun (alle Aktionen verbraucht): Der Zug endet von selbst.
+    if (targetsFor(state, playerId).length === 0) endTurn(session, playerId, true);
     return { session };
   }
 
@@ -239,38 +263,53 @@ export function makeLeuchtturmMove(session, playerId, move) {
   }
 
   if (type === 'end') {
-    state.undo = [];
-    const before = viewOf(state);
-    const frames = resolveStorm(state);
-    state.storm = {
-      seq: (state.storm?.seq ?? 0) + 1,
-      playerId,
-      before,
-      frames,
-      summary: frames.map((frame) => frame.text).join(' ')
-    };
-    state.moveCount += 1;
-    if (state.result) {
-      finish(session);
-      return { session };
-    }
-    const index = state.turnOrder.indexOf(playerId);
-    const next = state.turnOrder[(index + 1) % state.turnOrder.length];
-    state.currentPlayerId = next;
-    state.actionsLeft = ACTIONS_PER_TURN;
-    state.freeSandbagUsed = false;
-    state.turn += 1;
-    delete state.plans[next];
-    const guard = state.guards.find((candidate) => candidate.playerId === next);
-    setEvent(session, {
-      type: 'turn',
-      playerId: next,
-      text: `Der Sturm ist vorbei. Jetzt ist ${nameOf(session, next)} mit ${guard ? ROLES[guard.role].name : 'dem Wächter'} dran.`
-    });
+    endTurn(session, playerId);
     return { session };
   }
 
   return { error: 'Unbekannter Zug.' };
+}
+
+/**
+ * Beendet den Zug: Sturm auflösen, dann ist der nächste Wächter dran.
+ * @param {LtSession} session
+ * @param {string} playerId
+ * @param {boolean} [auto] true, wenn der Zug von selbst endet (keine Aktion mehr möglich)
+ */
+function endTurn(session, playerId, auto = false) {
+  const { state } = session;
+  state.undo = [];
+  const before = viewOf(state);
+  const frames = resolveStorm(state);
+  state.storm = {
+    seq: (state.storm?.seq ?? 0) + 1,
+    playerId,
+    auto,
+    before,
+    frames,
+    summary: frames.map((frame) => frame.text).join(' ')
+  };
+  state.moveCount += 1;
+  if (state.result) {
+    finish(session);
+    return;
+  }
+  const index = state.guardOrder.indexOf(state.currentGuardId ?? '');
+  const guard = state.guards.find((candidate) => candidate.id === state.guardOrder[(index + 1) % state.guardOrder.length]) ?? state.guards[0];
+  const next = guard.playerId;
+  state.currentGuardId = guard.id;
+  state.currentPlayerId = next;
+  state.actionsLeft = ACTIONS_PER_TURN;
+  state.freeSandbagUsed = false;
+  state.turn += 1;
+  delete state.plans[next];
+  setEvent(session, {
+    type: 'turn',
+    playerId: next,
+    text: state.solo
+      ? `Der Sturm ist vorbei. Jetzt spielst du ${ROLES[guard.role].name}.`
+      : `Der Sturm ist vorbei. Jetzt ist ${nameOf(session, next)} mit ${ROLES[guard.role].name} dran.`
+  });
 }
 
 /**

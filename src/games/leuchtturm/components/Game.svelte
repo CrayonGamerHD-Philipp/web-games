@@ -6,6 +6,7 @@
   import GoalGuide from './GoalGuide.svelte';
   import PlayerAvatar from '$lib/components/PlayerAvatar.svelte';
   import { playerHexById } from '$lib/player-colors.js';
+  import { playEffect, unlockAudio } from '../sound.js';
   import {
     ACTIONS_PER_TURN,
     DIFFICULTIES,
@@ -65,9 +66,11 @@
   $: isRunning = game?.status === 'running';
   $: isFinished = game?.status === 'finished';
   $: me = game?.players.find((player) => player.id === currentPlayerId) ?? null;
-  $: myGuard = state?.guards.find((guard) => guard.playerId === currentPlayerId) ?? null;
   $: turnPlayer = game?.players.find((player) => player.id === state?.currentPlayerId) ?? null;
-  $: turnGuard = state?.guards.find((guard) => guard.playerId === state?.currentPlayerId) ?? null;
+  $: turnGuard = state?.guards.find((guard) => guard.id === state?.currentGuardId) ?? null;
+  $: myGuards = state?.guards.filter((guard) => guard.playerId === currentPlayerId) ?? [];
+  $: myGuard = turnGuard && turnGuard.playerId === currentPlayerId ? turnGuard : myGuards[0] ?? null;
+  $: solo = Boolean(state?.solo);
   $: isMyTurn = Boolean(isRunning && me && state?.currentPlayerId === currentPlayerId);
   $: canAct = isMyTurn && !playing && !isLoading;
   /** @type {LtBoardView | null} */
@@ -156,7 +159,8 @@
     playView = storm.before;
     banner = null;
     selected = null;
-    await wait(300);
+    // Kurz warten, damit man die letzte Aktion noch sieht, bevor der Sturm kommt.
+    await wait(storm.auto ? 900 : 300);
     const cardTotal = storm.frames.filter((frame) => frame.kind !== 'ships').length;
     for (const [index, frame] of storm.frames.entries()) {
       if (token !== playToken) return;
@@ -217,6 +221,17 @@
     if (event.type === 'turn' && event.playerId === currentPlayerId) setTimeout(() => playSound('turn'), 2600);
     if (event.type === 'win') setTimeout(() => playSound('win'), 1800);
     if (event.type === 'lose') setTimeout(() => playSound('lose'), 1800);
+  }
+
+  /**
+   * Töne passend zu dem, was das Brett gerade animiert. Mehrere Ereignisse leicht versetzt,
+   * die wichtigsten zuerst.
+   * @param {string[]} kinds
+   */
+  function handleChanges(kinds) {
+    const order = ['wreck', 'dock', 'surge', 'sink', 'flood', 'shake', 'glow', 'sack', 'drift', 'pop', 'sail', 'hop'];
+    const sorted = order.filter((kind) => kinds.includes(kind)).slice(0, 3);
+    sorted.forEach((kind, index) => playEffect(kind, index * 160));
   }
 
   /** @param {keyof typeof soundSources} name */
@@ -391,9 +406,11 @@
     if (isPlaying) return 'Schau aufs Brett: Jede Sturmkarte wirkt nacheinander.';
     if (session.status === 'finished') return session.state.reason;
     if (myTurn) {
+      const who = solo && turnGuard ? `Du spielst gerade ${ROLES[turnGuard.role].name}. ` : '';
       const extra = free ? ' Dein erster Sandsack ist gratis.' : '';
+      if (who) return `${who}${left <= 0 ? 'Danach zieht der Sturm über die Insel.' : `Noch ${left} ${left === 1 ? 'Aktion' : 'Aktionen'}, nach der letzten kommt der Sturm von selbst.`}${extra}`;
       if (left <= 0) return `Danach zieht der Sturm über die Insel.${extra}`;
-      return `Noch ${left} ${left === 1 ? 'Aktion' : 'Aktionen'}. Tipp ein leuchtendes Symbol auf dem Brett an.${extra}`;
+      return `Noch ${left} ${left === 1 ? 'Aktion' : 'Aktionen'}. Tipp ein leuchtendes Symbol an. Nach der letzten kommt der Sturm von selbst.${extra}`;
     }
     return me ? 'Tipp aufs Brett, um zu sehen, was dort los ist, oder setz einen Plan-Marker.' : 'Tipp aufs Brett, um zu sehen, was dort los ist.';
   }
@@ -406,6 +423,8 @@
   $: lighthouseWet = shownView?.tiles[LIGHTHOUSE] === 'wet';
 
 </script>
+
+<svelte:window on:pointerdown|once={unlockAudio} on:keydown|once={unlockAudio} />
 
 {#if !game || !state || !shownView}
   <div class="ui-alert" role="status">Leuchtturmwächter wird über eine Party gestartet, damit alle Mitspieler verbunden sind.</div>
@@ -462,7 +481,7 @@
     </section>
 
     {#if guideOpen}
-      <GoalGuide target={state.target} role={myGuard?.role ?? null} onClose={closeGuide} />
+      <GoalGuide target={state.target} roles={myGuards.map((guard) => guard.role)} onClose={closeGuide} />
     {/if}
 
     <div class="lt-main">
@@ -473,12 +492,13 @@
               view={shownView}
               {targets}
               {colors}
-              activePlayerId={isRunning && !playing ? state.currentPlayerId : null}
+              activeGuardId={isRunning && !playing ? state.currentGuardId : null}
               {plans}
               {selected}
               {mood}
               onTarget={act}
               onInspect={inspect}
+              onChanges={handleChanges}
             />
           {/key}
           {#if banner}
@@ -532,11 +552,12 @@
         <section class="ui-panel lt-crew" aria-labelledby="lt-crew-title">
           <h3 id="lt-crew-title" class="ui-section-title">Wächter</h3>
           <ul class="lt-crew-list">
-            {#each state.turnOrder as playerId (playerId)}
-              {@const guard = state.guards.find((candidate) => candidate.playerId === playerId)}
-              {@const player = game.players.find((candidate) => candidate.id === playerId)}
+            {#each state.guardOrder as guardId (guardId)}
+              {@const guard = state.guards.find((candidate) => candidate.id === guardId)}
+              {@const player = game.players.find((candidate) => candidate.id === guard?.playerId)}
               {#if guard && player}
-                {@const active = isRunning && state.currentPlayerId === playerId}
+                {@const playerId = guard.playerId}
+                {@const active = isRunning && state.currentGuardId === guardId}
                 <li class="lt-crew-item" class:is-active={active}>
                   <span class="lt-crew-guard" style="--player:{colors[playerId]}">
                     <svg viewBox="40 30 120 170" aria-hidden="true"><Guard role={guard.role} /></svg>
