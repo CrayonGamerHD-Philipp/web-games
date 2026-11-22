@@ -245,7 +245,21 @@ function awardScoreIfNeeded(party) {
 
   ensureGameMeta(party.activeGame);
 
-  if (party.activeGame.scoreAwarded || party.activeGame.status !== 'finished' || !party.activeGame.state.winnerId) {
+  if (party.activeGame.scoreAwarded || party.activeGame.status !== 'finished') {
+    return;
+  }
+
+  // Koop-Spiele: Bei einem gemeinsamen Sieg bekommen alle Mitspieler einen Punkt.
+  if (party.activeGame.state.coop) {
+    const winnerIds = Array.isArray(party.activeGame.state.winnerIds) ? /** @type {string[]} */ (party.activeGame.state.winnerIds) : [];
+    for (const player of party.players) {
+      if (winnerIds.includes(player.id)) player.score += 1;
+    }
+    party.activeGame.scoreAwarded = true;
+    return;
+  }
+
+  if (!party.activeGame.state.winnerId) {
     return;
   }
 
@@ -713,7 +727,7 @@ function recordResultIfNeeded(party) {
     gameId: game.gameId,
     gameName: getGame(game.gameId)?.name ?? game.name,
     winnerIds,
-    isDraw: Boolean(game.state.isDraw) || winnerIds.length === 0,
+    isDraw: game.state.coop ? false : Boolean(game.state.isDraw) || winnerIds.length === 0,
     playerIds: game.players.map((player) => player.id),
     finishedAt: new Date().toISOString()
   });

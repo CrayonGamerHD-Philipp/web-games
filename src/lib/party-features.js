@@ -122,6 +122,20 @@ export const GAME_SETTINGS = {
       default: 30
     }
   ],
+  leuchtturm: [
+    {
+      key: 'difficulty',
+      label: 'Schwierigkeit',
+      description: 'Wie viele Schiffe ihr retten müsst und wie stark der Sturm am Anfang ist.',
+      type: 'choice',
+      options: [
+        { value: 'leicht', label: 'Leichte Brise – 5 Schiffe' },
+        { value: 'normal', label: 'Sturm – 6 Schiffe' },
+        { value: 'schwer', label: 'Orkan – 7 Schiffe' }
+      ],
+      default: 'normal'
+    }
+  ],
   moosgeister: [
     {
       key: 'durchgaenge',

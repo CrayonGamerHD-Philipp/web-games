@@ -31,6 +31,12 @@ export const GAME_STATS = {
     { key: 'discards', label: 'Karten abgelegt' },
     { key: 'stockLeft', label: 'Rest im Vorrat', best: 'min' }
   ],
+  leuchtturm: [
+    { key: 'piloted', label: 'Schiffe gelotst', best: 'max' },
+    { key: 'kindled', label: 'Feuer angefacht', best: 'max' },
+    { key: 'sandbags', label: 'Sandsäcke', best: 'max' },
+    { key: 'steps', label: 'Schritte' }
+  ],
   moosgeister: [
     { key: 'totalPoints', label: 'Punkte', best: 'max' },
     { key: 'bestDurchgang', label: 'Bester Durchgang', best: 'max' },

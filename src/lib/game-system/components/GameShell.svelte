@@ -71,9 +71,23 @@
   $: isRunning = activeGame?.status === 'running';
   $: isFinished = activeGame?.status === 'finished';
   // Spiele mit eigenem, vollbreitem Tisch – ohne Seitenleiste.
-  $: isFullWidth = ['skyjo', 'noch-mal', 'tic-tac-toe', 'schiffe-versenken', 'kunterbunt', 'sudoku-duell', 'vier-in-einer-reihe', 'wuerfelblock', 'ab-nach-hause', 'moosgeister', 'auf-und-ab'].includes(activeGame?.gameId ?? '');
+  $: isFullWidth = ['skyjo', 'noch-mal', 'tic-tac-toe', 'schiffe-versenken', 'kunterbunt', 'sudoku-duell', 'vier-in-einer-reihe', 'wuerfelblock', 'ab-nach-hause', 'moosgeister', 'auf-und-ab', 'leuchtturm'].includes(activeGame?.gameId ?? '');
   // Bei beendeten Spielen (außer Skyjo, dort Modal) trägt der Ergebnis-Screen die h1.
-  $: showsInlineResult = Boolean(isFinished && !isSkyjo && !showBoard);
+  $: showsInlineResult = Boolean(isFinished && !isSkyjo && !showBoard && !resultHeld);
+  $: isCoop = Boolean(/** @type {any} */ (activeGame?.state)?.coop);
+  $: coopWon = isCoop && /** @type {any} */ (activeGame?.state)?.result === 'won';
+
+  /* ---------- Ergebnis kurz zurückhalten (letzte Animation eines Spiels) ---------- */
+  let resultHeld = false;
+  let heldFor = '';
+  $: if ((activeGame?.id ?? '') !== heldFor) {
+    heldFor = activeGame?.id ?? '';
+    resultHeld = false;
+  }
+  /** @param {boolean} hold */
+  function holdResult(hold) {
+    resultHeld = hold;
+  }
   $: identityPlayers = activeGame
     ? activeGame.players.map((gamePlayer) => ({
         ...gamePlayer,
@@ -283,6 +297,16 @@
    * @returns {GameResult}
    */
   function createResult(game, playerId, winnerName) {
+    const coopState = /** @type {any} */ (game?.state);
+    if (coopState?.coop) {
+      const won = coopState.result === 'won';
+      return {
+        status: /** @type {'won' | 'lost'} */ (won ? 'won' : 'lost'),
+        title: game?.name ?? 'Spiel beendet',
+        message: `${coopState.reason ?? ''} ${won ? 'Alle bekommen einen Siegpunkt.' : 'Diesmal gibt es keinen Siegpunkt.'}`.trim(),
+        metadata: { coop: true, coopResult: won ? 'won' : 'lost' }
+      };
+    }
     const status = /** @type {'won' | 'lost' | 'draw' | 'cancelled'} */ (
       game?.state.isDraw ? 'draw' : game?.state.winnerId === playerId ? 'won' : game?.state.winnerId ? 'lost' : 'cancelled'
     );
@@ -369,7 +393,13 @@
           {/if}
         </p>
         <p class="shell-status" aria-live="polite">
-          {#if activeGame.state.winnerId}
+          {#if isCoop && isFinished}
+            {coopWon ? 'Ihr habt gemeinsam gewonnen.' : 'Der Sturm war stärker.'}
+          {:else if isCoop && isMyTurn}
+            <span class="shell-status-me">Du bist dran.</span>
+          {:else if isCoop && currentTurnPlayer}
+            {currentTurnPlayer.name} ist dran. Alle spielen zusammen.
+          {:else if activeGame.state.winnerId}
             {activeGame.state.winnerId === currentPlayerId ? 'Du hast gewonnen.' : `${winnerPlayer?.name ?? 'Jemand'} hat gewonnen.`}
           {:else if activeGame.state.isDraw}
             Unentschieden.
@@ -488,7 +518,7 @@
           onShowBoard={openBoard}
         />
       {:else}
-        <svelte:component this={GameComponent} game={activeGame} {currentPlayerId} isLoading={isActionLoading} onMove={onMove} {renderNonce} players={partyPlayers} />
+        <svelte:component this={GameComponent} game={activeGame} {currentPlayerId} isLoading={isActionLoading} onMove={onMove} {renderNonce} players={partyPlayers} onHoldResult={holdResult} />
       {/if}
     </div>
 

@@ -81,6 +81,16 @@ const deriveStats = {
     };
   },
   /** @param {any} session @param {RoundTracking} t @param {any} player */
+  leuchtturm(session, t, player) {
+    const stats = player.stats ?? {};
+    return {
+      piloted: stats.piloted ?? 0,
+      kindled: stats.kindled ?? 0,
+      sandbags: stats.sandbags ?? 0,
+      steps: stats.steps ?? 0
+    };
+  },
+  /** @param {any} session @param {RoundTracking} t @param {any} player */
   moosgeister(session, t, player) {
     /** @type {{ scores?: { playerId: string, breakdown: import('../../games/moosgeister/rules.js').MoosScore }[] }[]} */
     const results = session.state?.results ?? [];
@@ -200,7 +210,7 @@ export function buildRoundRecord(game, tracking, gameName, winnerIds) {
     finishedAt: finishedAt.toISOString(),
     durationMs: Math.max(0, finishedAt.getTime() - new Date(startedAt).getTime()),
     winnerIds,
-    isDraw: Boolean(game.state?.isDraw) || winnerIds.length === 0,
+    isDraw: game.state?.coop ? false : Boolean(game.state?.isDraw) || winnerIds.length === 0,
     players: game.players.map((/** @type {any} */ player) => ({
       id: player.id,
       name: player.name,

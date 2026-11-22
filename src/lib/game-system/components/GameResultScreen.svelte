@@ -74,6 +74,7 @@
     return /** @type {SkyjoBoard[]} */ (value).filter((board) => Array.isArray(board.cards));
   }
 
+  $: isCoop = Boolean(result.metadata?.coop);
   $: winner = players.find((player) => player.id === result.winnerId);
   $: currentPlayerWon = result.winnerId === currentPlayerId;
   $: currentPlayerLost = Boolean(result.winnerId && result.winnerId !== currentPlayerId);
@@ -106,11 +107,13 @@
         .sort((a, b) => a.total - b.total || a.lastRound - b.lastRound || (a.player?.name ?? '').localeCompare(b.player?.name ?? ''))
     : [];
   $: headline = createHeadline(result, winner, isDraw, isSkyjoRoundBreak, skyjoMatch);
-  $: lead = winner && !skyjoMatch?.enabled && winner.id === currentPlayerId
+  $: lead = isCoop
+    ? result.message ?? ''
+    : winner && !skyjoMatch?.enabled && winner.id === currentPlayerId
     ? 'Du bekommst einen Siegpunkt.'
     : result.message ?? (isDraw ? 'Niemand bekommt einen Siegpunkt.' : 'Das Spiel wurde beendet.');
   $: heroPlayer = isSkyjoRoundBreak || isDraw ? null : winner ?? null;
-  $: primaryLabel = isSkyjoRoundBreak ? 'Nächste Runde starten' : 'Revanche starten';
+  $: primaryLabel = isSkyjoRoundBreak ? 'Nächste Runde starten' : isCoop ? 'Nochmal spielen' : 'Revanche starten';
   $: requestSummary = [
     requests.rematch.length ? `${requests.rematch.length} ${requests.rematch.length === 1 ? 'möchte' : 'möchten'} eine Revanche` : '',
     requests.newGame.length ? `${requests.newGame.length} ${requests.newGame.length === 1 ? 'möchte' : 'möchten'} ein neues Spiel` : ''
@@ -125,6 +128,7 @@
    */
   function createHeadline(res, winningPlayer, draw, roundBreak, match) {
     if (roundBreak) return `Runde ${match?.round ?? 1} beendet`;
+    if (res.metadata?.coop) return res.metadata.coopResult === 'won' ? 'Gemeinsam geschafft' : 'Der Sturm war stärker';
     if (draw) return 'Unentschieden';
     if (winningPlayer) return winningPlayer.id === currentPlayerId ? 'Du gewinnst' : `${winningPlayer.name} gewinnt`;
     if (res.winnerName) return res.winnerName.includes(',') ? `${res.winnerName} gewinnen` : `${res.winnerName} gewinnt`;
@@ -225,13 +229,13 @@
       </button>
       <button type="button" on:click={onBackToGames} disabled={isLoading} class="ui-btn ui-btn--lg">Zur Spielauswahl</button>
     {:else}
-      {#if currentPlayerLost || isDraw}
+      {#if currentPlayerLost || isDraw || isCoop}
         <button type="button" on:click={onRequestRematch} disabled={isLoading || alreadyRequestedRematch} class="ui-btn ui-btn--lg">
           {#if isLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{/if}
-          {alreadyRequestedRematch ? 'Revanche angefragt' : 'Revanche fordern'}
+          {alreadyRequestedRematch ? (isCoop ? 'Nochmal angefragt' : 'Revanche angefragt') : isCoop ? 'Nochmal spielen' : 'Revanche fordern'}
         </button>
       {/if}
-      {#if currentPlayerWon || isDraw}
+      {#if currentPlayerWon || isDraw || isCoop}
         <button type="button" on:click={onRequestNewGame} disabled={isLoading || alreadyRequestedNewGame} class="ui-btn ui-btn--lg">
           {#if isLoading}<LoaderCircle class="animate-spin" size={18} aria-hidden="true" />{/if}
           {alreadyRequestedNewGame ? 'Neues Spiel angefragt' : 'Neues Spiel vorschlagen'}

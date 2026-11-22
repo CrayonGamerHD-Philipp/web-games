@@ -1,5 +1,6 @@
 import { sudokuDuellGame } from './sudoku-duell';
 import { moosgeisterGame } from './moosgeister';
+import { leuchtturmGame } from './leuchtturm';
 import { aufUndAbGame } from './auf-und-ab';
 import { abNachHauseGame } from './ab-nach-hause';
 import { vierInEinerReiheGame } from './vier-in-einer-reihe';
@@ -11,7 +12,7 @@ import { schiffeVersenkenGame } from './schiffe-versenken';
 import { skyjoGame } from './skyjo';
 import { ticTacToeGame } from './tic-tac-toe';
 
-export const games: GameDefinition[] = [ticTacToeGame, skyjoGame, nochMalGame, kunterbuntGame, schiffeVersenkenGame, vierInEinerReiheGame, wuerfelblockGame, abNachHauseGame, sudokuDuellGame, moosgeisterGame, aufUndAbGame];
+export const games: GameDefinition[] = [ticTacToeGame, skyjoGame, nochMalGame, kunterbuntGame, schiffeVersenkenGame, vierInEinerReiheGame, wuerfelblockGame, abNachHauseGame, sudokuDuellGame, moosgeisterGame, aufUndAbGame, leuchtturmGame];
 
 export function getGameDefinition(gameId: string | null | undefined): GameDefinition | null {
   return games.find((game) => game.id === gameId) ?? null;
